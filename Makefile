@@ -1,5 +1,5 @@
 CCFLAGS=-Wall -Wpedantic -O2 -Iinc
-LDFLAGS=-lglfw
+LDFLAGS=-lglfw -ldl
 OUTNAME=outmeout
 SRCDIR=src
 OBJDIR=obj
