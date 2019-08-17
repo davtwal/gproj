@@ -2,13 +2,22 @@
 #include <GL/gl3w.h>
 #include "GLFW/glfw3.h"
 
+#include "RenderEngine.h"
+
 int main() {
-	std::cout << "Hello world!" << std::endl;
+	using std::cout;
+	using std::endl;
 	
-	if(!glfwInit()) {
-		std::cout << "Error: Could not init GLFW3" << std::endl;
-		std::exit(1);
+	cout << "Starting up program..." << endl;
+	
+	IRenderEngine* renderer = IRenderEngine::Create(RENDER_ENGINE_GL);
+
+	if(!renderer) {
+		std::cout << "Could not create render engine." << endl;
+		return -1;
 	}
+
+    renderer->init();
 
 	auto window = glfwCreateWindow(640, 480, "Hello Window!", NULL, NULL);
 	if(!window) {

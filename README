@@ -1,1 +1,66 @@
 some linux project that uses glfw
+
+Goals:
+    - Multi-platform with linux and windows available
+        + SIDE GOAL: Mac
+    - Real time rasterization based rendering:
+        OpenGL 4.0+ rendering
+        Vulkan 1.1+ rendering
+        DirectX 11  rendering
+        DirectX 12  rendering
+        + SIDE GOAL: Metal rendering
+    - Real time ray-tracing
+        Software ray-tracing
+        RTX-boosted ray-tracing using VkRay or DXR
+    + SIDE GOAL: Multiple windows
+
+    - Should be as robust as possible
+
+    This is my first foray into multiple things:
+        - Vulkan
+        - DX12
+        - Ray-tracing
+
+    so this will be done step-by-step focusing on creating an interface
+    that can be used for all of the options that I want to have open
+    first, then filling out those feature sets.
+
+    The ray-tracing will be seperate options from rasterization.
+    All DX options will be windows-only (of course)
+
+    TOTAL OPTIONS:
+        OpenGL Rasterizing
+        Vulkan Rasterizing
+        Vulkan Ray-tracing
+        DX11 Rasterizing
+        DX12 Rasterizing
+        DX12 Ray-tracing
+
+STEPS
+    All options in a given section should be complete before moving to
+    the next section.
+
+    1: Responsive Window                        OGL | VKN | X11 | X12 | VKR | DXR
+        1.1: Opening a window                    X  |  X  |     |     |  X  |
+        1.2: Creating contexts                   X  |     |     |     |     |
+        1.3: Input is being polled                  |     |     |     |     |
+        1.4: Input is being managed                 |     |     |     |     |
+        1.5: Mouse & Keyboard fully functional      |     |     |     |     |
+    2: Math
+        2.1: GLM implementation
+        2.2: Can use glm with directx
+    3: Drawing a Triangle
+        3.1: Shader interface
+        3.2: Compiling shaders
+        3.3: C++ side mesh data
+        3.4: Uploading mesh data to GPU
+        3.5: Drawing
+    4: Customization & Robustness
+        4.1: Resizing windows (not dragging)
+        4.2: ImGui
+            4.2.1: Compiling & linking
+            4.2.2: Drawing basic window
+            4.2.3: Input properly captures
+        4.3: Moving around the triangle
+        4.4: Switching between renderers
+        4.5: Error-handling suite is complete

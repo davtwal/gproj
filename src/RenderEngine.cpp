@@ -1,11 +1,5 @@
 #include "RenderEngine.h"
 
-// Interface functions
-
-IWindow* IRenderEngine::getWindow() {
-	return m_window;
-}
-
 // OpenGL functions
 
 #include <iostream>
@@ -74,3 +68,23 @@ private:
 		return reinterpret_cast<GLVKWindow*>(m_window);
 	}
 };
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+// Interface functions
+////////////////////////////////////////////////////////////////////////
+
+IRenderEngine* IRenderEngine::Create(unsigned type) {
+	switch(type) {
+	case RENDER_ENGINE_GL:
+		return new GLRenderEngine;
+	default:
+		// Invalid / unsupported type requested
+		return nullptr;
+	}
+}
+
+IWindow* IRenderEngine::getWindow() {
+	return m_window;
+}
