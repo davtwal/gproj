@@ -1,55 +1,41 @@
-#include <iostream>
-#include <GL/gl3w.h>
-#include "GLFW/glfw3.h"
-
 #include "RenderEngine.h"
+#include "Trace.h"
 
 int main() {
-	using std::cout;
-	using std::endl;
+    Trace::Init();
+    
+	try {
+	Trace::Report() << "Starting up program..." << Trace::EndRep();
 	
-	cout << "Starting up program..." << endl;
-	
-	IRenderEngine* renderer = IRenderEngine::Create(RENDER_ENGINE_GL);
+	IRenderEngine* renderer = IRenderEngine::Create(RenderAPI::API_GL);
 
 	if(!renderer) {
-		std::cout << "Could not create render engine." << endl;
+		Trace::Report() << "Could not create render engine." << Trace::EndRep();
 		return -1;
 	}
+
+    Trace::Report() << "Managed to start program." << Trace::EndRep();
 
     renderer->init();
 
-	auto window = glfwCreateWindow(640, 480, "Hello Window!", NULL, NULL);
-	if(!window) {
-		std::cout << "Error: Could not create window!" << std::endl;
+    Trace::Report() << "Initialized." << Trace::EndRep();
 
-		glfwTerminate();
-		return -1;
-	}
+    while(renderer->update()) {
+    }
 
-	std::cout << "Successfully created window!" << std::endl;
+    Trace::Report() << "Finished update loop" << Trace::EndRep();
 
-	glfwMakeContextCurrent(window);
+    renderer->shutdown();
 
-	if(gl3wInit()) {
-		std::cout << "Failed loading gl3w?" << std::endl;
-		return -1;
-	}
+    Trace::Report() << "Shutdown" << Trace::EndRep();
 
-	std::cout << "Successfully initialized gl3w." << std::endl;
+    delete renderer;
+    }
+    catch(const char* err) {
+        Trace::Report() << "Error caught: " << err << Trace::EndRep();
+    }
 
-	std::cout << "OpenGL version: " << glGetString(GL_VERSION) <<std::endl;
-
-	while(!glfwWindowShouldClose(window)) {
-		;
-	}
-
-	std::cout << "Successfully initialized GLFW!" << std::endl;
-	
-	glfwShowWindow(window);
-
-	glfwDestroyWindow(window);
-
-	glfwTerminate();
+    Trace::Shutdown();
+    
 	return 0;
 }

@@ -1,24 +1,35 @@
 #ifndef DW_WINDOW_H
 #define DW_WINDOW_H
 
+#include "RenderAPIType.h"
+
 class IWindow {
 public:
-	virtual void init();
-	virtual void shutdown();
+    virtual ~IWindow();
+    
+    // Initializes a window.
+	virtual void init() = 0;
+	virtual void shutdown() = 0;
 
-	virtual void update();
-	virtual bool shouldClose();
+	virtual bool update() = 0;
+	virtual bool shouldClose() = 0;
 
-	virtual void show();
+	virtual void show() = 0;
 
-	// 0 = opengl, 1 = vulkan, 2 = dx11, 3 = dx12
-	static IWindow* create(unsigned type);
+	static IWindow* create(RenderAPI type);
 
-	virtual void* getInternal() const;
-	unsigned getType() const;
+    // TODO: These functions
+    /*
+     * virtual ??? focus();
+     * virtual ??? getInput();
+     * virtual ??? resize();
+     */
+
+	virtual void* getInternal() const = 0;
+	RenderAPI getType() const;
 
 protected:
-	unsigned m_type;
+	RenderAPI m_type {API_INVALID};
 };
 
 #endif

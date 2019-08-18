@@ -13,6 +13,8 @@ Goals:
         Software ray-tracing
         RTX-boosted ray-tracing using VkRay or DXR
     + SIDE GOAL: Multiple windows
+        This will require a window manager interface, managing focus,
+        differentiating input/messages/events for each window, etc.
 
     - Should be as robust as possible
 

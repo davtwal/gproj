@@ -13,5 +13,5 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.cpp
 	g++ $(CCFLAGS) -c -o $@ $<
 
 clean:
-	rm $(OUTNAME)
 	rm -r $(OBJDIR)/*
+	rm $(OUTNAME)

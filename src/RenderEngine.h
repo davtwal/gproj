@@ -3,24 +3,18 @@
 
 #include "Window.h"
 
-#define RENDER_ENGINE_GL 0u
-#define RENDER_ENGINE_VK 1u
-
-#ifdef _WIN32
-	#define RENDER_ENGINE_DX11 2u
-	#define RENDER_ENGINE_DX12 3u
-#endif
-
 class IRenderEngine {
-public:
-	// 0 = GL, 1 = VK, 2 = DX11, 3 = DX12
+public:    
 	// Will not be initialized
-	static IRenderEngine* Create(unsigned type);
+	static IRenderEngine* Create(RenderAPI api);
+
+    virtual ~IRenderEngine() {}
 
     // Initialize function
     // This initializes multiple things:
     //   1: The window
     //   2: The rendering API (GL, VK, ...) creating a context
+    // If an error occurs, throws an error message.
 	virtual void init() = 0;
 
     // Shutdown function
@@ -28,13 +22,15 @@ public:
     // Only to be called when program is shutting down.
 	virtual void shutdown() = 0;
 
-    // 
-	virtual void update() = 0;
+    // Polls events and input.
+    // Retval is true if the program should continue updating. 
+	virtual bool update() = 0;
 
 	IWindow* getWindow();
 
 protected:
 	IWindow* m_window {nullptr};
+    bool m_initialized {false};
 };
 
 #endif
