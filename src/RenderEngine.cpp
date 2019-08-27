@@ -10,6 +10,12 @@
 
 #include "Trace.h"
 
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+// WINDOWING: GLFW
+////////////////////////////////////////////////////////////////////////
+
 class GLVKWindow : public IWindow {
 public:
 	static void ErrorCallback(int err, const char* desc) {
@@ -82,6 +88,12 @@ private:
 	GLFWwindow* m_window {nullptr};
 };
 
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+// RENDERING: OPENGL
+////////////////////////////////////////////////////////////////////////
+
 class GLRenderEngine : public IRenderEngine {
 public:
 
@@ -139,6 +151,208 @@ private:
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////
+// WINDOWING: WINDOWS
+////////////////////////////////////////////////////////////////////////
+
+#ifdef _WIN32
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN 1
+#endif
+
+#include <Windows.h>
+
+class DXWindow : public IWindow {
+public:
+	~DXWindow() override {
+	}
+	
+	void init() override;
+	void shutdown() override;
+	bool update() override;
+	bool shouldClose() override;
+	void show() override;
+	
+	void* getInternal() const override;
+	
+	HWND getInternalHWND() const;
+	
+private:
+	friend class DXWindowManager;
+
+	HWND m_window {nullptr};
+	bool m_shouldClose {false};
+};
+
+class DXWindowManager {
+public:
+	static LRESULT CALLBACK DXWindowProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+		if(s_dxWindow) {
+			switch(msg) {
+				case WM_CLOSE:
+				case WM_DESTROY:
+					s_dxWindow->m_shouldClose = true;
+					PostQuitMessage(0);
+					break;
+			}
+		}
+		return DefWindowProc(hwnd, msg, wp, lp);
+	}
+
+	static constexpr const char* WINDOW_CLASS_NAME = "Windows Class";
+
+	void init() {
+		if(s_dxWindow)
+			throw "Attempted to initialize a DX window while there is already a DX window alive";
+		
+		WNDCLASSEX wc;
+		ZeroMemory(&wc, sizeof(wc));
+		wc.cbSize 			= sizeof(wc);
+		wc.lpfnWndProc 		= DXWindowProc;
+		wc.lpszClassName 	= WINDOW_CLASS_NAME;
+		wc.hInstance 		= GetModuleHandle(NULL);
+		wc.hIcon			= LoadIcon(NULL, IDI_ERROR);
+		wc.hCursor			= LoadCursor(NULL, IDC_ARROW);
+		wc.hbrBackground	= (HBRUSH)GetStockObject(BLACK_BRUSH);
+		wc.style			= CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
+			// Double clicks seem to be in an interesting spot in X11/GLFW land, so
+			// I'm not 100% sure if I should put it in the class styles here.
+			// Leaving it in for now just in case it becomes important.
+			// Requires more research
+			
+		if(!RegisterClassEx(&wc))
+			throw "Could not register windows class for the DXWindow.";
+	}
+	
+	void shutdown() {
+		if(s_dxWindow)
+			s_dxWindow->shutdown();
+		
+		s_dxWindow = nullptr;
+		UnregisterClass(WINDOW_CLASS_NAME, GetModuleHandle(NULL));
+	}
+	
+	void registerWindow(DXWindow* window) {
+		if(s_dxWindow)
+			throw "Attempted to register new DXWindow when there is already one open";
+		
+		s_dxWindow = window;
+	}
+		
+	
+private:
+	// TODO: If we want multiple windows as a possibility, then this needs to go
+	// turn into a tree based on HWND as the key?
+	static DXWindow* s_dxWindow;
+};
+
+DXWindow* DXWindowManager::s_dxWindow = nullptr;
+
+void DXWindow::init() {
+	const HWND 	desktopWindow = GetDesktopWindow();
+	RECT		desktopRect;
+	
+	GetWindowRect(desktopWindow, &desktopRect);
+		
+	int posX = 0, posY = 0;
+		
+	//if(!beginFullscreen)
+	//{
+		posX = (GetSystemMetrics(SM_CXSCREEN) - 500);//m_width) / 2;
+		posY = (GetSystemMetrics(SM_CYSCREEN) - 500);//m_height) / 2;
+	//}
+	
+	m_window = CreateWindowEx(
+		0, // WS_EX_ACCEPTFILES,
+		DXWindowManager::WINDOW_CLASS_NAME,
+		"Window",
+		WS_OVERLAPPEDWINDOW,
+		posX,
+		posY,
+		500,
+		500,
+		NULL, NULL,
+		GetModuleHandle(NULL),
+		NULL
+	);
+		
+	if(!m_window) {
+		throw "Could not create WindowEx with the Windows Class.";
+	}
+}
+
+void DXWindow::shutdown()  {
+	// If fullscreen, then call this:
+	// ChangeDisplaySettings(NULL, 0);
+	if(m_window)
+		DestroyWindow(m_window);
+		
+	m_window = nullptr;
+}
+
+bool DXWindow::update() {
+	return shouldClose();
+}
+
+bool DXWindow::shouldClose() {
+	return m_shouldClose;
+}
+
+void DXWindow::show() {
+	ShowWindow(m_window, SW_SHOW);
+	SetForegroundWindow(m_window);
+	SetFocus(m_window);
+}
+
+void* DXWindow::getInternal() const {
+	return m_window;
+}
+
+HWND DXWindow::getInternalHWND() const {
+	return m_window;
+}
+
+class DX11RenderEngine : public IRenderEngine {
+public:
+	~DX11RenderEngine() override {
+		//if(m_window)
+		//	shutdown();
+	}
+	
+	void init() override {
+		m_winman.init();
+		
+		m_window = new DXWindow;
+		if(!m_window)
+			throw "Could not create new DXWindow";
+		
+		m_window->init();
+		
+		m_winman.registerWindow(m_window);
+	}
+	
+	void shutdown() override {
+		// automatically shuts down any and all windows associated with 
+		// this window manager
+		m_winman.shutdown();
+		
+		m_window = nullptr;
+	}
+	
+	bool update() override {
+		return m_window->update();
+	}
+	
+private:
+	DXWindowManager m_winman;
+	DXWindow* m_window {nullptr};
+};
+
+#endif
+
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////
 // Interface functions
 ////////////////////////////////////////////////////////////////////////
 
@@ -146,6 +360,10 @@ IRenderEngine* IRenderEngine::Create(RenderAPI api) {
 	switch(api) {
 	case API_GL:
 		return new GLRenderEngine;
+#ifdef _WIN32
+	case API_DX11:
+		return new DX11RenderEngine;
+#endif
 	default:
 		// Invalid / unsupported type requested
 		return nullptr;

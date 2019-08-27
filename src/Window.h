@@ -16,7 +16,7 @@ public:
 
 	virtual void show() = 0;
 
-	static IWindow* create(RenderAPI type);
+	//static IWindow* create(RenderAPI type);
 
     // TODO: These functions
     /*

@@ -13,9 +13,16 @@ class Trace {
         static constexpr char endl = '\n';  
         using endlType = decltype(endl);
 
-        static void Init() {}
-        static void Shutdown() {}
+		static void Init();
+		static void Shutdown();
 
+		// This trace does not work because the following format:
+		// Report() << ... << EndRep()
+		// which is the format that I want, actually executes EndRep()
+		// first, unlocking the mutex that hasnt been locked, and then
+		// locking the mutex with the report call. This makes all other
+		// Report() calls unable to lock the mutex if they are on a
+		// seperate thread, making this completely invalid.
         static Trace& Report();
 
         template <typename T>
@@ -27,9 +34,7 @@ class Trace {
         static endlType EndRep();
 
     private:
-        static std::thread::id s_currentLockThread;
         static Trace s_globalTrace;
-        static std::mutex s_mutex;
 };
 
 #endif
