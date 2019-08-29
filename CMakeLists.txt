@@ -2,7 +2,8 @@
 # Creation Date: 08-26-19
 
 # CMake version
-cmake_minimum_required(VERSION 3.10...3.15)
+# Minimum required is 3.13 for target_link_directories()
+cmake_minimum_required(VERSION 3.13...3.15)
 if(${CMAKE_VERSION} VERSION_LESS 3.12)
     cmake_policy(VERSION ${CMAKE_MAJOR_VERSION}.${CMAKE_MINOR_VERSION})
 endif()
@@ -20,6 +21,8 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release;RelWithDebInfo")
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # Create directory variables and glob files
+# This section isn't fully utilized (e.g. OBJECT_DIR isn't used)
+# TODO
 set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/inc")
 set(SOURCE_DIR "${PROJECT_SOURCE_DIR}/src")
 set(OBJECT_DIR "${PROJECT_SOURCE_DIR}/obj")
@@ -32,8 +35,11 @@ else()
 	set(DEPENDANCY_DIR "${DEP_BASE_DIR}/lnx")
 endif(WIN32)
 
-file(GLOB_RECURSE CPPSources src/*.cpp)
-file(GLOB_RECURSE Headers inc/*.h)
+# Gather files
+# If we didn't want to recursively go into each subdirectory 
+# then we use GLOB instead of GLOB_RECURSE
+file(GLOB_RECURSE SRC_CPP src/*.cpp)
+file(GLOB_RECURSE HEADERS inc/*.h)
 
 # Find required packages
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
@@ -61,12 +67,18 @@ elseif(UNIX)
 endif(WIN32)
 
 # Create targets
-add_executable(${PROJ_NAME} ${CPPSources})
+add_executable(${PROJ_NAME} ${SRC_CPP} ${HEADERS})
 
+# This creates filters for IDEs like Visual Studio
+source_group("inc" ${HEADERS})
+source_group("src" ${SRC_CPP})
+
+# Add include directories and link locations/libraries to the executable
 target_include_directories(${PROJ_NAME} PUBLIC ${INCLUDE_DIR})
 target_link_directories(${PROJ_NAME} PUBLIC ${DEPENDANCY_DIR})
 target_link_libraries(${PROJ_NAME} PUBLIC ${LIBS})
 
+# Changes the properties for generation for the code and final executable
 set_target_properties(${PROJ_NAME} PROPERTIES
 		CXX_STANDARD 17
 		CXX_STANDARD_REQUIRED ON

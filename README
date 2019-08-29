@@ -42,15 +42,25 @@ STEPS
     All options in a given section should be complete before moving to
     the next section.
 
+	Ideally, all of the following is complete before the beginning of the semester (3rd September):
+	HARD REQUIREMENT: Section 2 is complete.
+	GOAL			: Section 4.
+	STRETCH			: Section 5.
+	
+	I recently learned that GLFW can expose the native Win32 windows handle, which makes
+	things MUCH easier for handling input as I no longer have to handle the difference
+	between the virtual keys and GLFW keys. I needed to do this in the first place as
+	creating a swap chain with DX11/12 requires a HWND.
+
     1: Responsive Window                        OGL | VKN | X11 | X12 | VKR | DXR
-        1.1: Opening a window                    X  |  X  |     |     |  X  |
+        1.1: Opening a window                    X  |  X  |  X  |  X  |  X  |  X
         1.2: Creating contexts                   X  |     |     |     |     |
-        1.3: Input is being polled                  |     |     |     |     |
-        1.4: Input is being managed                 |     |     |     |     |
+        1.3: Input is being polled               X  |  X  |  X  |  X  |  X  |  X
+        1.4: Input is usable everywhere             |     |     |     |     |
         1.5: Mouse & Keyboard fully functional      |     |     |     |     |
     2: Math
-        2.1: GLM implementation
-        2.2: Can use glm with directx
+        2.1: GLM implementation						|	  |		|	  |		|
+        2.2: Can use glm with directx			 /  |  /  |		|	  |	 /  |
     3: Drawing a Triangle
         3.1: Shader interface
         3.2: Compiling shaders
@@ -58,7 +68,7 @@ STEPS
         3.4: Uploading mesh data to GPU
         3.5: Drawing
     4: Customization & Robustness
-        4.1: Resizing windows (not dragging)
+        4.1: Resizing windows
         4.2: ImGui
             4.2.1: Compiling & linking
             4.2.2: Drawing basic window
@@ -66,3 +76,9 @@ STEPS
         4.3: Moving around the triangle
         4.4: Switching between renderers
         4.5: Error-handling suite is complete
+	5: Models
+		5.1: Creation of example models (square, cyllinder, etc)
+		5.2: Model loading via assimp or FBX loader & self-written OBJ loader
+	6: Lighting
+	
+		

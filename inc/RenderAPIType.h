@@ -1,7 +1,7 @@
 #ifndef DW_RENDERAPI_TYPE_H
 #define DW_RENDERAPI_TYPE_H
 
-enum RenderAPI {
+enum RenderAPIType {
     API_INVALID,
     API_GL,
     API_VK,

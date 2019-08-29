@@ -7,7 +7,14 @@ int main() {
 	try {
 	Trace::Report() << "Starting up program..." << Trace::EndRep();
 	
-	IRenderEngine* renderer = IRenderEngine::Create(RenderAPI::API_GL);
+	RenderAPIType api = 
+#ifdef WIN32
+		RenderAPIType::API_GL
+#else
+		RenderAPI::API_GL
+#endif
+	;
+	RenderEngine* renderer = new RenderEngine;
 
 	if(!renderer) {
 		Trace::Report() << "Could not create render engine." << Trace::EndRep();
@@ -16,7 +23,7 @@ int main() {
 
     Trace::Report() << "Managed to start program." << Trace::EndRep();
 
-    renderer->init();
+    renderer->init(api);
 
     Trace::Report() << "Initialized." << Trace::EndRep();
 
