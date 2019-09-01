@@ -35,6 +35,11 @@
 #define __gl_h_
 #endif
 
+#ifdef MemoryBarrier
+#undef MemoryBarrier
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -52,6 +57,24 @@ int gl3wInit(void);
 int gl3wInit2(GL3WGetProcAddressProc proc);
 int gl3wIsSupported(int major, int minor);
 GL3WglProc gl3wGetProcAddress(const char *proc);
+
+// DW Note: For some reason, these typedefs from glcorearb.h were causing
+// C3646 errors (e.g. "'BindTexture': unknown override specifier")
+// so I had to make new typedefs. They are exactly the same as the ones from
+// glcorearb.h, but with an 'n' in front of their names
+//typedef void (APIENTRYP nPFNGLDRAWARRAYSPROC) (GLenum mode, GLint first, GLsizei count);
+//typedef void (APIENTRYP nPFNGLDRAWELEMENTSPROC) (GLenum mode, GLsizei count, GLenum type, const void* indices);
+//typedef void (APIENTRYP nPFNGLGETPOINTERVPROC) (GLenum pname, void** params);
+//
+//typedef void (APIENTRYP nPFNGLCOPYTEXIMAGE1DPROC) (GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLint border);
+//typedef void (APIENTRYP nPFNGLCOPYTEXIMAGE2DPROC) (GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+//typedef void (APIENTRYP nPFNGLCOPYTEXSUBIMAGE1DPROC) (GLenum target, GLint level, GLint xoffset, GLint x, GLint y, GLsizei width);
+//typedef void (APIENTRYP nPFNGLCOPYTEXSUBIMAGE2DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+//
+//
+//typedef void (APIENTRYP nPFNGLBINDTEXTUREPROC) (GLenum target, GLuint texture);
+//typedef void (APIENTRYP nPFNGLDELETETEXTURESPROC) (GLsizei n, const GLuint* textures);
+//typedef void (APIENTRYP nPFNGLGENTEXTURESPROC) (GLsizei n, GLuint* textures);
 
 /* gl3w internal state */
 union GL3WProcs {
@@ -79,7 +102,7 @@ union GL3WProcs {
 		PFNGLBINDRENDERBUFFERPROC                               BindRenderbuffer;
 		PFNGLBINDSAMPLERPROC                                    BindSampler;
 		PFNGLBINDSAMPLERSPROC                                   BindSamplers;
-		PFNGLBINDTEXTUREPROC                                    BindTexture;
+		PFNGLBINDTEXTUREPROC									BindTexture;
 		PFNGLBINDTEXTUREUNITPROC                                BindTextureUnit;
 		PFNGLBINDTEXTURESPROC                                   BindTextures;
 		PFNGLBINDTRANSFORMFEEDBACKPROC                          BindTransformFeedback;

@@ -5,13 +5,14 @@
 
 #include "GL/gl3w.h"
 
-#include "GLFW.h"
+//#include "GLFW.h"
 #include "Window_GLFW.h"
 
 namespace GL {
 	class RenderAPI : public IRenderAPI {
 	public:
-		//~RenderAPI() override;
+		RenderAPI(RenderEngine& engine);
+		~RenderAPI() override;
 
 		void init() override;
 		void shutdown() override;
@@ -24,6 +25,10 @@ namespace GL {
 
 	bool RenderAPI::s_gl3wInitialized = false;
 
+	RenderAPI::RenderAPI(RenderEngine& engine) : IRenderAPI(engine) {
+		init();
+	}
+
 	void RenderAPI::init() {
 		if (!m_initialized) {
 			glfwMakeContextCurrent(reinterpret_cast<GLFWwindow*>(m_engine.getWindow()->getHandle()));
@@ -33,6 +38,8 @@ namespace GL {
 				throw std::exception("Could not initialize GL3W");
 			}
 
+
+
 			s_gl3wInitialized = true;
 			assert(gl3wIsSupported(4, 0));
 		}
@@ -41,6 +48,10 @@ namespace GL {
 	void RenderAPI::shutdown() {
 		if (m_initialized)
 			m_initialized = false;
+	}
+
+	RenderAPI::~RenderAPI() {
+		shutdown();
 	}
 }
 
@@ -52,13 +63,14 @@ namespace DX11 {
 
 
 IRenderAPI::IRenderAPI(RenderEngine& engine) : m_engine(engine) {
-	init();
 }
 
 IRenderAPI* IRenderAPI::Create(RenderEngine& engine, RenderAPIType type) {
 	assert(type != API_INVALID);
 
 	switch (type) {
+	case API_GL:
+		return new GL::RenderAPI(engine);
 	default:
 		throw std::exception("RenderAPI: Invalid type called for creation");
 	}
