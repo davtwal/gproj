@@ -1,1 +1,4 @@
+.gitignore
 build/*
+vulkan_functions.txt
+vulkan_layers_and_extensions.txt

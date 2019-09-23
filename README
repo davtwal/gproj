@@ -1,15 +1,9 @@
-some linux project that uses glfw
+some mainly windows project that uses glfw
 
 Goals:
     - Multi-platform with linux and windows available
         + SIDE GOAL: Mac
-    - Real time rasterization based rendering:
-        OpenGL 4.0+ rendering
-        Vulkan 1.1+ rendering
-        DirectX 11  rendering
-        DirectX 12  rendering
-        + SIDE GOAL: Metal rendering
-    - Real time ray-tracing
+    - Real time ray-tracing (NEXT SEMESTER)
         Software ray-tracing
         RTX-boosted ray-tracing using VkRay or DXR
     + SIDE GOAL: Multiple windows
@@ -20,23 +14,46 @@ Goals:
 
     This is my first foray into multiple things:
         - Vulkan
-        - DX12
         - Ray-tracing
 
-    so this will be done step-by-step focusing on creating an interface
-    that can be used for all of the options that I want to have open
-    first, then filling out those feature sets.
+    This project is currently simply a Vulkan rastering rendering engine.
 
-    The ray-tracing will be seperate options from rasterization.
-    All DX options will be windows-only (of course)
-
-    TOTAL OPTIONS:
-        OpenGL Rasterizing
-        Vulkan Rasterizing
-        Vulkan Ray-tracing
-        DX11 Rasterizing
-        DX12 Rasterizing
-        DX12 Ray-tracing
+    MILESTONES:
+      Window Open           | DONE
+      Input Handled         | DONE
+      Instance Created      | DONE
+      Device Created        | DONE
+      Swapchain Presenting  | DONE
+      Triangle Drawing      | 
+      Models Drawing        | 
+      Deferred Rendering    | GOAL: 9/27/19
+      
+    TODO:
+      Shader types
+      Shader loading from a file (glslc)
+      Graphics pipeline creation
+      Draw! triangle oh babe
+      
+      Buffer creation
+      Memory allocation   ####oh boy doing this well will take me forever so no thank you ill just allocate for each object####
+      Images can use memory
+      Basic models in CPU memory
+      Staging
+      Memory transfer
+      Binding
+      Descriptor sets
+      Draw! models
+      
+      Multiple render passes
+      GBuffer setup
+      Draw! deferred
+      
+    OTHER TODO:
+      Window resizing
+      Online shader compilation
+      Object loading (tinyobjloader, assimp, fbx sdk?)
+      Lights
+      Specialized queue usage
 
 STEPS
     All options in a given section should be complete before moving to
@@ -56,11 +73,11 @@ STEPS
         1.1: Opening a window                    X  |  X  |  X  |  X  |  X  |  X
         1.2: Creating contexts                   X  |     |     |     |     |
         1.3: Input is being polled               X  |  X  |  X  |  X  |  X  |  X
-        1.4: Input is usable everywhere             |     |     |     |     |
+        1.4: Input is usable everywhere          X  |  X  |  X  |  X  |  X  |  X
         1.5: Mouse & Keyboard fully functional      |     |     |     |     |
     2: Math
-        2.1: GLM implementation						|	  |		|	  |		|
-        2.2: Can use glm with directx			 /  |  /  |		|	  |	 /  |
+        2.1: GLM implementation                     |     |	    |     |	    |
+        2.2: Can use glm with directx            /  |  /  |	    |     |  /  |
     3: Drawing a Triangle
         3.1: Shader interface
         3.2: Compiling shaders

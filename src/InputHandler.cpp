@@ -1,29 +1,142 @@
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * gproj2 : InputHandler.cpp
+// * Copyright (C) DigiPen Institute of Technology 2019
+// * 
+//  Created     : 2019y 09m 16d
+// * Last Altered: 2019y 09m 16d
+// * 
+// * Author      : David Walker
+// * E-mail      : d.walker\@digipen.edu
+// * 
+// * Description :
+// *
+// *
+// *
+// *
+// * 
+// * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+
 #include "InputHandler.h"
-#include <cassert>
+#include <stdexcept>
 
-IInputHandler::IInputHandler(IWindow* window) : m_window(window) {}
+#include "GLFWWindow.h"
+#include "Trace.h"
 
-void IInputHandler::registerKeyFunction(int button, KeyCallback cb) {
-	assert(button > 0);
-	assert(cb.onPress != NULL || cb.onRelease != NULL);
+namespace dw {
+  InputHandler::InputHandler(GLFWWindow& window)
+    : m_window(window) {
+  }
 
-	m_map.insert_or_assign(button, cb);
-}
+  void InputHandler::registerKeyFunction(int button, KeyCallback callbacks) {
+    m_keyMap.insert_or_assign(button, callbacks);
+  }
 
-void IInputHandler::onPress(int button) const {
-	try {
-		auto cb = m_map.at(button);
-		if (cb.onPress)
-			cb.onPress();
-	}
-	catch (std::exception&) {}
-}
+  void InputHandler::registerMouseKeyFunction(int button, KeyCallback callbacks) {
+    m_mouseMap.insert_or_assign(button, callbacks);
+  }
 
-void IInputHandler::onRelease(int button) const {
-	try {
-		auto cb = m_map.at(button);
-		if (cb.onRelease)
-			cb.onRelease();
-	}
-	catch (std::exception&) {}
+  void InputHandler::registerMouseMoveFunction(MouseCallback callback) {
+    m_mouseCB = callback;
+  }
+
+
+  void InputHandler::getMousePos(double& out_x, double& out_y) const {
+    out_x = m_mouseX;
+    out_y = m_mouseY;
+  }
+
+  bool InputHandler::getKeyState(int button) const {
+    return glfwGetKey(m_window.getHandle(), button);
+  }
+
+  bool InputHandler::getMouseState(int button) const {
+    return glfwGetMouseButton(m_window.getHandle(), button);
+  }
+
+  void InputHandler::onKeyPress(int button) const {
+    callbackFn pFunc = nullptr;
+    try {
+      pFunc = m_keyMap.at(button).onPress;
+    }
+    catch (std::out_of_range&) {
+      return;
+    }
+
+    if (pFunc)
+      pFunc();
+  }
+
+  void InputHandler::onKeyRelease(int button) const {
+    callbackFn pFunc = nullptr;
+    try {
+      pFunc = m_keyMap.at(button).onRelease;
+    }
+    catch (std::out_of_range&) {
+      return;
+    }
+
+    if (pFunc)
+      pFunc();
+  }
+
+  void InputHandler::onMousePress(int button) const {
+    callbackFn pFunc = nullptr;
+    try {
+      pFunc = m_mouseMap.at(button).onPress;
+    }
+    catch (std::out_of_range&) {
+      return;
+    }
+
+    if (pFunc)
+      pFunc();
+  }
+
+  void InputHandler::onMouseRelease(int button) const {
+    callbackFn pFunc = nullptr;
+    try {
+      pFunc = m_mouseMap.at(button).onRelease;
+    }
+    catch (std::out_of_range&) {
+      return;
+    }
+
+    if (pFunc)
+      pFunc();
+  }
+
+  void InputHandler::inputKey(int key, int, int action, int) const {
+    switch (action) {
+      case GLFW_PRESS:
+        onKeyPress(key);
+      case GLFW_RELEASE:
+        onKeyRelease(key);
+      default:
+        Trace::All << "Somehow a key did something other than press/release" << Trace::Stop;
+    }
+  }
+
+  void InputHandler::inputMouseButton(int key, int action, int) const {
+    switch (action) {
+      case GLFW_PRESS:
+        onMousePress(key);
+      case GLFW_RELEASE:
+        onMouseRelease(key);
+      default:
+        Trace::All << "Somehow an mkey did something other than press/release" << Trace::Stop;
+    }
+  }
+
+  void InputHandler::inputMousePos(double x, double y) {
+    double dx = x - m_mouseX;
+    double dy = y - m_mouseY;
+
+    m_mouseX = x;
+    m_mouseY = y;
+
+    if (m_mouseCB.onMove)
+      m_mouseCB.onMove(dx, dy);
+  }
+
+
 }
