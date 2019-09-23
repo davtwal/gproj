@@ -19,6 +19,8 @@
 #include "Shader.h"
 
 #include <fstream>
+#include <filesystem>
+#include "Trace.h"
 
 namespace dw {
   ShaderModule::ShaderModule(LogicalDevice& device, std::vector<char> const& spirv_binary)
@@ -33,6 +35,9 @@ namespace dw {
     };
     
     vkCreateShaderModule(m_device, &createInfo, nullptr, &m_module);
+
+    if (!m_module)
+      throw std::runtime_error("Could not create shader module");
   }
 
   ShaderModule::ShaderModule(ShaderModule&& o) noexcept
@@ -47,14 +52,18 @@ namespace dw {
   }
 
   ShaderModule ShaderModule::Load(LogicalDevice& device, std::string const& filename) {
-    std::fstream file;
+    namespace fs = std::filesystem;
 
-    file.open(filename, std::ios_base::ate | std::ios_base::binary);
+    std::fstream file;
+    fs::path shaderFolder = fs::current_path() / fs::path("shaders");
+    Trace::All << "Loading shader: " << shaderFolder << " : " << shaderFolder / filename << Trace::Stop;
+
+    file.open(shaderFolder / filename, std::ios_base::in | std::ios_base::ate | std::ios_base::binary);
     if(!file.is_open()) {
       throw std::runtime_error("Could not open file " + filename + " for read");
     }
 
-    const auto fileSize = file.tellg();
+    const size_t fileSize = file.tellg();
 
     file.seekg(0);
 
@@ -67,5 +76,21 @@ namespace dw {
   ShaderModule::operator VkShaderModule() const {
     return m_module;
   }
+
+  // ISHADER
+
+  IShader::IShader(ShaderModule&& mod)
+    : m_module(std::move(mod)) {
+  }
+
+
+  IShader::IShader(IShader&& o) noexcept
+    : m_module(std::move(o.m_module)) {
+  }
+
+  VkPipelineShaderStageCreateInfo IShader::getCreateInfo() const {
+    return {};
+  }
+
 
 }

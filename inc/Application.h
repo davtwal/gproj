@@ -32,6 +32,8 @@ namespace dw {
   class Swapchain;
   class CommandPool;
 
+  class IShader;
+
   class Application {
   public:
     int parseCommandArgs(int argc, char** argv);
@@ -47,6 +49,7 @@ namespace dw {
     void setupSwapChain();
     void setupRenderpasses();
     void setupSwapChainFrameBuffers();
+    void setupShaders();
     void setupPipeline();
     void setupCommandBuffers();
 
@@ -68,6 +71,8 @@ namespace dw {
     Swapchain* m_swapchain{ nullptr };
     CommandPool* m_commandPool{ nullptr };
     RenderPass* m_renderPass{ nullptr };
+    IShader* m_triangleVertShader{ nullptr };
+    IShader* m_triangleFragShader{ nullptr };
 
     util::Ref<Queue>* m_graphicsQueue{nullptr};
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;

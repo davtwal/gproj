@@ -31,6 +31,7 @@
 #include "CommandBuffer.h"
 #include "RenderPass.h"
 #include "Framebuffer.h"
+#include "Shader.h"
 #include <cassert>
 
 namespace dw {
@@ -230,6 +231,12 @@ namespace dw {
 
   }
 
+  void Application::setupShaders() {
+    m_triangleVertShader = new Shader<ShaderStage::Vertex>(ShaderModule::Load(*m_device, "triangle_vert.spv"));
+    m_triangleFragShader = new Shader<ShaderStage::Fragment>(ShaderModule::Load(*m_device, "triangle_frag.spv"));
+  }
+
+
   void Application::setupPipeline() {
 
   }
@@ -249,6 +256,7 @@ namespace dw {
     setupSwapChain();
     setupRenderpasses();
     setupSwapChainFrameBuffers();
+    setupShaders();
     setupPipeline();
     setupCommandBuffers();
 
@@ -327,11 +335,17 @@ namespace dw {
     delete m_graphicsQueue;
     m_graphicsQueue = nullptr;
 
+    delete m_commandPool;
+    m_commandPool = nullptr;
+
     delete m_renderPass;
     m_renderPass = nullptr;
 
-    delete m_commandPool;
-    m_commandPool = nullptr;
+    delete m_triangleVertShader;
+    m_triangleVertShader = nullptr;
+
+    delete m_triangleFragShader;
+    m_triangleFragShader = nullptr;
 
     delete m_swapchain;
     m_swapchain = nullptr;

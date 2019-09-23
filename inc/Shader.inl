@@ -24,13 +24,13 @@
 namespace dw {
   template <ShaderStage TStage>
   Shader<TStage>::Shader(Shader&& o) noexcept
-    : m_module(std::move(o.m_module)) {
+    : IShader(std::move(o)) {
     
   }
 
   template <ShaderStage TStage>
   Shader<TStage>::Shader(ShaderModule&& mod)
-    : m_module(std::move(mod)) {
+    : IShader(std::move(mod)) {
     
   }
 

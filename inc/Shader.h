@@ -35,6 +35,33 @@ namespace dw {
     VkShaderModule m_module{ nullptr };
   };
 
+  class IShader {
+  public:
+    IShader(ShaderModule&& mod);
+    virtual ~IShader() {}
+
+    NO_DISCARD virtual VkPipelineShaderStageCreateInfo getCreateInfo() const;
+
+  protected:
+    ShaderModule m_module;
+
+#ifdef DW_SHADER_ALLOW_NON_MAIN_ENTRY
+    std::string m_entryPoint;
+
+  public:
+    IShader(ShaderModule&& mod, std::string const& entryPoint);
+    NO_DISCARD const char* getEntryPoint() const { return m_entryPoint.c_str(); }
+
+#else
+  public:
+    NO_DISCARD static constexpr const char* getEntryPoint() {
+      return "main";
+    }
+#endif
+
+    MOVE_CONSTRUCT_ONLY(IShader);
+  };
+
   enum class ShaderStage {
     Vertex,
     Hull,
@@ -45,32 +72,15 @@ namespace dw {
   };
 
   template<ShaderStage TStage>
-  class Shader {
+  class Shader : public IShader{
   public:
     const ShaderStage stage = TStage;
-
 
     Shader(ShaderModule&& mod);
     ~Shader() {}
 
-    NO_DISCARD VkPipelineShaderStageCreateInfo getCreateInfo() const;
+    NO_DISCARD VkPipelineShaderStageCreateInfo getCreateInfo() const override;
 
-  private:
-    ShaderModule m_module;
-
-#ifdef DW_SHADER_ALLOW_NON_MAIN_ENTRY
-    std::string m_entryPoint;
-
-  public:
-    Shader(ShaderModule&& mod, std::string const& entryPoint);
-    NO_DISCARD const char* getEntryPoint() const { return m_entryPoint.c_str(); }
-
-#else
-  public:
-    NO_DISCARD static constexpr const char* getEntryPoint() {
-      return "main";
-    }
-#endif
     MOVE_CONSTRUCT_ONLY(Shader)
   };
 }
