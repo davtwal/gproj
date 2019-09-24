@@ -215,7 +215,193 @@ namespace dw {
   void Application::setupSwapChainFrameBuffers() {
     m_swapchain->createFramebuffers(*m_renderPass);
   }
+  void Application::setupShaders() {
+    m_triangleVertShader = new Shader<ShaderStage::Vertex>(ShaderModule::Load(*m_device, "triangle_vert.spv"));
+    m_triangleFragShader = new Shader<ShaderStage::Fragment>(ShaderModule::Load(*m_device, "triangle_frag.spv"));
+  }
 
+  void Application::setupPipeline() {
+
+    
+    // Eventually each vertex type will have its own GetBindingDescriptions()
+    // and GetAttributeDescriptions() sort of functions which can be put here.
+    // maybe
+    VkPipelineVertexInputStateCreateInfo vertInputInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      0,
+      nullptr,
+      0,
+      nullptr
+    };
+
+    // I'm not sure how I'll do the input assembly.
+    // Most likely, I will only ever do triangle lists for everything, and
+    // things like lines will have their own graphics pipeline
+    // for debug draw or something.
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+      VK_FALSE
+    };
+
+    // This will want to be dynamic if I want to have dynamically resize-able windows
+    // where the resolution is also changed, though I likely won't need that.
+    // If I do allow for resizing windows, then either I make this dynamic, or
+    // recreate the entire pipeline along with everything I'd already have to refresh:
+    //  - Swap-chain
+    //  - Surface
+    //  - Frame-buffers
+    // Which probably won't be a lot of extra work considering people expect changing
+    // resolutions on high-graphical-intensity rendering engines to take time (e.g. games)
+    // and we can take almost however long we want so long as its within ~5 seconds worst case
+    // (a lot of time). Probably not dynamic.
+    // Apparently minDepth is allowed to be greater than maxDepth but both need to be [0..1]
+    VkViewport viewport = {
+      0,
+      0,
+      m_surface->getWidth(),
+      m_surface->getHeight(),
+      0,
+      1.f
+    };
+
+    // Its probably a little weird im using surface for the viewport and swapchain for the
+    // extent, and I should probably make similar functions available for both. Later.
+    VkRect2D scissor = {
+      {0, 0},
+      m_swapchain->getImageSize()
+    };
+
+    VkPipelineViewportStateCreateInfo viewportStateInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      &viewport,
+      1,
+      &scissor
+    };
+
+    // The only available things that can be dynamic by default are the
+    // viewport, scissor, line width, depth bias, blend constants,
+    // depth bounds, and some stencil stuff.
+    VkPipelineRasterizationStateCreateInfo rasterizerInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      VK_FALSE, // if I want stuff outside of the back/front of the frustum to be discarded or clamped
+      VK_FALSE,
+      VK_POLYGON_MODE_FILL, // for things like wireframe
+      VK_CULL_MODE_BACK_BIT, // back/front culling: can reduce acne by front culling instead of back
+      VK_FRONT_FACE_CLOCKWISE,
+      VK_FALSE, // the rasterizer can alter depth values, its cool but optional
+      0,
+      0,
+      0,
+      1.f // anything thicker than 1.f requires the wideLines feature on the GPU
+    };
+
+    // I'm most likely not going to support multisampling unless I do an anti-aliasing
+    // Project 5. If I need it for anything else then ???
+    VkPipelineMultisampleStateCreateInfo multisampleInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      VK_SAMPLE_COUNT_1_BIT,
+      VK_FALSE,
+      1.f,
+      nullptr,
+      0,
+      VK_FALSE
+    };
+
+    //VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {};
+
+    // This color blend attachment might need to become a per-framebuffer sort of thing?
+    // It really depends on what the format is and what the use of the framebuffer is,
+    // so I'm not sure where I'll end up putting this info.
+    VkPipelineColorBlendAttachmentState colorAttachmentInfo = {
+      VK_TRUE,
+      VK_BLEND_FACTOR_SRC_ALPHA,
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      VK_BLEND_OP_ADD,
+      VK_BLEND_FACTOR_ONE,
+      VK_BLEND_FACTOR_ZERO,
+      VK_BLEND_OP_ADD,
+      VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
+    };
+
+    // I doubt this will ever change
+    VkPipelineColorBlendStateCreateInfo colorBlendInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      VK_FALSE, // Setting this to true changes color blend to color bitwise combination. Turns blending off for all attachments
+      VK_LOGIC_OP_COPY,
+      1,
+      &colorAttachmentInfo,
+      {0, 0, 0, 0} // Not sure what these do
+    };
+
+    // Compiling the shader stages together
+    auto vertInfo = m_triangleVertShader->getCreateInfo();
+    auto fragInfo = m_triangleFragShader->getCreateInfo();
+
+    std::vector<VkPipelineShaderStageCreateInfo> stageInfo;
+    stageInfo.reserve(2);
+    stageInfo.push_back(vertInfo);
+    stageInfo.push_back(fragInfo);
+
+    // Pipeline layout. This is where I define both push constants and descriptor sets,
+    // both of which aren't useful to me yet. I'm not sure how I'll eventually manage
+    // the creation of these layouts, because shaders may or may not be compatible with
+    // a given pipeline layout given if the shader actually uses descriptor sets.
+    // But then again, I don't know enough about those yet so *shrug*
+    VkPipelineLayoutCreateInfo pipelineLayoutInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      nullptr,
+      0,
+      0,
+      nullptr,
+      0,
+      nullptr
+    };
+
+    vkCreatePipelineLayout(*m_device, &pipelineLayoutInfo, nullptr, &m_graphicsPipelineLayout);
+    assert(m_graphicsPipelineLayout);
+
+    // Note: It's possible to use different renderpasses with a pipeline, but they have to be
+    // compatible with m_renderPass which is something different entirely. Perhaps I will
+    // look into this, but I doubt I'll need it for a while.
+    VkGraphicsPipelineCreateInfo createInfo = {
+      VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+      nullptr,
+      0,
+      stageInfo.size(),
+      stageInfo.data(),
+      &vertInputInfo,
+      &inputAssemblyInfo,
+      nullptr,  // No tessellation for now
+      &viewportStateInfo,
+      &rasterizerInfo,
+      &multisampleInfo,
+      nullptr, // no depth test for now (soon to change)
+      &colorBlendInfo,
+      nullptr, // no dynamic stages yet
+      m_graphicsPipelineLayout,
+      *m_renderPass,
+      0,
+      VK_NULL_HANDLE, // You can create derivative pipelines, maybe this will be good later but imnotsure
+      -1
+    };
+
+    vkCreateGraphicsPipelines(*m_device, nullptr, 1, &createInfo, nullptr, &m_graphicsPipeline);
+    assert(m_graphicsPipeline);
+  }
 
   void Application::setupCommandBuffers() {
     m_commandPool = new CommandPool(*m_device, (*m_graphicsQueue)->getFamily());
@@ -223,21 +409,10 @@ namespace dw {
     // buffers will automatically be returned to the command pool and freed when the pool is destroyed
     size_t imageCount = m_swapchain->getNumImages();
     m_commandBuffers.reserve(imageCount);
-    for(size_t i = 0; i < imageCount; ++i) {
+    for (size_t i = 0; i < imageCount; ++i) {
       m_commandBuffers.emplace_back(m_commandPool->allocateCommandBuffer());
     }
 
-
-
-  }
-
-  void Application::setupShaders() {
-    m_triangleVertShader = new Shader<ShaderStage::Vertex>(ShaderModule::Load(*m_device, "triangle_vert.spv"));
-    m_triangleFragShader = new Shader<ShaderStage::Fragment>(ShaderModule::Load(*m_device, "triangle_frag.spv"));
-  }
-
-
-  void Application::setupPipeline() {
 
   }
 
@@ -275,15 +450,15 @@ namespace dw {
         nullptr,
         *m_renderPass,
         framebuffers[i],
-      {{0, 0}, m_swapchain->getImageSize()},
+        {{0, 0}, m_swapchain->getImageSize()},
         1,
         &clearValue
       };
 
       vkCmdBeginRenderPass(*commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-      //vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, nullptr);
-      //vkCmdDraw(*commandBuffer, 3, 1, 0, 0);
+      vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+      vkCmdDraw(*commandBuffer, 3, 1, 0, 0);
 
       vkCmdEndRenderPass(*commandBuffer);
 
@@ -337,6 +512,12 @@ namespace dw {
 
     delete m_commandPool;
     m_commandPool = nullptr;
+
+    vkDestroyPipeline(*m_device, m_graphicsPipeline, nullptr);
+    m_graphicsPipeline = nullptr;
+
+    vkDestroyPipelineLayout(*m_device, m_graphicsPipelineLayout, nullptr);
+    m_graphicsPipelineLayout = nullptr;
 
     delete m_renderPass;
     m_renderPass = nullptr;

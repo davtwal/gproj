@@ -73,6 +73,8 @@ namespace dw {
     RenderPass* m_renderPass{ nullptr };
     IShader* m_triangleVertShader{ nullptr };
     IShader* m_triangleFragShader{ nullptr };
+    VkPipelineLayout m_graphicsPipelineLayout{ nullptr };
+    VkPipeline m_graphicsPipeline{ nullptr };
 
     util::Ref<Queue>* m_graphicsQueue{nullptr};
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
