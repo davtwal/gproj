@@ -46,6 +46,7 @@ namespace dw {
   class CommandPool;
   class CommandBuffer;
   class Queue;
+  class Surface;
 
   CREATE_PHYSICAL_DEPENDENT(LogicalDevice)
   public:
@@ -98,6 +99,7 @@ namespace dw {
     }
 
     NO_DISCARD Queue& getBestQueue(VkQueueFlagBits flag);
+    NO_DISCARD Queue& getPresentableQueue(Surface& surface);
 
     //NO_DISCARD CommandPool* createCommandPool(uint32_t queueFamilyIndex,
     //                                          bool     indivCmdBfrResetable = true,

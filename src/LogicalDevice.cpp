@@ -19,6 +19,7 @@
 #include "LogicalDevice.h"
 #include "Queue.h"
 #include "CommandBuffer.h"
+#include "Surface.h"
 
 #include "Trace.h"
 
@@ -138,5 +139,23 @@ namespace dw {
     return m_badQueue;
   }
 
+  Queue& LogicalDevice::getPresentableQueue(Surface& surface) {
+    for (auto& qfam : m_queues) {
+      for (auto& q : qfam) {
+        if (!q.isLocked()) {
+          VkBool32 supported = false;
+          vkGetPhysicalDeviceSurfaceSupportKHR(getOwningPhysical(),
+            q.getFamily(),
+            surface,
+            &supported);
+
+          if(supported)
+            return q;
+        }
+      }
+    }
+
+    return m_badQueue;
+  }
 
 }

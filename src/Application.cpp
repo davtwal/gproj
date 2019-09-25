@@ -17,8 +17,6 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 #include "Application.h"
-#include <string>
-#include <vector>
 
 #include "VulkanControl.h"
 #include "GLFWControl.h"
@@ -26,13 +24,17 @@
 
 #include "Surface.h"
 #include "Swapchain.h"
+#include "Framebuffer.h"  // this is used
 #include "Trace.h"
 #include "Queue.h"
 #include "CommandBuffer.h"
 #include "RenderPass.h"
-#include "Framebuffer.h"
 #include "Shader.h"
+#include "Vertex.h"
+#include "Buffer.h"
+
 #include <cassert>
+#include <algorithm>
 
 namespace dw {
   int Application::parseCommandArgs(int, char**) {
@@ -151,17 +153,17 @@ namespace dw {
     features.wideLines                              = 1;  // enable lines wider than 1.0
     features.largePoints                            = 1;  // enable points bigger than 1.0
 
+    uint32_t graphicsFamily = physical.pickQueueFamily(VK_QUEUE_GRAPHICS_BIT);
+    uint32_t transferFamily = physical.pickQueueFamily(VK_QUEUE_TRANSFER_BIT);
+
     LogicalDevice::QueueList queueList;
-    queueList.push_back(std::make_pair(0, std::vector<float>({1})));
+    queueList.push_back(std::make_pair(graphicsFamily, std::vector<float>({ 1 })));
+
+    if (graphicsFamily != transferFamily)
+      queueList.push_back(std::make_pair(transferFamily, std::vector<float>({ 1 })));
 
     m_device = new LogicalDevice(physical, deviceLayers, deviceExtensions, queueList, features, features, false);
-  }
 
-  void Application::setupSurface() {
-    m_surface = new Surface(*m_window, m_device->getOwningPhysical());
-  }
-
-  void Application::setupSwapChain() {
     // TODO better selection of presentation queue
     // its possible that queues that support graphics & presenting don't overlap
     // perhaps select inside of LogicalDevice which queue family out of the selected
@@ -172,23 +174,27 @@ namespace dw {
     // Queue manager?
     m_graphicsQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_GRAPHICS_BIT));
     if (!(*m_graphicsQueue)->isValid())
-      return;
+      throw std::runtime_error("no graphics queue available");
 
-    VkBool32 supported = false;
-    vkGetPhysicalDeviceSurfaceSupportKHR(m_device->getOwningPhysical(),
-                                         (*m_graphicsQueue)->getFamily(),
-                                         *m_surface,
-                                         &supported);
+    m_transferQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_TRANSFER_BIT));
+    assert(m_transferQueue && (*m_transferQueue)->isValid()); // graphics queues implicitly allow transfer
+  }
 
-    if (!supported)
-      throw std::runtime_error("graphics queue does not support presenting");
+  void Application::setupSurface() {
+    m_surface = std::make_unique<Surface>(*m_window, m_device->getOwningPhysical());
 
-    m_swapchain = new Swapchain(*m_device, *m_surface, *m_graphicsQueue);
+    m_presentQueue = new util::Ref<Queue>(m_device->getPresentableQueue(*m_surface));
+    if (!(*m_presentQueue)->isValid())
+      throw std::runtime_error("no present queue available");
+  }
+
+  void Application::setupSwapChain() {
+    m_swapchain = std::make_unique<Swapchain>(*m_device, *m_surface, *m_graphicsQueue);
   }
 
 
   void Application::setupRenderpasses() {
-    m_renderPass = new RenderPass(*m_device);
+    m_renderPass = std::make_unique<RenderPass>(*m_device);
     m_renderPass->reserveAttachments(1);
     m_renderPass->reserveSubpasses(1);
     m_renderPass->reserveAttachmentRefs(1);
@@ -216,13 +222,14 @@ namespace dw {
     m_swapchain->createFramebuffers(*m_renderPass);
   }
   void Application::setupShaders() {
-    m_triangleVertShader = new Shader<ShaderStage::Vertex>(ShaderModule::Load(*m_device, "triangle_vert.spv"));
-    m_triangleFragShader = new Shader<ShaderStage::Fragment>(ShaderModule::Load(*m_device, "triangle_frag.spv"));
+    m_triangleVertShader = std::make_unique<Shader<ShaderStage::Vertex>>(ShaderModule::Load(*m_device, "fromBuffer_vert.spv"));
+    m_triangleFragShader = std::make_unique<Shader<ShaderStage::Fragment>>(ShaderModule::Load(*m_device, "triangle_frag.spv"));
   }
 
   void Application::setupPipeline() {
 
-    
+    auto vertexAttributes = Vertex::GetBindingAttributes();
+    auto vertexBindings = Vertex::GetBindingDescriptions();
     // Eventually each vertex type will have its own GetBindingDescriptions()
     // and GetAttributeDescriptions() sort of functions which can be put here.
     // maybe
@@ -230,10 +237,10 @@ namespace dw {
       VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
       nullptr,
       0,
-      0,
-      nullptr,
-      0,
-      nullptr
+      static_cast<uint32_t>(vertexBindings.size()),
+      vertexBindings.data(),
+      static_cast<uint32_t>(vertexAttributes.size()),
+      vertexAttributes.data()
     };
 
     // I'm not sure how I'll do the input assembly.
@@ -263,8 +270,8 @@ namespace dw {
     VkViewport viewport = {
       0,
       0,
-      m_surface->getWidth(),
-      m_surface->getHeight(),
+      static_cast<float>(m_surface->getWidth()),
+      static_cast<float>(m_surface->getHeight()),
       0,
       1.f
     };
@@ -315,7 +322,7 @@ namespace dw {
       VK_FALSE,
       1.f,
       nullptr,
-      0,
+      VK_FALSE,
       VK_FALSE
     };
 
@@ -381,7 +388,7 @@ namespace dw {
       VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
       nullptr,
       0,
-      stageInfo.size(),
+      static_cast<uint32_t>(stageInfo.size()),
       stageInfo.data(),
       &vertInputInfo,
       &inputAssemblyInfo,
@@ -403,37 +410,62 @@ namespace dw {
     assert(m_graphicsPipeline);
   }
 
-  void Application::setupCommandBuffers() {
-    m_commandPool = new CommandPool(*m_device, (*m_graphicsQueue)->getFamily());
+  void Application::setupCommandPool() {
+    m_commandPool = std::make_unique<CommandPool>(*m_device, (*m_graphicsQueue)->getFamily());
+    m_transferCmdPool = std::make_unique<CommandPool>(*m_device, m_transferQueue->ref.getFamily());
+  }
 
+  void Application::setupVertexBuffer() {
+    std::vector<Vertex> vertices = {
+      {{-.5, -.5f}, {1, 0, 0}},
+    {{.5f, -.5f}, {1, 1, 1}},
+      {{.5f, .5f}, {0, 1, 0}},
+    {{-.5f, .5f}, {0, 0, 1}},
+    };
+
+    std::vector<uint16_t> indices = {
+      0, 1, 2, 2, 3, 0
+    };
+
+    size_t vertexSize = sizeof(Vertex) * vertices.size();
+    size_t indexSize = sizeof(uint16_t) * indices.size();
+    Buffer vertexStaging = Buffer::CreateStaging(*m_device, vertexSize);
+    Buffer indexStaging = Buffer::CreateStaging(*m_device, indexSize);
+
+    // the buffer has been created with host coherent so we don't invalidate/flush
+    void* vertexData = vertexStaging.map();
+    void* indexData = indexStaging.map();
+    memcpy(vertexData, vertices.data(), vertexSize);
+    memcpy(indexData, indices.data(), indexSize);
+    vertexStaging.unMap();
+    indexStaging.unMap();
+
+    m_vertexBuffer = std::make_unique <Buffer>(Buffer::CreateVertex(*m_device, vertexSize));
+    m_indexBuffer = std::make_unique<Buffer>(Buffer::CreateIndex(*m_device, indexSize));
+
+    CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
+
+    moveBuff.start(true);
+    // srcOffset/dstOffset = optional
+    VkBufferCopy vertCopyRegion = {0, 0, vertexSize};
+    VkBufferCopy indexCopyRegion = { 0, 0, indexSize };
+    vkCmdCopyBuffer(moveBuff, vertexStaging, *m_vertexBuffer, 1, &vertCopyRegion);
+    vkCmdCopyBuffer(moveBuff, indexStaging, *m_indexBuffer, 1, &indexCopyRegion);
+    moveBuff.end();
+
+    m_transferQueue->ref.submitOne(moveBuff);
+    m_transferQueue->ref.waitIdle();
+
+    m_transferCmdPool->freeCommandBuffer(moveBuff);
+  }
+
+  void Application::setupCommandBuffers() {
     // buffers will automatically be returned to the command pool and freed when the pool is destroyed
     size_t imageCount = m_swapchain->getNumImages();
     m_commandBuffers.reserve(imageCount);
     for (size_t i = 0; i < imageCount; ++i) {
       m_commandBuffers.emplace_back(m_commandPool->allocateCommandBuffer());
     }
-
-
-  }
-
-  int Application::initialize() {
-    GLFWControl::Init();
-
-    openWindow();
-    setupInstance();
-    setupDebug();
-
-    auto&           physDevs = m_control->getPhysicalDevices();
-    PhysicalDevice& physical = physDevs.front();
-
-    setupDevice(physical);
-    setupSurface();
-    setupSwapChain();
-    setupRenderpasses();
-    setupSwapChainFrameBuffers();
-    setupShaders();
-    setupPipeline();
-    setupCommandBuffers();
 
     auto& framebuffers = m_swapchain->getFrameBuffers();
     for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
@@ -458,12 +490,40 @@ namespace dw {
       vkCmdBeginRenderPass(*commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
       vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
-      vkCmdDraw(*commandBuffer, 3, 1, 0, 0);
+
+      const VkBuffer& buff = (VkBuffer)*m_vertexBuffer;
+      const VkDeviceSize offset = 0;
+      vkCmdBindVertexBuffers(*commandBuffer, 0, 1, &buff, &offset);
+      vkCmdBindIndexBuffer(*commandBuffer, *m_indexBuffer, 0, VK_INDEX_TYPE_UINT16);
+      vkCmdDrawIndexed(*commandBuffer, 6, 1, 0, 0, 0);
 
       vkCmdEndRenderPass(*commandBuffer);
 
       commandBuffer->end();
     }
+  }
+
+  int Application::initialize() {
+    GLFWControl::Init();
+
+    openWindow();
+    setupInstance();
+    setupDebug();
+
+    auto&           physDevs = m_control->getPhysicalDevices();
+    PhysicalDevice& physical = physDevs.front();
+
+    setupDevice(physical);
+    setupSurface();
+    setupSwapChain();
+    setupRenderpasses();
+    setupSwapChainFrameBuffers();
+    setupShaders();
+    setupPipeline();
+    setupCommandPool();
+    setupVertexBuffer();
+    setupCommandBuffers();
+
     return 0;
   }
 
@@ -507,32 +567,27 @@ namespace dw {
   }
 
   int Application::shutdown() {
+    vkDeviceWaitIdle(*m_device);
+
     delete m_graphicsQueue;
     m_graphicsQueue = nullptr;
 
-    delete m_commandPool;
-    m_commandPool = nullptr;
+    delete m_transferQueue;
+    m_transferQueue = nullptr;
 
+    delete m_presentQueue;
+    m_presentQueue = nullptr;
+
+    m_vertexBuffer.reset();
     vkDestroyPipeline(*m_device, m_graphicsPipeline, nullptr);
-    m_graphicsPipeline = nullptr;
-
     vkDestroyPipelineLayout(*m_device, m_graphicsPipelineLayout, nullptr);
-    m_graphicsPipelineLayout = nullptr;
-
-    delete m_renderPass;
-    m_renderPass = nullptr;
-
-    delete m_triangleVertShader;
-    m_triangleVertShader = nullptr;
-
-    delete m_triangleFragShader;
-    m_triangleFragShader = nullptr;
-
-    delete m_swapchain;
-    m_swapchain = nullptr;
-
-    delete m_surface;
-    m_swapchain = nullptr;
+    m_triangleFragShader.reset();
+    m_triangleVertShader.reset();
+    m_renderPass.reset();
+    m_transferCmdPool.reset();
+    m_commandPool.reset();
+    m_swapchain.reset();
+    m_surface.reset();
 
     delete m_device;
     m_device = nullptr;

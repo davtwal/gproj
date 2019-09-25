@@ -66,6 +66,10 @@ namespace dw {
     NO_DISCARD std::vector<ImageView> const& getViews() const;
     NO_DISCARD std::vector<Framebuffer> const& getFrameBuffers() const;
 
+    NO_DISCARD std::vector<IndependentImage>& getImages();
+    NO_DISCARD std::vector<ImageView>& getViews();
+    NO_DISCARD std::vector<Framebuffer>& getFrameBuffers();
+
   private:
     void createSemaphores();
     void cleanupSemaphores();

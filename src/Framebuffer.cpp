@@ -56,4 +56,7 @@ namespace dw {
     return m_framebuffer;
   }
 
+  Framebuffer::operator VkFramebuffer() {
+    return m_framebuffer;
+  }
 }

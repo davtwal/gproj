@@ -217,4 +217,16 @@ namespace dw {
   std::vector<ImageView> const& Swapchain::getViews() const {
     return m_views;
   }
+
+  std::vector<Framebuffer>& Swapchain::getFrameBuffers() {
+    return m_framebuffers;
+  }
+
+  std::vector<IndependentImage>& Swapchain::getImages() {
+    return m_images;
+  }
+
+  std::vector<ImageView>& Swapchain::getViews() {
+    return m_views;
+  }
 }

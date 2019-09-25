@@ -18,9 +18,12 @@
 
 #ifndef DW_APPLICATION_H
 #define DW_APPLICATION_H
-#include <vector>
+
 #include "RenderPass.h"
 #include "Utils.h"
+
+#include <vector>
+#include <memory>
 
 namespace dw {
   class PhysicalDevice;
@@ -31,7 +34,7 @@ namespace dw {
   class Surface;
   class Swapchain;
   class CommandPool;
-
+  class Buffer;
   class IShader;
 
   class Application {
@@ -51,6 +54,8 @@ namespace dw {
     void setupSwapChainFrameBuffers();
     void setupShaders();
     void setupPipeline();
+    void setupCommandPool();
+    void setupVertexBuffer();
     void setupCommandBuffers();
 
     void setupDebug();
@@ -67,16 +72,23 @@ namespace dw {
     InputHandler*  m_inputHandler{nullptr};
     LogicalDevice* m_device{ nullptr };
 
-    Surface* m_surface{ nullptr };
-    Swapchain* m_swapchain{ nullptr };
-    CommandPool* m_commandPool{ nullptr };
-    RenderPass* m_renderPass{ nullptr };
-    IShader* m_triangleVertShader{ nullptr };
-    IShader* m_triangleFragShader{ nullptr };
+    template <typename T>
+    using ptr = std::unique_ptr<T>;
+
+    ptr<Surface> m_surface{ nullptr };
+    ptr<Swapchain> m_swapchain{ nullptr };
+    ptr<CommandPool> m_commandPool{ nullptr };
+    ptr<CommandPool> m_transferCmdPool{ nullptr };
+    ptr<RenderPass> m_renderPass{ nullptr };
+    ptr<IShader> m_triangleVertShader{ nullptr };
+    ptr<IShader> m_triangleFragShader{ nullptr };
     VkPipelineLayout m_graphicsPipelineLayout{ nullptr };
     VkPipeline m_graphicsPipeline{ nullptr };
-
-    util::Ref<Queue>* m_graphicsQueue{nullptr};
+    ptr<Buffer> m_vertexBuffer{ nullptr };
+    ptr<Buffer> m_indexBuffer{ nullptr };
+    util::Ref<Queue>* m_graphicsQueue{ nullptr };
+    util::Ref<Queue>* m_presentQueue{ nullptr };
+    util::Ref<Queue>* m_transferQueue{ nullptr };
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
   };
 } // namespace dw

@@ -30,6 +30,7 @@ namespace dw {
     ~Framebuffer();
 
     operator VkFramebuffer() const;
+    operator VkFramebuffer();
 
   private:
     VkFramebuffer m_framebuffer{ nullptr };

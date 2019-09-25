@@ -16,6 +16,18 @@
 // * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
+// All of these includes need to be here because otherwise unique_ptr will yell at me
+#include "Surface.h"
+#include "Swapchain.h"
+#include "Framebuffer.h"
+#include "Trace.h"
+#include "Queue.h"
+#include "CommandBuffer.h"
+#include "RenderPass.h"
+#include "Shader.h"
+#include "Vertex.h"
+#include "Buffer.h"
+
 #include "Application.h"
 
 #include <exception>
@@ -23,6 +35,7 @@
 using namespace dw;
 int main(int argc, char** argv) {
   Application app;
+
   try {
     if (app.parseCommandArgs(argc, argv) == EXIT_FAILURE || app.run() == EXIT_FAILURE)
       return EXIT_FAILURE;
