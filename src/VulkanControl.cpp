@@ -163,4 +163,7 @@ namespace dw {
     return m_instance;
   }
 
+  PhysicalDevice& VulkanControl::getBestPhysical() {
+    return m_phys_devices.front();
+  }
 }

@@ -63,6 +63,13 @@ namespace dw {
     return Buffer(device, size, flags, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
   }
 
+  Buffer Buffer::CreateUniform(LogicalDevice& device, VkDeviceSize size, bool fromStaging) {
+    VkFlags flags = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | (fromStaging ? VK_BUFFER_USAGE_TRANSFER_DST_BIT : 0);
+    return Buffer(device, size, flags, fromStaging
+      ? VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+      : VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+  }
+
   Buffer::operator VkBuffer() const {
     return m_buffer;
   }

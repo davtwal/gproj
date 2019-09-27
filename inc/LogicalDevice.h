@@ -43,8 +43,8 @@
   private:
 
 namespace dw {
-  class CommandPool;
-  class CommandBuffer;
+  //class CommandPool;
+  //class CommandBuffer;
   class Queue;
   class Surface;
 

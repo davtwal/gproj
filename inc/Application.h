@@ -19,23 +19,12 @@
 #ifndef DW_APPLICATION_H
 #define DW_APPLICATION_H
 
-#include "RenderPass.h"
-#include "Utils.h"
+#include "Renderer.h"
 
-#include <vector>
 #include <memory>
+#include "Camera.h"
 
 namespace dw {
-  class PhysicalDevice;
-  class VulkanControl;
-  class GLFWWindow;
-  class InputHandler;
-  class LogicalDevice;
-  class Surface;
-  class Swapchain;
-  class CommandPool;
-  class Buffer;
-  class IShader;
 
   class Application {
   public:
@@ -44,52 +33,14 @@ namespace dw {
 
   private:
     int initialize();
-    // INITIALIZATION FUNCTIONS
-    void openWindow();
-    void setupInstance();
-    void setupDevice(PhysicalDevice& device);
-    void setupSurface();
-    void setupSwapChain();
-    void setupRenderpasses();
-    void setupSwapChainFrameBuffers();
-    void setupShaders();
-    void setupPipeline();
-    void setupCommandPool();
-    void setupVertexBuffer();
-    void setupCommandBuffers();
-
-    void setupDebug();
-    void fillInstanceExtLayerVecs(std::vector<const char*>& exts, std::vector<const char*>& layers);
-
     int loop() const;
 
     int shutdown();
-    // SHUTDOWN FUNCTIONS
-    void shutdownDebug();
-
-    VulkanControl* m_control{nullptr};
-    GLFWWindow*    m_window{nullptr};
-    InputHandler*  m_inputHandler{nullptr};
-    LogicalDevice* m_device{ nullptr };
-
-    template <typename T>
-    using ptr = std::unique_ptr<T>;
-
-    ptr<Surface> m_surface{ nullptr };
-    ptr<Swapchain> m_swapchain{ nullptr };
-    ptr<CommandPool> m_commandPool{ nullptr };
-    ptr<CommandPool> m_transferCmdPool{ nullptr };
-    ptr<RenderPass> m_renderPass{ nullptr };
-    ptr<IShader> m_triangleVertShader{ nullptr };
-    ptr<IShader> m_triangleFragShader{ nullptr };
-    VkPipelineLayout m_graphicsPipelineLayout{ nullptr };
-    VkPipeline m_graphicsPipeline{ nullptr };
-    ptr<Buffer> m_vertexBuffer{ nullptr };
-    ptr<Buffer> m_indexBuffer{ nullptr };
-    util::Ref<Queue>* m_graphicsQueue{ nullptr };
-    util::Ref<Queue>* m_presentQueue{ nullptr };
-    util::Ref<Queue>* m_transferQueue{ nullptr };
-    std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
+    // SCENE VARIABLES
+    util::ptr<Mesh>     m_mesh{ nullptr };
+    util::ptr<Renderer> m_renderer{ nullptr };
+    Object    m_triangleObject;
+    Camera    m_camera;
   };
 } // namespace dw
 #endif

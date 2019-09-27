@@ -77,7 +77,7 @@ namespace dw {
     bool initInstance(std::vector<const char*> const& extensions = {}, std::vector<const char*> const& layers = {});
     void registerPhysicalDevices();
 
-
+    NO_DISCARD PhysicalDevice& getBestPhysical();
     NO_DISCARD std::vector<PhysicalDevice> const& getPhysicalDevices() const;
     NO_DISCARD std::vector<PhysicalDevice>& getPhysicalDevices();
 

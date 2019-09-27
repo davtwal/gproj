@@ -135,6 +135,17 @@ namespace dw {
     m_submitting = true;
   }
 
+  void Queue::submitOne(VkSubmitInfo const& info, VkFence fence) {
+    if (!m_queue || m_submitting)
+      return;
+
+    if (vkQueueSubmit(m_queue, 1, &info, fence) != VK_SUCCESS)
+      throw std::runtime_error("Could not submit queue");
+
+    m_submitting = true;
+  }
+
+
   void Queue::submitOne(CommandBuffer const&                     buffer,
                         std::vector<VkSemaphore> const&          waitSemaphores,
                         std::vector<VkPipelineStageFlags> const& waitSemStages,
@@ -161,13 +172,7 @@ namespace dw {
   }
 
   void Queue::submitOne(VkSubmitInfo const& info) {
-    if (!m_queue || m_submitting)
-      return;
-
-    if (vkQueueSubmit(m_queue, 1, &info, m_submitFence) != VK_SUCCESS)
-      throw std::runtime_error("Could not submit queue");
-
-    m_submitting = true;
+    submitOne(info, m_submitFence);
   }
 
   void Queue::waitSubmit() {

@@ -23,6 +23,8 @@
 #include "Utils.h"
 
 namespace dw {
+  class CommandBuffer;
+
   class Queue {
   public:
     Queue(uint32_t family);
@@ -41,6 +43,7 @@ namespace dw {
                    std::vector<VkSemaphore> const&          signalSemaphores = {});
 
     void submitOne(VkSubmitInfo const& info);
+    void submitOne(VkSubmitInfo const& info, VkFence fence);
 
     // this is kinda slow as i need to make a new vector of just
     // VkCommandBuffers in order to build a single submit info

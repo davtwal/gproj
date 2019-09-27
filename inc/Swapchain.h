@@ -81,12 +81,16 @@ namespace dw {
     VkSwapchainKHR m_swapchain{ nullptr };
     VkFormat m_imageFormat;
 
+    static constexpr unsigned MAX_IN_FLIGHT_IMAGE = 2;
+
     std::vector<IndependentImage> m_images;
     std::vector<ImageView> m_views;
     std::vector<Framebuffer> m_framebuffers;
-    VkSemaphore m_nextImageSemaphore{ nullptr };
-    VkSemaphore m_imageRenderReady{ nullptr };  // after a command buffer has been executed
+    std::vector<VkSemaphore> m_nextImageSemaphore;
+    std::vector<VkSemaphore> m_imageRenderReady;  // after a command buffer has been executed
+    std::vector<VkFence> m_inFlightFence;
     uint32_t m_nextImage{ 0 };
+    uint32_t m_currentFrame{ 0 };
   };
 }
 

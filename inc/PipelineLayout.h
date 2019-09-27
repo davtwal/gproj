@@ -1,5 +1,5 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-// * gproj : Abstractions.h
+// * gproj : PipelineLayout.h
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 //  Created     : 2019y 09m 24d
@@ -9,26 +9,28 @@
 // * E-mail      : d.walker\@digipen.edu
 // * 
 // * Description :
-// *  Contains helper functions that dont belong to any one class
-// *  and instead do things on their own.
+// *
+// *
 // *
 // *
 // * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
-#ifndef DW_ABSTRACTIONS_H
-#define DW_ABSTRACTIONS_H
+#ifndef DW_PIPELINE_LAYOUT_H
+#define DW_PIPELINE_LAYOUT_H
 
-struct VkBufferCopy;
+#include "LogicalDevice.h"
+namespace dw {
+  CREATE_DEVICE_DEPENDENT(PipelineLayout)
+  public:
+    PipelineLayout(LogicalDevice& device);
+    ~PipelineLayout();
 
-namespace dw::abst {
-  class Buffer;
-  class CommandPool;
-  class Queue;
+    operator VkPipelineLayout() const;
 
-  void StageAndTransferBuffer(VkBufferCopy const& copyRegion);
-
+  private:
+    VkPipelineLayout m_layout;
+  };
 }
 
 #endif
-

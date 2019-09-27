@@ -27,12 +27,15 @@ namespace dw {
 
   CREATE_DEVICE_DEPENDENT(Buffer)
   public:
+    //Buffer(LogicalDevice& device) : m_device(device) {}
+
     Buffer(LogicalDevice& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties);
     ~Buffer();
 
     static Buffer CreateStaging(LogicalDevice& device, VkDeviceSize size);
     static Buffer CreateVertex(LogicalDevice& device, VkDeviceSize size, bool fromStaging = true);
     static Buffer CreateIndex(LogicalDevice& device, VkDeviceSize size, bool fromStaging = true);
+    static Buffer CreateUniform(LogicalDevice& device, VkDeviceSize size, bool fromStaging = false);
     // TODO other buffer types e.g. uniform buffers
     
     operator VkBuffer() const;

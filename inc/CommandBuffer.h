@@ -91,6 +91,10 @@ namespace dw {
     CommandBuffer& operator=(CommandBuffer const&) = delete;
     CommandBuffer(CommandBuffer const& o)          = delete;
 
+    CommandPool& getOwningPool() const {
+      return m_pool;
+    }
+
   private:
     friend class CommandPool;
     friend class Queue;

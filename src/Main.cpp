@@ -27,6 +27,7 @@
 #include "Shader.h"
 #include "Vertex.h"
 #include "Buffer.h"
+#include "Mesh.h"
 
 #include "Application.h"
 
