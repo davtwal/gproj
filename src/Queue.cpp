@@ -97,36 +97,15 @@ namespace dw {
     return false;
   }
 
-#if 0
-  void Queue::submitMulti(std::vector<CommandBuffer*> const& buffers) {
-    if (!m_queue || m_submitting)
-      return;
+  void Queue::submitMulti(std::vector<VkSubmitInfo> const& infos) {
+    if (m_submitting) {
+      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+        return;
 
-    std::vector<VkCommandBuffer> vkBuffs;
-    vkBuffs.resize(buffers.size());
-    for (CommandBuffer* buff : buffers) {
-      if (buff && buff->isReady())
-        vkBuffs.emplace_back(buff->m_cmdBuffer);
+      m_submitting = false;
     }
 
-    VkSubmitInfo submitInfo = {
-      VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      nullptr,
-      0,
-      nullptr,
-      nullptr,
-      static_cast<uint32_t>(vkBuffs.size()),
-      vkBuffs.data(),
-      0,
-      nullptr
-    };
-
-    return submitOne(submitInfo);
-  }
-#endif
-
-  void Queue::submitMulti(std::vector<VkSubmitInfo> const& infos) {
-    if (!m_queue || m_submitting)
+    if (!m_queue)
       return;
 
     if (vkQueueSubmit(m_queue, infos.size(), infos.data(), m_submitFence) != VK_SUCCESS)
@@ -136,7 +115,13 @@ namespace dw {
   }
 
   void Queue::submitOne(VkSubmitInfo const& info, VkFence fence) {
-    if (!m_queue || m_submitting)
+    if (m_submitting) {
+      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+        return;
+
+      m_submitting = false;
+    }
+    if (!m_queue)
       return;
 
     if (vkQueueSubmit(m_queue, 1, &info, fence) != VK_SUCCESS)
@@ -151,7 +136,14 @@ namespace dw {
                         std::vector<VkPipelineStageFlags> const& waitSemStages,
                         std::vector<VkSemaphore> const&          signalSemaphores
   ) {
-    if (!m_queue || m_submitting || !buffer.isReady())
+    if(m_submitting) {
+      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+        return;
+
+      m_submitting = false;
+    }
+
+    if (!m_queue || !buffer.isReady())
       return;
 
     assert(waitSemaphores.size() == waitSemStages.size());

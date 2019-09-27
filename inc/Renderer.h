@@ -65,6 +65,7 @@ namespace dw {
     void setupSwapChain();
     void setupCommandPools();
     void setupCommandBuffers();
+    void transitionSwapChainImages();
 
     // specific to the rendering engine & what i support
     void setupShaders();

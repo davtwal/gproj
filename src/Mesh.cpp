@@ -32,9 +32,17 @@ namespace dw {
       m_indices(std::move(o.m_indices)),
       m_vertexBuff(std::move(o.m_vertexBuff)),
       m_indexBuff(std::move(o.m_indexBuff)) {
+    o.m_vertexBuff = nullptr;
+    o.m_indexBuff = nullptr;
   }
 
-  Mesh::~Mesh() {}
+  Mesh::~Mesh() {
+    if (m_vertexBuff)
+      m_vertexBuff.reset();
+
+    if (m_indexBuff)
+      m_indexBuff.reset();
+  }
 
   Buffer& Mesh::getIndexBuffer() {
     return *m_indexBuff;

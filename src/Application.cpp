@@ -86,6 +86,8 @@ namespace dw {
   }
 
   int Application::shutdown() {
+    m_mesh.reset();
+
     m_renderer->shutdown();
     return 0;
   }

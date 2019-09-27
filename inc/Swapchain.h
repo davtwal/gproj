@@ -86,9 +86,9 @@ namespace dw {
     std::vector<IndependentImage> m_images;
     std::vector<ImageView> m_views;
     std::vector<Framebuffer> m_framebuffers;
-    std::vector<VkSemaphore> m_nextImageSemaphore;
-    std::vector<VkSemaphore> m_imageRenderReady;  // after a command buffer has been executed
-    std::vector<VkFence> m_inFlightFence;
+    VkSemaphore m_nextImageSemaphore;
+    VkSemaphore m_imageRenderReady;  // after a command buffer has been executed
+    VkFence m_inFlightFence;
     uint32_t m_nextImage{ 0 };
     uint32_t m_currentFrame{ 0 };
   };

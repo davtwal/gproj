@@ -56,6 +56,7 @@ namespace dw {
     setupSwapChain();
     setupCommandPools();
     setupCommandBuffers();
+    transitionSwapChainImages();
   }
 
   void Renderer::initSpecific() {
@@ -68,6 +69,8 @@ namespace dw {
 
   void Renderer::shutdown() {
     vkDeviceWaitIdle(*m_device);
+
+    m_objList.clear();
 
     vkDestroyPipeline(*m_device, m_graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(*m_device, m_graphicsPipelineLayout, nullptr);
@@ -162,22 +165,21 @@ namespace dw {
   }
 
   void Renderer::uploadMeshes(std::vector<util::ptr<Mesh>> const& meshes) const {
-    std::vector<Mesh::StagingBuffs> stagingBuffers;//({Buffer(*m_device), Buffer(*m_device)});
+    std::vector<Mesh::StagingBuffs> stagingBuffers;
     stagingBuffers.reserve(meshes.size());
     for(auto& mesh : meshes) {
       stagingBuffers.push_back(mesh->createAllBuffs(*m_device));
       mesh->uploadStaging(stagingBuffers.back());
-      mesh->clearCache();
     }
-
+    
     CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
-
+    
     moveBuff.start(true);
     for(size_t i = 0; i < meshes.size(); ++i) {
       meshes[i]->uploadCmds(moveBuff, stagingBuffers[i]);
     }
     moveBuff.end();
-
+    
     m_transferQueue->ref.submitOne(moveBuff);
     m_transferQueue->ref.waitIdle();
 
@@ -186,7 +188,7 @@ namespace dw {
 
   void Renderer::setScene(std::vector<Object> const& objects) {
     m_objList = objects;
-    setupCommandBuffers();
+    writeCommandBuffers();
   }
 
   struct MVPTransformUniform {
@@ -221,7 +223,7 @@ namespace dw {
     };
 
     // flip y-axis because Vulkan renders upside down compared to OpenGL
-    mvp.proj[1][1] *= -1;
+    //mvp.proj[1][1] *= -1;
 
     void* data = m_uniformBuffers[imageIndex].map();
     memcpy(data, &mvp, sizeof(mvp));
@@ -435,6 +437,47 @@ namespace dw {
     m_swapchain = std::make_unique<Swapchain>(*m_device, *m_surface, *m_presentQueue);
   }
 
+  void Renderer::transitionSwapChainImages() {
+    CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
+    transBuff.start(true);
+
+    for(auto& image : m_swapchain->getImages()) {
+      VkImageMemoryBarrier memBarrier = {
+        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        nullptr,
+        VK_ACCESS_MEMORY_WRITE_BIT,
+        VK_ACCESS_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_UNDEFINED,
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        image,
+        {
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          0,
+          1,
+          0,
+          1
+        }
+      };
+
+      vkCmdPipelineBarrier(transBuff,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &memBarrier);
+    }
+
+    transBuff.end();
+
+    m_transferQueue->ref.submitOne(transBuff);
+    m_transferQueue->ref.waitIdle();
+
+    m_commandPool->freeCommandBuffer(transBuff);
+  }
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   //// COMMAND POOLS & BUFFER SETUP
@@ -500,7 +543,7 @@ namespace dw {
 
   void Renderer::setupShaders() {
     m_triangleVertShader = util::make_ptr<Shader<ShaderStage::Vertex>>(ShaderModule::Load(*m_device,
-                                                                                          "fromBuffer_vert.spv"));
+                                                                                          "fromBuffer_transform_vert.spv"));
     m_triangleFragShader = util::make_ptr<Shader<ShaderStage::Fragment>>(ShaderModule::Load(*m_device,
                                                                                             "triangle_frag.spv"));
   }
