@@ -97,34 +97,6 @@ namespace dw {
     return false;
   }
 
-#if 0
-  void Queue::submitMulti(std::vector<CommandBuffer*> const& buffers) {
-    if (!m_queue || m_submitting)
-      return;
-
-    std::vector<VkCommandBuffer> vkBuffs;
-    vkBuffs.resize(buffers.size());
-    for (CommandBuffer* buff : buffers) {
-      if (buff && buff->isReady())
-        vkBuffs.emplace_back(buff->m_cmdBuffer);
-    }
-
-    VkSubmitInfo submitInfo = {
-      VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      nullptr,
-      0,
-      nullptr,
-      nullptr,
-      static_cast<uint32_t>(vkBuffs.size()),
-      vkBuffs.data(),
-      0,
-      nullptr
-    };
-
-    return submitOne(submitInfo);
-  }
-#endif
-
   void Queue::submitMulti(std::vector<VkSubmitInfo> const& infos) {
     if (!m_queue || m_submitting)
       return;
