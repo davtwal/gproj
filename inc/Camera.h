@@ -31,6 +31,20 @@ namespace dw {
     glm::mat4 const& getView();
     glm::mat4 const& getProj();
 
+    Camera& setDimensions(float width, float height);
+    Camera& setNearDepth(float near);
+    Camera& setFarDepth(float far);
+    Camera& setEyePos(glm::vec3 const& pos);
+    Camera& setViewDir(glm::vec3 const& dir);
+    Camera& setFOV(float radians);
+    Camera& setFOVDeg(float degrees);
+
+    // aspect = width / height;
+    Camera& setAspect(float aspect);
+
+    // changes the view direction to look at a specificpoint
+    Camera& setLookAt(glm::vec3 const& look);
+
   private:
 
     float m_width = 10;

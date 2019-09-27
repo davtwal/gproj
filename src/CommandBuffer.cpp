@@ -167,7 +167,7 @@ namespace dw {
     // TODO support secondary command buffers
     if (m_cmdBuffer && m_state == State::Fresh) {
 
-      const VkFlags beginFlags = (oneTime ? VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT : 0);
+      const VkFlags beginFlags = (oneTime ? VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT : VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
       VkCommandBufferBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,

@@ -22,12 +22,14 @@
 #include "RenderPass.h"
 #include "Utils.h"
 #include "Object.h"
+#include "Camera.h"
 
 #include "MeshManager.h"
 
 #include <unordered_map>
 
 namespace dw {
+  //class Camera;
   class PhysicalDevice;
   class VulkanControl;
   class GLFWWindow;
@@ -55,7 +57,7 @@ namespace dw {
     void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
     void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
 
-    void setScene(std::vector<Object> const& objects);
+    void setScene(Camera const& camera, std::vector<Object> const& objects);
     void drawFrame();
 
     void shutdown();
@@ -88,7 +90,7 @@ namespace dw {
 
     // drawing helpers
     void writeCommandBuffers();
-    void updateUniformBuffers(uint32_t imageIndex);
+    void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
 
     // shutdown helpers
     void shutdownManagers();
@@ -131,6 +133,9 @@ namespace dw {
     //////////////////////////////////////////////////////
     //// Managers
     MeshManager m_meshManager;
+
+    // Scene variables
+    Camera m_camera;
 
     // Specific, per-swapchain-image variables
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;

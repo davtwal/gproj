@@ -32,6 +32,7 @@
 #include <array>
 #include <cassert>
 #include <algorithm>
+#include "Camera.h"
 
 namespace dw {
   /////////////////////////////////////////////////////////////////////////////
@@ -144,6 +145,24 @@ namespace dw {
     return m_window->shouldClose();
   }
 
+  struct MVPTransformUniform {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+  };
+
+  struct ObjectUniform {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::vec3 position;
+  };
+
+  struct CameraUniform {
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 eyePos;
+    alignas(16) glm::vec3 viewVec;
+  };
+
   void Renderer::drawFrame() {
     assert(m_swapchain->isPresentReady());
     if (m_objList.empty())
@@ -156,7 +175,33 @@ namespace dw {
 
     auto& graphicsQueue = *m_graphicsQueue;
 
-    updateUniformBuffers(nextImageIndex);
+    /*VkEventCreateInfo eventInfo = {
+      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
+      nullptr,
+      0
+    };
+
+    VkEvent vkevent;
+    vkCreateEvent(*m_device, &eventInfo, nullptr, &vkevent);
+    vkSetEvent(*m_device, vkevent);
+
+
+    for(auto& obj : m_objList) {
+      vkGetEventStatus(*m_device, vkevent);
+      MVPTransformUniform mvp = {
+        obj.getTransform(),
+        m_camera.getView(),
+        m_camera.getProj()
+      };
+
+      void* data = m_uniformBuffers[nextImageIndex].map();
+      memcpy(data, &mvp, sizeof(mvp));
+      m_uniformBuffers[nextImageIndex].unMap();
+
+    }*/
+    
+    updateUniformBuffers(nextImageIndex);//, m_camera, );
+    //writeCommandBuffers();
 
     graphicsQueue->submitOne(*m_commandBuffers[nextImageIndex],
                              {m_swapchain->getNextImageSemaphore()},
@@ -166,6 +211,7 @@ namespace dw {
     graphicsQueue->waitSubmit();
     graphicsQueue->waitIdle();
 
+    //vkDestroyEvent(*m_device, vkevent, nullptr);
     m_swapchain->present();
     graphicsQueue->waitIdle();
   }
@@ -215,35 +261,17 @@ namespace dw {
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::setScene(std::vector<Object> const& objects) {
+  void Renderer::setScene(Camera const& camera, std::vector<Object> const& objects) {
+    m_camera = camera;
     m_objList = objects;
     writeCommandBuffers();
   }
-
-  struct MVPTransformUniform {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-  };
-
-  struct ObjectUniform {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::vec3 position;
-  };
-
-  struct CameraUniform {
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-    alignas(16) glm::vec3 eyePos;
-    alignas(16) glm::vec3 viewVec;
-  };
-
 }
 
 #include <chrono>
 
 namespace dw {
-  void Renderer::updateUniformBuffers(uint32_t imageIndex) {
+  void Renderer::updateUniformBuffers(uint32_t imageIndex){//, Camera& cam, Object& obj) {
     // for frequently changing values, we don't want to map/unmap every frame. for that we'd want push constants. ill get to those after
     // making UBOs work.
     static auto startTime = std::chrono::high_resolution_clock::now();
@@ -251,19 +279,24 @@ namespace dw {
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time        = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-    MVPTransformUniform mvp = {
-      translate(glm::mat4(1.0f), glm::vec3{0, .5f * sin(time), 0})
-      * rotate(glm::mat4(1.0f),
-               time * glm::radians(90.0f),
-               glm::vec3(0.0f, 0.0f, 1.0f)),
+    //translate(glm::mat4(1.0f), glm::vec3{0, .5f * sin(time), 0})
+    //*rotate(glm::mat4(1.0f),
+    //  time * glm::radians(90.0f),
+    //  glm::vec3(0.0f, 0.0f, 1.0f)),
 
-      lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-      glm::perspective(glm::radians(45.0f),
-                       static_cast<float>(m_swapchain->getImageSize().width) /
-                       static_cast<float>(m_swapchain->getImageSize().height
-                       ),
-                       0.1f,
-                       10.0f)
+    //lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+
+    // glm::perspective(glm::radians(45.0f),
+    // static_cast<float>(m_swapchain->getImageSize().width) /
+    //   static_cast<float>(m_swapchain->getImageSize().height
+    //     ),
+    //   0.1f,
+    //   10.0f)
+
+    MVPTransformUniform mvp = {
+      m_objList.front().getTransform(),
+      m_camera.getView(),
+      m_camera.getProj()
     };
 
     void* data = m_uniformBuffers[imageIndex].map();
@@ -281,8 +314,8 @@ namespace dw {
 
       commandBuffer->start(false);
 
-      std::array<VkClearValue, 2> clearValues;
-      clearValues[0].color = { 0, 0, 0, 1.f };
+      std::array<VkClearValue, 2> clearValues{};
+      clearValues[0].color = { {0, 0, 0, 1.f} };
       clearValues[1].depthStencil = { 1.f, 0 };
 
       VkRenderPassBeginInfo beginInfo = {
@@ -297,15 +330,39 @@ namespace dw {
 
       vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
+      VkDescriptorBufferInfo buffInfo = {
+        m_uniformBuffers[i],
+        0,
+        sizeof(MVPTransformUniform)
+      };
+
+      VkWriteDescriptorSet mvpPushWrite = {
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        nullptr, // ignored for push descriptors
+        0,
+        0,
+        1,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        nullptr,
+        &buffInfo,
+        nullptr
+      };
+
       vkCmdBeginRenderPass(*commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      vkCmdBindDescriptorSets(*commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              m_graphicsPipelineLayout,
-                              0,
-                              1,
-                              &m_descriptorSets[i],
-                              0,
-                              nullptr);
+
+      auto pfnpush = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(*m_device, "vkCmdPushDescriptorSetKHR");
+
+      pfnpush(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &mvpPushWrite);
+      //vkCmdBindDescriptorSets(*commandBuffer,
+      //                        VK_PIPELINE_BIND_POINT_GRAPHICS,
+      //                        m_graphicsPipelineLayout,
+      //                        0,
+      //                        1,
+      //                        &m_descriptorSets[i],
+      //                        0,
+      //                        nullptr);
+      
       util::Ref<Mesh>* curMesh = nullptr;
       for (auto& obj : m_objList) {
         if (curMesh == nullptr || obj.m_mesh != *curMesh) {
@@ -742,7 +799,7 @@ namespace dw {
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
       nullptr,
-      0, // soon-to-be push descriptor
+      VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR, // soon-to-be push descriptor
       1,
       &mvpTransformLayoutBinding
     };
@@ -760,63 +817,63 @@ namespace dw {
       m_uniformBuffers.push_back(Buffer::CreateUniform(*m_device, mvpTransformSize));
     }
 
-    VkDescriptorPoolSize poolSize = {
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      m_swapchain->getNumImages()
-    };
-
-    VkDescriptorPoolCreateInfo poolCreateInfo = {
-      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-      nullptr,
-      0,
-      m_swapchain->getNumImages(),
-      1,
-      &poolSize
-    };
-
-    if (vkCreateDescriptorPool(*m_device, &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
-        m_descriptorPool)
-      throw std::runtime_error("Could not create descriptor pool");
-
-    std::vector<VkDescriptorSetLayout> layouts(m_swapchain->getNumImages(), m_descriptorSetLayout);
-
-    VkDescriptorSetAllocateInfo descSetAllocInfo = {
-      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-      nullptr,
-      m_descriptorPool,
-      m_swapchain->getNumImages(),
-      layouts.data()
-    };
-
-    m_descriptorSets.resize(m_swapchain->getNumImages());
-    if (vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_descriptorSets.data()) != VK_SUCCESS)
-      throw std::runtime_error("Could not allocate descriptor sets");
-
-    // Descriptor sets are automatically freed once the pool is freed.
-    // They can be individually freed if the pool was created with
-    // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT set.
-    for (size_t i = 0; i < m_descriptorSets.size(); ++i) {
-      VkDescriptorBufferInfo buffInfo = {
-        m_uniformBuffers[i],
-        0,
-        sizeof(MVPTransformUniform)
-      };
-
-      VkWriteDescriptorSet descWrite = {
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSets[i],
-        0,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &buffInfo,
-        nullptr
-      };
-
-      vkUpdateDescriptorSets(*m_device, 1, &descWrite, 0, nullptr);
-    }
+    //VkDescriptorPoolSize poolSize = {
+    //  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //  m_swapchain->getNumImages()
+    //};
+    //
+    //VkDescriptorPoolCreateInfo poolCreateInfo = {
+    //  VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+    //  nullptr,
+    //  0,
+    //  m_swapchain->getNumImages(),
+    //  1,
+    //  &poolSize
+    //};
+    //
+    //if (vkCreateDescriptorPool(*m_device, &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
+    //    m_descriptorPool)
+    //  throw std::runtime_error("Could not create descriptor pool");
+    //
+    //std::vector<VkDescriptorSetLayout> layouts(m_swapchain->getNumImages(), m_descriptorSetLayout);
+    //
+    //VkDescriptorSetAllocateInfo descSetAllocInfo = {
+    //  VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+    //  nullptr,
+    //  m_descriptorPool,
+    //  m_swapchain->getNumImages(),
+    //  layouts.data()
+    //};
+    //
+    //m_descriptorSets.resize(m_swapchain->getNumImages());
+    //if (vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_descriptorSets.data()) != VK_SUCCESS)
+    //  throw std::runtime_error("Could not allocate descriptor sets");
+    //
+    //// Descriptor sets are automatically freed once the pool is freed.
+    //// They can be individually freed if the pool was created with
+    //// VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT set.
+    //for (size_t i = 0; i < m_descriptorSets.size(); ++i) {
+    //  VkDescriptorBufferInfo buffInfo = {
+    //    m_uniformBuffers[i],
+    //    0,
+    //    sizeof(MVPTransformUniform)
+    //  };
+    //
+    //  VkWriteDescriptorSet descWrite = {
+    //    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+    //    nullptr,
+    //    m_descriptorSets[i],
+    //    0,
+    //    0,
+    //    1,
+    //    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    //    nullptr,
+    //    &buffInfo,
+    //    nullptr
+    //  };
+    //
+    //  vkUpdateDescriptorSets(*m_device, 1, &descWrite, 0, nullptr);
+    //}
   }
 
   /////////////////////////////////////////////////////////////////////////////

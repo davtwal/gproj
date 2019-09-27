@@ -103,7 +103,15 @@ namespace dw {
     // fill scene
     m_triangleObject = util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0));
 
-    m_renderer->setScene({*m_triangleObject});
+    m_camera
+      .setNearDepth(0.1f)
+      .setFarDepth(10.f)
+      .setEyePos({ 2.f, 2.f, 2.f })
+      .setLookAt({ 0.f, 0.f, 0.f })
+      .setFOVDeg(45.f);
+      //.setDimensions(800, 800);
+
+    m_renderer->setScene(m_camera, {*m_triangleObject});
 
     return 0;
   }
