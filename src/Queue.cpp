@@ -98,12 +98,9 @@ namespace dw {
   }
 
   void Queue::submitMulti(std::vector<VkSubmitInfo> const& infos) {
-    if (m_submitting) {
-      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+    if (m_submitting)
+      if (!isSubmitFinished())
         return;
-
-      m_submitting = false;
-    }
 
     if (!m_queue)
       return;
@@ -115,12 +112,10 @@ namespace dw {
   }
 
   void Queue::submitOne(VkSubmitInfo const& info, VkFence fence) {
-    if (m_submitting) {
-      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+    if (m_submitting)
+      if (!isSubmitFinished())
         return;
 
-      m_submitting = false;
-    }
     if (!m_queue)
       return;
 
@@ -136,12 +131,9 @@ namespace dw {
                         std::vector<VkPipelineStageFlags> const& waitSemStages,
                         std::vector<VkSemaphore> const&          signalSemaphores
   ) {
-    if(m_submitting) {
-      if (vkGetFenceStatus(*m_device, m_submitFence) != VK_SUCCESS)
+    if (m_submitting)
+      if (!isSubmitFinished())
         return;
-
-      m_submitting = false;
-    }
 
     if (!m_queue || !buffer.isReady())
       return;

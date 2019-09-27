@@ -387,6 +387,7 @@ namespace dw {
 
     deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
     deviceExtensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+    //deviceExtensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     VkPhysicalDeviceFeatures features               = {};
     features.robustBufferAccess                     = 1;  // vulkan does bounds checking on buffer access for us
@@ -685,9 +686,9 @@ namespace dw {
     // Apparently minDepth is allowed to be greater than maxDepth but both need to be [0..1]
     VkViewport viewport = {
       0,
-      0,
-      static_cast<float>(m_surface->getWidth()),
       static_cast<float>(m_surface->getHeight()),
+      static_cast<float>(m_surface->getWidth()),
+      -static_cast<float>(m_surface->getHeight()),
       0,
       1.f
     };
@@ -720,7 +721,7 @@ namespace dw {
       VK_FALSE,
       VK_POLYGON_MODE_FILL, // for things like wireframe
       VK_CULL_MODE_BACK_BIT, // back/front culling: can reduce acne by front culling instead of back
-      VK_FRONT_FACE_CLOCKWISE,
+      VK_FRONT_FACE_COUNTER_CLOCKWISE,
       VK_FALSE, // the rasterizer can alter depth values, its cool but optional
       0,
       0,
