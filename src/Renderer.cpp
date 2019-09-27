@@ -27,7 +27,9 @@
 #include "Buffer.h"
 #include "Mesh.h"
 #include "Framebuffer.h"  // ReSharper likes to think this isn't used. IT IS!!!
+#include "MemoryAllocator.h"
 
+#include <array>
 #include <cassert>
 #include <algorithm>
 
@@ -55,6 +57,8 @@ namespace dw {
   }
 
   void Renderer::initSpecific() {
+    setupDepthTestResources();
+
     setupShaders();
     setupDescriptors();
     setupRenderSteps();
@@ -82,6 +86,9 @@ namespace dw {
     m_triangleFragShader.reset();
     m_triangleVertShader.reset();
 
+    m_depthStencilView.reset();
+    m_depthStencilImage.reset();
+
     m_commandBuffers.clear();
     m_transferCmdPool.reset();
     m_commandPool.reset();
@@ -103,8 +110,8 @@ namespace dw {
 
 #ifdef _DEBUG
     auto destroyFn = (PFN_vkDestroyDebugUtilsMessengerEXT)
-      glfwGetInstanceProcAddress(*m_control,
-                                 "vkDestroyDebugUtilsMessengerEXT");
+        glfwGetInstanceProcAddress(*m_control,
+                                   "vkDestroyDebugUtilsMessengerEXT");
     if (destroyFn) {
       destroyFn(*m_control, m_debugMessenger, nullptr);
       m_debugMessenger = nullptr;
@@ -242,19 +249,18 @@ namespace dw {
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto  currentTime = std::chrono::high_resolution_clock::now();
-    float time        = std::chrono::duration<float, std::chrono::seconds::period>
-      (currentTime - startTime).count();
+    float time        = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
     MVPTransformUniform mvp = {
       translate(glm::mat4(1.0f), glm::vec3{0, .5f * sin(time), 0})
-        * rotate(glm::mat4(1.0f),
-                 time * glm::radians(90.0f),
-                 glm::vec3(0.0f, 0.0f, 1.0f)),
+      * rotate(glm::mat4(1.0f),
+               time * glm::radians(90.0f),
+               glm::vec3(0.0f, 0.0f, 1.0f)),
 
       lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
       glm::perspective(glm::radians(45.0f),
                        static_cast<float>(m_swapchain->getImageSize().width) /
-                             static_cast<float>(m_swapchain->getImageSize().height
+                       static_cast<float>(m_swapchain->getImageSize().height
                        ),
                        0.1f,
                        10.0f)
@@ -275,9 +281,9 @@ namespace dw {
 
       commandBuffer->start(false);
 
-      VkClearValue clearValue = {
-        {{0.f}}
-      };
+      std::array<VkClearValue, 2> clearValues;
+      clearValues[0].color = { 0, 0, 0, 1.f };
+      clearValues[1].depthStencil = { 1.f, 0 };
 
       VkRenderPassBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -285,8 +291,8 @@ namespace dw {
         *m_renderPass,
         framebuffers[i],
         {{0, 0}, m_swapchain->getImageSize()},
-        1,
-        &clearValue
+        static_cast<uint32_t>(clearValues.size()),
+        clearValues.data()
       };
 
       vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
@@ -501,40 +507,87 @@ namespace dw {
     m_swapchain = std::make_unique<Swapchain>(*m_device, *m_surface, *m_presentQueue);
   }
 
+  static void transitionImageLayout(CommandBuffer& cmdBuff,
+                                    Image&         image,
+                                    VkImageLayout  oldLayout,
+                                    VkImageLayout  newLayout) {
+    VkImageMemoryBarrier barrier = {
+      VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      nullptr,
+      VK_ACCESS_MEMORY_WRITE_BIT,
+      VK_ACCESS_MEMORY_READ_BIT,
+      oldLayout,
+      newLayout,
+      VK_QUEUE_FAMILY_IGNORED,
+      VK_QUEUE_FAMILY_IGNORED,
+      image,
+      {
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        0,
+        1,
+        0,
+        1
+      }
+    };
+    VkPipelineStageFlags sourceStage, destinationStage;
+
+    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+      barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+      if (util::IsFormatStencil(image.getFormat())) {
+        barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+      }
+    }
+    else {
+      barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+
+    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && (
+          newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)) {
+      barrier.srcAccessMask = 0;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+      sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+      destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    ) {
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+      sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
+      destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+      barrier.srcAccessMask = 0;
+      barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+                              VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+      sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+      destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+    }
+    else {
+      throw std::invalid_argument("unsupported layout transition!");
+    }
+
+    vkCmdPipelineBarrier(cmdBuff,
+                         sourceStage,
+                         destinationStage,
+                         0,
+                         0,
+                         nullptr,
+                         0,
+                         nullptr,
+                         1,
+                         &barrier);
+  }
+
   void Renderer::transitionSwapChainImages() const {
     CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
     transBuff.start(true);
 
     for (auto& image : m_swapchain->getImages()) {
-      VkImageMemoryBarrier memBarrier = {
-        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        nullptr,
-        VK_ACCESS_MEMORY_WRITE_BIT,
-        VK_ACCESS_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
-        image,
-        {
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          0,
-          1,
-          0,
-          1
-        }
-      };
-
-      vkCmdPipelineBarrier(transBuff,
-                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                           0,
-                           0,
-                           nullptr,
-                           0,
-                           nullptr,
-                           1,
-                           &memBarrier);
+      transitionImageLayout(transBuff, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
     transBuff.end();
@@ -542,7 +595,7 @@ namespace dw {
     m_transferQueue->ref.submitOne(transBuff);
     m_transferQueue->ref.waitIdle();
 
-    m_commandPool->freeCommandBuffer(transBuff);
+    m_transferCmdPool->freeCommandBuffer(transBuff);
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -571,6 +624,43 @@ namespace dw {
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
+  //// DEPTH TESTING RESOURCES
+  /////////////////////////////////////////////////////////////////////////////
+
+  void Renderer::setupDepthTestResources() {
+    m_depthStencilImage = util::make_ptr<DependentImage>(*m_device);
+    m_depthStencilImage->initImage(VK_IMAGE_TYPE_2D,
+                                   VK_IMAGE_VIEW_TYPE_2D,
+                                   VK_FORMAT_D32_SFLOAT,
+                                   {m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1},
+                                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                                   1,
+                                   1,
+                                   false,
+                                   false,
+                                   false,
+                                   false);
+
+    // TODO on MemoryAllocator : remove
+    MemoryAllocator allocator(m_device->getOwningPhysical());
+    m_depthStencilImage->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    CommandBuffer& transBuff = m_commandPool->allocateCommandBuffer();
+    transBuff.start(true);
+    transitionImageLayout(transBuff,
+                          *m_depthStencilImage,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    transBuff.end();
+    m_graphicsQueue->ref.submitOne(transBuff);
+    m_graphicsQueue->ref.waitIdle();
+
+    m_commandPool->freeCommandBuffer(transBuff);
+    m_depthStencilView = std::make_shared<ImageView>(m_depthStencilImage->createView(VK_IMAGE_ASPECT_DEPTH_BIT));
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
   //// RENDER STEPS & BACK-BUFFERS SETUP
   /////////////////////////////////////////////////////////////////////////////
 
@@ -582,7 +672,11 @@ namespace dw {
     m_renderPass->reserveSubpassDependencies(1);
 
     m_renderPass->addAttachment(m_swapchain->getImageAttachmentDesc());
+    m_renderPass->addAttachment(m_depthStencilImage->getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
+                                                                       VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                                       VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL));
     m_renderPass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
+    m_renderPass->addAttachmentRef(1, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, RenderPass::arfDepthStencil);
 
     m_renderPass->finishSubpass();
 
@@ -600,7 +694,27 @@ namespace dw {
   }
 
   void Renderer::setupSwapChainFrameBuffers() const {
-    m_swapchain->createFramebuffers(*m_renderPass);
+    // this is preferred when we are only using a color attachment on the output
+    // framebuffers, e.g., when you are just rendering a FSQ to do the final lighting pass
+    // and the backbuffer is just the final location in the rendering chain.
+    //m_swapchain->createFramebuffers(*m_renderPass);
+
+    // this method is used when you want additional attachments on each framebuffer.
+    std::vector<Framebuffer> framebuffers;
+    framebuffers.reserve(m_swapchain->getNumImages());
+
+    for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
+      std::vector<VkImageView> views(2);
+      views.at(0) = m_swapchain->getViews()[i];
+      views.at(1) = *m_depthStencilView;
+
+      framebuffers.emplace_back(*m_device,
+                                *m_renderPass,
+                                views,
+                                VkExtent3D{m_surface->getWidth(), m_surface->getHeight(), 1});
+    }
+
+    m_swapchain->setFramebuffers(std::move(framebuffers));
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -809,7 +923,20 @@ namespace dw {
       VK_FALSE
     };
 
-    //VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {};
+    VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      true,
+      true,
+      VK_COMPARE_OP_LESS,
+      false,
+      false,
+      {},
+      {},
+      0.f,
+      1.f
+    };
 
     // This color blend attachment might need to become a per-framebuffer sort of thing?
     // It really depends on what the format is and what the use of the framebuffer is,
@@ -884,7 +1011,7 @@ namespace dw {
       &viewportStateInfo,
       &rasterizerInfo,
       &multisampleInfo,
-      nullptr, // no depth test for now (soon to change)
+      &depthStencilInfo, // no depth test for now (soon to change)
       &colorBlendInfo,
       nullptr, // no dynamic stages yet
       m_graphicsPipelineLayout,

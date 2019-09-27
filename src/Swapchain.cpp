@@ -1,20 +1,15 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-// * gproj2 : Swapchain.cpp
+// * gproj : Swapchain.cpp
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
-//  Created     : 2019y 09m 16d
-// * Last Altered: 2019y 09m 16d
+// * Created     : 2019y 09m 23d
+// * Last Altered: 2019y 09m 23d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
 // * 
-// * Description :
-// *
-// *
-// *
-// *
-// * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * Description :
 
 #include "Swapchain.h"
 #include "Image.h"
@@ -25,7 +20,9 @@
 
 namespace dw {
   Swapchain::Swapchain(LogicalDevice& device, Surface& surface, util::Ref<Queue> q)
-    : m_device(device), m_surface(surface), m_queue(q) {
+    : m_device(device),
+      m_surface(surface),
+      m_queue(q) {
 
     createSemaphores();
     restart();
@@ -33,8 +30,8 @@ namespace dw {
 
   void Swapchain::restart() {
     VkSurfaceFormatKHR format = m_surface.chooseFormat();
-    VkPresentModeKHR mode = m_surface.choosePresentMode(false);
-    VkExtent2D extent = m_surface.chooseExtent();
+    VkPresentModeKHR   mode   = m_surface.choosePresentMode(false);
+    VkExtent2D         extent = m_surface.chooseExtent();
 
     m_imageFormat = format.format;
 
@@ -78,7 +75,7 @@ namespace dw {
     uint32_t numImages = 0;
     vkGetSwapchainImagesKHR(getOwningDevice(), m_swapchain, &numImages, nullptr);
 
-    if(numImages) {
+    if (numImages) {
       std::vector<VkImage> images(numImages);
       vkGetSwapchainImagesKHR(getOwningDevice(), m_swapchain, &numImages, images.data());
 
@@ -90,16 +87,23 @@ namespace dw {
 
   void Swapchain::createViews() {
     m_views.reserve(m_images.size());
-    for(auto& image : m_images) {
+    for (auto& image : m_images) {
       m_views.emplace_back(image.createView());
     }
   }
 
   void Swapchain::createFramebuffers(RenderPass const& renderPass) {
     m_framebuffers.reserve(m_views.size());
-    for(auto& view : m_views) {
-      m_framebuffers.emplace_back(m_device, renderPass, std::vector<VkImageView>({ view }), VkExtent3D{ m_surface.getWidth(), m_surface.getHeight(), 1 });
+    for (auto& view : m_views) {
+      m_framebuffers.emplace_back(m_device,
+                                  renderPass,
+                                  std::vector<VkImageView>({view}),
+                                  VkExtent3D{m_surface.getWidth(), m_surface.getHeight(), 1});
     }
+  }
+
+  void Swapchain::setFramebuffers(std::vector<Framebuffer>&& framebuffers) {
+    m_framebuffers = std::move(framebuffers);
   }
 
   VkSemaphore const& Swapchain::getNextImageSemaphore() const {
@@ -112,7 +116,7 @@ namespace dw {
 
 
   uint32_t Swapchain::getNextImageIndex() {
-    vkAcquireNextImageKHR(m_device, m_swapchain, 100, m_nextImageSemaphore, VK_NULL_HANDLE, &m_nextImage);
+    vkAcquireNextImageKHR(m_device, m_swapchain, 100, m_nextImageSemaphore, nullptr, &m_nextImage);
     return m_nextImage;
   }
 
@@ -140,8 +144,8 @@ namespace dw {
     present(m_queue);
   }
 
-  void Swapchain::present(Queue const& q) {
-    VkResult out_result = VK_SUCCESS;
+  void Swapchain::present(Queue const& q) const {
+    VkResult         out_result  = VK_SUCCESS;
     VkPresentInfoKHR presentInfo = {
       VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
       nullptr,
@@ -153,7 +157,7 @@ namespace dw {
       &out_result
     };
 
-    if(vkQueuePresentKHR(q, &presentInfo) != VK_SUCCESS || out_result != VK_SUCCESS)
+    if (vkQueuePresentKHR(q, &presentInfo) != VK_SUCCESS || out_result != VK_SUCCESS)
       throw std::runtime_error("Error while presenting");
   }
 
@@ -169,12 +173,12 @@ namespace dw {
   }
 
   void Swapchain::cleanupSemaphores() {
-    if(m_nextImageSemaphore) {
+    if (m_nextImageSemaphore) {
       vkDestroySemaphore(m_device, m_nextImageSemaphore, nullptr);
       m_nextImageSemaphore = nullptr;
     }
 
-    if(m_imageRenderReady) {
+    if (m_imageRenderReady) {
       vkDestroySemaphore(m_device, m_imageRenderReady, nullptr);
       m_imageRenderReady = nullptr;
     }
@@ -185,7 +189,7 @@ namespace dw {
   }
 
   VkExtent2D Swapchain::getImageSize() const {
-    return { m_surface.getWidth(), m_surface.getHeight() };
+    return {m_surface.getWidth(), m_surface.getHeight()};
   }
 
   VkFormat Swapchain::getImageFormat() const {
@@ -198,12 +202,12 @@ namespace dw {
 
   bool Swapchain::isPresentReady() const {
     return !m_images.empty()
-      && m_views.size() == m_images.size()
-      && m_framebuffers.size() == m_images.size()
-      && m_nextImageSemaphore
-      && m_imageRenderReady
-      && m_imageFormat != VK_FORMAT_UNDEFINED
-      && m_swapchain;
+           && m_views.size() == m_images.size()
+           && m_framebuffers.size() == m_images.size()
+           && m_nextImageSemaphore
+           && m_imageRenderReady
+           && m_imageFormat != VK_FORMAT_UNDEFINED
+           && m_swapchain;
   }
 
   std::vector<Framebuffer> const& Swapchain::getFrameBuffers() const {

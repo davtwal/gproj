@@ -31,7 +31,7 @@
 #define MOVE_CONSTRUCT_ONLY(className) public:          \
   className ( className && o) noexcept;                 \
   className ( className const&) = delete;               \
-  className & operator=( className &&) = delete;        \
+  className & operator=( className && o) = delete;      \
   className & operator=( className const &) = delete;
   
 

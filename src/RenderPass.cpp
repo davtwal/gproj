@@ -56,7 +56,7 @@ namespace dw {
         if (refType & arfResolve) {
           if (sbc.resolveRefs.empty()) {
             sbc.resolveRefs.reserve(sbc.colorRefs.capacity());
-            for (auto& r : sbc.colorRefs) {
+            for (size_t j = 0; j < sbc.colorRefs.size() - 1; ++j) {
               sbc.resolveRefs.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
             }
           }
@@ -68,7 +68,7 @@ namespace dw {
       else if (refType & arfDepthStencil) {
         if (sbc.depthStencilRefs.empty()) {
           sbc.depthStencilRefs.reserve(sbc.colorRefs.capacity());
-          for (auto& r : sbc.colorRefs) {
+          for (size_t j = 0; j < sbc.colorRefs.size() - 1; ++j) {
             sbc.depthStencilRefs.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
           }
         }

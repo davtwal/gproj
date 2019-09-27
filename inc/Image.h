@@ -91,6 +91,7 @@ namespace dw {
     //void init1D(VkFormat format, uint32_t width, bool );
 
     void initImage(VkImageType       type,     // 1D, 2D, or 3D
+                   VkImageViewType   intendedViewType,
                    VkFormat          format,      // format
                    VkExtent3D        extent,    // sizes             
                    VkImageUsageFlags usage, // usage
@@ -101,6 +102,18 @@ namespace dw {
                    bool              is2DArray,       // enables 2D and 2D array
                    bool              isMappable       // images will be laid out in linear format if mappable);
     );
+
+    NO_DISCARD VkFormat getFormat() const;
+    NO_DISCARD bool isMutable() const;
+
+    NO_DISCARD
+    VkAttachmentDescription getAttachmentDesc(VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                                              VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                                              VkImageLayout finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+                                              VkImageLayout initLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                                              VkAttachmentLoadOp stencilLoad = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                                              VkAttachmentStoreOp stencilStore = VK_ATTACHMENT_STORE_OP_DONT_CARE) const;
+
   protected:
 
     NO_DISCARD virtual LogicalDevice& getDevice() const = 0;
@@ -133,17 +146,24 @@ namespace dw {
     LogicalDevice* m_devicePointer;
   };
 
+  class MemoryAllocator;
+
   // a dependent image is dependent on a logical device, and destroys itself
   // using the destructor.
   CREATE_DEVICE_DEPENDENT_INHERIT(DependentImage, public Image)
   public:
-    DependentImage(LogicalDevice& m_device);
+    DependentImage(LogicalDevice& device);
 
     // overrides destructor to call vkDestroyImage
     ~DependentImage() override;
 
+    void back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags);
+
   protected:
     NO_DISCARD LogicalDevice& getDevice() const override;
+
+    VkDeviceMemory m_memory{ nullptr };
+    VkDeviceSize m_memSize{ 0 };
   };
 }
 

@@ -58,9 +58,13 @@ namespace dw {
     NO_DISCARD VkFormat getImageFormat() const;
 
     void present();
-    void present(Queue const& q);
+    void present(Queue const& q) const;
 
+    // creates simple framebuffers with color attachments.
     void createFramebuffers(RenderPass const& renderPass);
+
+    // this function wants the framebuffers.size() to be the same as images.size()
+    void setFramebuffers(std::vector<Framebuffer>&& framebuffers);
 
     NO_DISCARD std::vector<IndependentImage> const& getImages() const;
     NO_DISCARD std::vector<ImageView> const& getViews() const;

@@ -18,7 +18,10 @@
 
 #include "Image.h"
 #include "Trace.h"
+#include "MemoryAllocator.h"
+
 #include <cassert>
+#include "Utils.h"
 
 namespace dw {
   ImageView::ImageView(LogicalDevice& device, VkImageView v)
@@ -52,73 +55,42 @@ namespace dw {
       m_mutable(o.m_mutable) {
   }
 
-
   Image::operator VkImage() const {
     return m_image;
   }
 
-  constexpr bool IsFormatDepthOrStencil(VkFormat f) {
-    return f >= VK_FORMAT_D16_UNORM && f <= VK_FORMAT_D32_SFLOAT_S8_UINT;
+  VkFormat Image::getFormat() const {
+    return m_format;
   }
 
-  constexpr uint32_t BitsPerPixelFormat(VkFormat f) {
-    if (f == VK_FORMAT_R4G4_UNORM_PACK8
-        || f >= VK_FORMAT_R8_UNORM && f <= VK_FORMAT_R8_SRGB
-        || f == VK_FORMAT_S8_UINT)
-      return 8;
+  bool Image::isMutable() const {
+    return m_mutable;
+  }
 
-    if (f >= VK_FORMAT_R4G4B4A4_UNORM_PACK16 && f <= VK_FORMAT_A1R5G5B5_UNORM_PACK16
-        || f == VK_FORMAT_D16_UNORM
-        || f >= VK_FORMAT_R8G8_UNORM && f <= VK_FORMAT_R8G8_SRGB
-        || f >= VK_FORMAT_R16_UNORM && f <= VK_FORMAT_R16_SFLOAT)
-      return 16;
+  VkAttachmentDescription Image::getAttachmentDesc(VkAttachmentLoadOp loadOp,
+                                                   VkAttachmentStoreOp storeOp,
+                                                   VkImageLayout finalLayout,
+                                                   VkImageLayout initLayout,
+                                                   VkAttachmentLoadOp stencilLoad,
+                                                   VkAttachmentStoreOp stencilStore) const {
+    VkAttachmentDescription ret = {
+      0,
+      m_format,
+      VK_SAMPLE_COUNT_1_BIT, // TODO: Multisampling support
+      loadOp,
+      storeOp,
+      stencilLoad,
+      stencilStore,
+      initLayout,
+      finalLayout
+    };
 
-    if (f >= VK_FORMAT_R8G8B8_UNORM && f <= VK_FORMAT_B8G8R8_SRGB
-        || f == VK_FORMAT_D16_UNORM_S8_UINT)
-      return 24;
-
-    if (f >= VK_FORMAT_R8G8B8A8_UNORM && f <= VK_FORMAT_A2B10G10R10_SINT_PACK32
-        || f >= VK_FORMAT_R16G16_UNORM && f <= VK_FORMAT_R16G16_SFLOAT
-        || f >= VK_FORMAT_R32_UINT && f <= VK_FORMAT_R32_SFLOAT
-        || f == VK_FORMAT_B10G11R11_UFLOAT_PACK32
-        || f == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32
-        || f == VK_FORMAT_X8_D24_UNORM_PACK32
-        || f == VK_FORMAT_D32_SFLOAT
-        || f == VK_FORMAT_D24_UNORM_S8_UINT)
-      return 32;
-
-    if (f == VK_FORMAT_D32_SFLOAT_S8_UINT)
-      return 40;
-
-    if (f >= VK_FORMAT_R16G16B16_UNORM && f <= VK_FORMAT_R16G16B16_SFLOAT)
-      return 48;
-
-    if (f >= VK_FORMAT_R16G16B16A16_UNORM && f <= VK_FORMAT_R16G16B16A16_SFLOAT
-        || f >= VK_FORMAT_R32G32_UINT && f <= VK_FORMAT_R32G32_SFLOAT
-        || f >= VK_FORMAT_R64_UINT && f <= VK_FORMAT_R64_SFLOAT)
-      return 64;
-
-    if (f >= VK_FORMAT_R32G32B32_UINT && f <= VK_FORMAT_R32G32B32_SFLOAT)
-      return 96;
-
-    if (f >= VK_FORMAT_R32G32B32A32_UINT && f <= VK_FORMAT_R32G32B32A32_SFLOAT
-        || f >= VK_FORMAT_R64G64_UINT && f <= VK_FORMAT_R64G64_SFLOAT)
-      return 128;
-
-    if (f >= VK_FORMAT_R64G64B64_UINT && f <= VK_FORMAT_R64G64B64_SFLOAT)
-      return 160;
-
-    if (f >= VK_FORMAT_R64G64B64A64_UINT && f <= VK_FORMAT_R64G64B64A64_SFLOAT)
-      return 192;
-
-    //if (f >= VK_FORMAT_BC1_RGB_UNORM_BLOCK) < VK_FORMAT_ASTC_12x12_SRGB_BLOCK
-
-    //if (f >=
-    return std::numeric_limits<uint32_t>::max();
+    return ret;
   }
 
   void Image::initImage(
     VkImageType       type,     // 1D, 2D, or 3D
+    VkImageViewType   intendedViewType,
     VkFormat          format,      // format
     VkExtent3D        extent,    // sizes             
     VkImageUsageFlags usage, // usage
@@ -191,7 +163,7 @@ namespace dw {
     */
     if (isMappable) {
       if (type != VK_IMAGE_TYPE_2D
-          || IsFormatDepthOrStencil(format)
+          || util::IsFormatDepthOrStencil(format)
           || mipLevels != 1
           || arrayLayers != 1
           // sampleCount != VK_SAMPLE_COUNT_1_BIT
@@ -233,6 +205,10 @@ namespace dw {
 
     if (!m_image)
       throw std::bad_alloc();
+
+    m_format = format;
+    m_mutable = isMutable;
+    m_type = intendedViewType;
   }
 
   // CREATE VIEWS
@@ -303,7 +279,7 @@ namespace dw {
     // If both formats are compressed   : The bits per block must match
     // If only one format is compressed :
     //  The bits per block of the compressed must match the bits per texel of the uncompressed
-    if (!getDevice() || BitsPerPixelFormat(format) != BitsPerPixelFormat(m_format))
+    if (!getDevice() || util::BitsPerPixelFormat(format) != util::BitsPerPixelFormat(m_format))
       return ImageView(getDevice());
 
     // Aspect:
@@ -359,13 +335,49 @@ namespace dw {
 
   // DEPENDENT IMAGE
 
+  DependentImage::DependentImage(LogicalDevice& device)
+    : m_device(device) {
+  }
+
+  DependentImage::DependentImage(DependentImage&& o) noexcept
+    : Image(o.m_image, o.m_format, o.m_type, o.m_mutable), m_device(o.m_device), m_memory(o.m_memory), m_memSize(o.m_memSize) {
+    o.m_image = nullptr;
+    o.m_memory = nullptr;
+  }
+
   DependentImage::~DependentImage() {
     if (m_image)
       vkDestroyImage(getOwningDevice(), m_image, nullptr);
+
+    if (m_memory)
+      vkFreeMemory(getOwningDevice(), m_memory, nullptr);
   }
 
   LogicalDevice& DependentImage::getDevice() const {
     return getOwningDevice();
   }
+
+  void DependentImage::back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags) {
+    if (!m_image) return;
+
+    VkMemoryRequirements requirements = {};
+    vkGetImageMemoryRequirements(m_device, m_image, &requirements);
+
+    VkMemoryAllocateInfo allocInfo = {
+      VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+      nullptr,
+      requirements.size,
+      allocator.GetAppropriateMemType(requirements.memoryTypeBits, memFlags)
+    };
+
+    if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_memory) != VK_SUCCESS || !m_memory)
+      throw std::bad_alloc();
+
+    m_memSize = requirements.size;
+
+    if (vkBindImageMemory(m_device, m_image, m_memory, 0) != VK_SUCCESS)
+      throw std::runtime_error("Could not bind device memory to image");
+  }
+
 
 }

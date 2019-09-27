@@ -20,6 +20,7 @@
 #include "RenderPass.h"
 #include "Image.h"
 #include <stdexcept>
+#include <cassert>
 
 namespace dw {
   Framebuffer::Framebuffer(LogicalDevice& device, const RenderPass& pass, std::vector<VkImageView> const& attachments, VkExtent3D sizes)
@@ -46,6 +47,16 @@ namespace dw {
       m_framebuffer(o.m_framebuffer) {
     o.m_framebuffer = nullptr;
   }
+
+  /*Framebuffer& Framebuffer::operator=(Framebuffer&& o) noexcept {
+    assert(o.m_device == m_device);
+
+    m_framebuffer = o.m_framebuffer;
+    o.m_framebuffer = nullptr;
+
+    return *this;
+  }*/
+
 
   Framebuffer::~Framebuffer() {
     if (m_framebuffer)

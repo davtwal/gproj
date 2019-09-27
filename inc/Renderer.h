@@ -39,6 +39,9 @@ namespace dw {
   class CommandBuffer;
   class Buffer;
   class IShader;
+  class Image;
+  class DependentImage;
+  class ImageView;
 
   class Renderer {
   public:
@@ -74,6 +77,8 @@ namespace dw {
     void transitionSwapChainImages() const;
 
     // specific to the rendering engine & what i support setup
+    void setupDepthTestResources();
+
     void setupShaders();
     void setupDescriptors();
     void setupRenderSteps();
@@ -110,6 +115,11 @@ namespace dw {
     //////////////////////////////////////////////////////
     //// SPECIFIC VARIABLES
     //////////////////////////////////////////////////////
+    
+    // Almost all of these may/will be replaced with encapsulating
+    // classes, e.g. manager or other.
+    util::ptr<DependentImage> m_depthStencilImage{ nullptr };
+    util::ptr<ImageView> m_depthStencilView{ nullptr };
     util::ptr<RenderPass> m_renderPass{ nullptr };
     util::ptr<IShader>  m_triangleVertShader{ nullptr };
     util::ptr<IShader>  m_triangleFragShader{ nullptr };
