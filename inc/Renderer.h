@@ -23,6 +23,10 @@
 #include "Utils.h"
 #include "Object.h"
 
+#include "MeshManager.h"
+
+#include <unordered_map>
+
 namespace dw {
   class PhysicalDevice;
   class VulkanControl;
@@ -42,9 +46,11 @@ namespace dw {
     void initGeneral();
     void initSpecific();
 
-    bool done() const;
+    NO_DISCARD bool done() const;
+    NO_DISCARD MeshManager& getMeshManager();
 
-    void uploadMeshes(std::vector<util::ptr<Mesh>> const& meshes) const;
+    void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
+    void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
 
     void setScene(std::vector<Object> const& objects);
     void drawFrame();
@@ -56,7 +62,7 @@ namespace dw {
     //////////////////////////////////////////////////////
     //// HELPER FUNCTIONS
     //////////////////////////////////////////////////////
-    // general vulkan
+    // general vulkan setup
     void openWindow();
     void setupInstance();
     void setupHelpers(); // e.g. debug messenger
@@ -65,21 +71,24 @@ namespace dw {
     void setupSwapChain();
     void setupCommandPools();
     void setupCommandBuffers();
-    void transitionSwapChainImages();
+    void transitionSwapChainImages() const;
 
-    // specific to the rendering engine & what i support
+    // specific to the rendering engine & what i support setup
     void setupShaders();
     void setupDescriptors();
     void setupRenderSteps();
     void setupSwapChainFrameBuffers() const;
     void setupPipeline();
+    void initManagers();
 
     // drawing helpers
     void writeCommandBuffers();
     void updateUniformBuffers(uint32_t imageIndex);
 
-    void recreateSwapChain();
+    // shutdown helpers
+    void shutdownManagers();
 
+    void recreateSwapChain();
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
     //// GENERAL VARIABLES
@@ -108,6 +117,10 @@ namespace dw {
     VkPipeline m_graphicsPipeline{ nullptr };
     VkDescriptorSetLayout m_descriptorSetLayout{ nullptr };
     VkDescriptorPool m_descriptorPool{nullptr};
+
+    //////////////////////////////////////////////////////
+    //// Managers
+    MeshManager m_meshManager;
 
     // Specific, per-swapchain-image variables
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;

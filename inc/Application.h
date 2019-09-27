@@ -37,9 +37,8 @@ namespace dw {
 
     int shutdown();
     // SCENE VARIABLES
-    util::ptr<Mesh>     m_mesh{ nullptr };
+    util::ptr<Object>    m_triangleObject;
     util::ptr<Renderer> m_renderer{ nullptr };
-    Object    m_triangleObject;
     Camera    m_camera;
   };
 } // namespace dw

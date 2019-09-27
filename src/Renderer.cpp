@@ -8,13 +8,8 @@
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
 // * 
-// * Description :
-// *
-// *
-// *
-// *
-// * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * Description :
 
 #include "Renderer.h"
 
@@ -31,7 +26,7 @@
 #include "Vertex.h"
 #include "Buffer.h"
 #include "Mesh.h"
-#include "Framebuffer.h"
+#include "Framebuffer.h"  // ReSharper likes to think this isn't used. IT IS!!!
 
 #include <cassert>
 #include <algorithm>
@@ -65,11 +60,14 @@ namespace dw {
     setupRenderSteps();
     setupSwapChainFrameBuffers();
     setupPipeline();
+
+    initManagers();
   }
 
   void Renderer::shutdown() {
     vkDeviceWaitIdle(*m_device);
 
+    shutdownManagers();
     m_objList.clear();
 
     vkDestroyPipeline(*m_device, m_graphicsPipeline, nullptr);
@@ -104,8 +102,9 @@ namespace dw {
     m_device = nullptr;
 
 #ifdef _DEBUG
-    auto destroyFn = (PFN_vkDestroyDebugUtilsMessengerEXT)glfwGetInstanceProcAddress(*m_control,
-                                                                                     "vkDestroyDebugUtilsMessengerEXT");
+    auto destroyFn = (PFN_vkDestroyDebugUtilsMessengerEXT)
+      glfwGetInstanceProcAddress(*m_control,
+                                 "vkDestroyDebugUtilsMessengerEXT");
     if (destroyFn) {
       destroyFn(*m_control, m_debugMessenger, nullptr);
       m_debugMessenger = nullptr;
@@ -145,8 +144,8 @@ namespace dw {
 
     GLFWControl::Poll();
 
-    uint32_t nextImageIndex = m_swapchain->getNextImageIndex();
-    Image const& nextImage = m_swapchain->getNextImage();
+    uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
+    Image const& nextImage      = m_swapchain->getNextImage();
 
     auto& graphicsQueue = *m_graphicsQueue;
 
@@ -164,22 +163,45 @@ namespace dw {
     graphicsQueue->waitIdle();
   }
 
-  void Renderer::uploadMeshes(std::vector<util::ptr<Mesh>> const& meshes) const {
+  void Renderer::uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const {
+    std::vector<Mesh::StagingBuffs> stagingBuffers;
+
+    stagingBuffers.reserve(meshes.size());
+    for (auto& mesh : meshes) {
+      stagingBuffers.push_back(mesh.second.createAllBuffs(*m_device));
+      mesh.second.uploadStaging(stagingBuffers.back());
+    }
+
+    CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
+
+    moveBuff.start(true);
+    for (size_t i = 0; i < meshes.size(); ++i) {
+      meshes[i].uploadCmds(moveBuff, stagingBuffers[i]);
+    }
+    moveBuff.end();
+
+    m_transferQueue->ref.submitOne(moveBuff);
+    m_transferQueue->ref.waitIdle();
+
+    m_transferCmdPool->freeCommandBuffer(moveBuff);
+  }
+
+  void Renderer::uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const {
     std::vector<Mesh::StagingBuffs> stagingBuffers;
     stagingBuffers.reserve(meshes.size());
-    for(auto& mesh : meshes) {
+    for (auto& mesh : meshes) {
       stagingBuffers.push_back(mesh->createAllBuffs(*m_device));
       mesh->uploadStaging(stagingBuffers.back());
     }
-    
+
     CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
-    
+
     moveBuff.start(true);
-    for(size_t i = 0; i < meshes.size(); ++i) {
+    for (size_t i = 0; i < meshes.size(); ++i) {
       meshes[i]->uploadCmds(moveBuff, stagingBuffers[i]);
     }
     moveBuff.end();
-    
+
     m_transferQueue->ref.submitOne(moveBuff);
     m_transferQueue->ref.waitIdle();
 
@@ -192,9 +214,21 @@ namespace dw {
   }
 
   struct MVPTransformUniform {
-    glm::mat4 model;
-    glm::mat4 view;
-    glm::mat4 proj;
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+  };
+
+  struct ObjectUniform {
+    alignas(16) glm::mat4 model;
+    alignas(16) glm::vec3 position;
+  };
+
+  struct CameraUniform {
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 eyePos;
+    alignas(16) glm::vec3 viewVec;
   };
 
 }
@@ -202,28 +236,29 @@ namespace dw {
 #include <chrono>
 
 namespace dw {
-
   void Renderer::updateUniformBuffers(uint32_t imageIndex) {
     // for frequently changing values, we don't want to map/unmap every frame. for that we'd want push constants. ill get to those after
     // making UBOs work.
     static auto startTime = std::chrono::high_resolution_clock::now();
 
     auto  currentTime = std::chrono::high_resolution_clock::now();
-    float time        = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+    float time        = std::chrono::duration<float, std::chrono::seconds::period>
+      (currentTime - startTime).count();
 
     MVPTransformUniform mvp = {
-      rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
+      translate(glm::mat4(1.0f), glm::vec3{0, .5f * sin(time), 0})
+        * rotate(glm::mat4(1.0f),
+                 time * glm::radians(90.0f),
+                 glm::vec3(0.0f, 0.0f, 1.0f)),
+
       lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
       glm::perspective(glm::radians(45.0f),
-                       static_cast<float>(m_swapchain->getImageSize().width) / static_cast<float>(m_swapchain->
-                                                                                                  getImageSize().height
+                       static_cast<float>(m_swapchain->getImageSize().width) /
+                             static_cast<float>(m_swapchain->getImageSize().height
                        ),
                        0.1f,
                        10.0f)
     };
-
-    // flip y-axis because Vulkan renders upside down compared to OpenGL
-    //mvp.proj[1][1] *= -1;
 
     void* data = m_uniformBuffers[imageIndex].map();
     memcpy(data, &mvp, sizeof(mvp));
@@ -257,25 +292,53 @@ namespace dw {
       vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
 
       vkCmdBeginRenderPass(*commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      vkCmdBindDescriptorSets(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &m_descriptorSets[i], 0, nullptr);
-      util::ptr<Mesh> curMesh = nullptr;
+      vkCmdBindDescriptorSets(*commandBuffer,
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              m_graphicsPipelineLayout,
+                              0,
+                              1,
+                              &m_descriptorSets[i],
+                              0,
+                              nullptr);
+      util::Ref<Mesh>* curMesh = nullptr;
       for (auto& obj : m_objList) {
-        if (obj.m_mesh != curMesh || curMesh == nullptr) {
-          curMesh = obj.m_mesh;
+        if (curMesh == nullptr || obj.m_mesh != *curMesh) {
+          curMesh = &obj.m_mesh;
 
-          const VkBuffer&    buff   = curMesh->getVertexBuffer();
+          const VkBuffer&    buff   = curMesh->ref.getVertexBuffer();
           const VkDeviceSize offset = 0;
           vkCmdBindVertexBuffers(*commandBuffer, 0, 1, &buff, &offset);
-          vkCmdBindIndexBuffer(*commandBuffer, curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+          vkCmdBindIndexBuffer(*commandBuffer, curMesh->ref.getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
         }
 
-        vkCmdDrawIndexed(*commandBuffer, curMesh->getNumIndices(), 1, 0, 0, 0);
+        vkCmdDrawIndexed(*commandBuffer, curMesh->ref.getNumIndices(), 1, 0, 0, 0);
       }
 
       vkCmdEndRenderPass(*commandBuffer);
 
       commandBuffer->end();
     }
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  ///////////////////////////////// MANAGERS //////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+
+  void Renderer::initManagers() {
+    m_meshManager.loadBasicMeshes();
+    m_meshManager.uploadMeshes(*this);
+  }
+
+  void Renderer::shutdownManagers() {
+    m_meshManager.clear();
+  }
+
+  MeshManager& Renderer::getMeshManager() {
+    return m_meshManager;
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -438,11 +501,11 @@ namespace dw {
     m_swapchain = std::make_unique<Swapchain>(*m_device, *m_surface, *m_presentQueue);
   }
 
-  void Renderer::transitionSwapChainImages() {
+  void Renderer::transitionSwapChainImages() const {
     CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
     transBuff.start(true);
 
-    for(auto& image : m_swapchain->getImages()) {
+    for (auto& image : m_swapchain->getImages()) {
       VkImageMemoryBarrier memBarrier = {
         VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
         nullptr,
@@ -463,12 +526,15 @@ namespace dw {
       };
 
       vkCmdPipelineBarrier(transBuff,
-        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &memBarrier);
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                           0,
+                           0,
+                           nullptr,
+                           0,
+                           nullptr,
+                           1,
+                           &memBarrier);
     }
 
     transBuff.end();
@@ -795,8 +861,8 @@ namespace dw {
       nullptr
     };
 
-    if(!m_descriptorSetLayout) {
-      pipelineLayoutInfo.pSetLayouts = nullptr;
+    if (!m_descriptorSetLayout) {
+      pipelineLayoutInfo.pSetLayouts    = nullptr;
       pipelineLayoutInfo.setLayoutCount = 0;
     }
 

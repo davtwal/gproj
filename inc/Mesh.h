@@ -94,6 +94,8 @@ namespace dw {
 
     bool isDrawable() const;
 
+    bool operator==(Mesh const& o) const;
+
   private:
     std::vector<Vertex>   m_vertices;
     std::vector<uint32_t> m_indices;

@@ -53,11 +53,19 @@ namespace dw::util {
 
     type& ref;
 
+    bool operator==(Ref<T> const& o) {
+      return ref == o.ref;
+    }
+
+    bool operator!=(Ref<T> const& o) {
+      return !(ref == o.ref);
+    }
+
     operator type() const {
       return ref;
     }
 
-    NO_DISCARD type* operator->() {
+    NO_DISCARD type* operator->() const {
       return &ref;
     }
 

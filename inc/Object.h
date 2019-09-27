@@ -26,7 +26,7 @@
 namespace dw {
   class Object {
   public:
-    Object();
+    Object(util::Ref<Mesh> const& mesh);
     //Object(util::ptr<Mesh> mesh, glm::vec3 pos, glm::vec3 scale, glm::quat rot);
 
     glm::mat4 const& getTransform();
@@ -39,7 +39,7 @@ namespace dw {
     Object& setRotation(glm::quat const& rot);
 
     // graphics
-    util::ptr<Mesh> m_mesh;
+    util::Ref<Mesh> m_mesh;
     
   private:
 

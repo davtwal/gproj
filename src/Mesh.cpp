@@ -148,4 +148,7 @@ namespace dw {
     return m_vertexBuff != nullptr;
   }
 
+  bool Mesh::operator==(Mesh const& o) const {
+    return m_vertexBuff == o.m_vertexBuff;
+  }
 }

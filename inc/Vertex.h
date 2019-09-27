@@ -28,7 +28,7 @@ struct VkVertexInputAttributeDescription;
 
 namespace dw {
   struct Vertex {
-    glm::vec2 pos   { 0.f, 0.f };
+    glm::vec3 pos   { 0.f, 0.f, 0.f };
     glm::vec3 color { 1.f, 1.f, 1.f };
 
     static constexpr unsigned NUM_BINDING_ATTRIBUTES = 2;

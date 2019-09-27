@@ -19,7 +19,8 @@
 #include "Object.h"
 
 namespace dw {
-  Object::Object() {
+  Object::Object(util::Ref<Mesh> const& mesh)
+    : m_mesh(mesh){
     getTransform();
   }
 
