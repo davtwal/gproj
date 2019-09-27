@@ -26,7 +26,7 @@ namespace dw {
 
   glm::mat4 const& Object::getTransform() {
     if(m_isDirty) {
-      m_transform = glm::translate(glm::mat4(), m_position) * glm::scale(glm::mat4(), m_scale) * glm::mat4_cast(m_rotation);
+      m_transform = glm::translate(glm::identity<glm::mat4>(), m_position) * glm::mat4_cast(m_rotation) * glm::scale(glm::identity<glm::mat4>(), m_scale);
       m_isDirty = false;
     }
 

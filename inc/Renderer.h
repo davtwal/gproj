@@ -57,7 +57,7 @@ namespace dw {
     void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
     void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
 
-    void setScene(Camera const& camera, std::vector<Object> const& objects);
+    void setScene(Camera const& camera, std::vector<util::Ref<Object>> const& objects);
     void drawFrame();
 
     void shutdown();
@@ -136,11 +136,11 @@ namespace dw {
 
     // Scene variables
     Camera m_camera;
+    std::vector<util::Ref<Object>> m_objList;
 
     // Specific, per-swapchain-image variables
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
     std::vector<Buffer> m_uniformBuffers;
-    std::vector<Object> m_objList;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
 #ifdef _DEBUG

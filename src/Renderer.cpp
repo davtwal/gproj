@@ -261,40 +261,16 @@ namespace dw {
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::setScene(Camera const& camera, std::vector<Object> const& objects) {
+  void Renderer::setScene(Camera const& camera, std::vector<util::Ref<Object>> const& objects) {
     m_camera = camera;
     m_objList = objects;
     writeCommandBuffers();
   }
-}
 
-#include <chrono>
-
-namespace dw {
   void Renderer::updateUniformBuffers(uint32_t imageIndex){//, Camera& cam, Object& obj) {
-    // for frequently changing values, we don't want to map/unmap every frame. for that we'd want push constants. ill get to those after
-    // making UBOs work.
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
-    auto  currentTime = std::chrono::high_resolution_clock::now();
-    float time        = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-    //translate(glm::mat4(1.0f), glm::vec3{0, .5f * sin(time), 0})
-    //*rotate(glm::mat4(1.0f),
-    //  time * glm::radians(90.0f),
-    //  glm::vec3(0.0f, 0.0f, 1.0f)),
-
-    //lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f)),
-
-    // glm::perspective(glm::radians(45.0f),
-    // static_cast<float>(m_swapchain->getImageSize().width) /
-    //   static_cast<float>(m_swapchain->getImageSize().height
-    //     ),
-    //   0.1f,
-    //   10.0f)
 
     MVPTransformUniform mvp = {
-      m_objList.front().getTransform(),
+      m_objList.front()->getTransform(),
       m_camera.getView(),
       m_camera.getProj()
     };
@@ -365,8 +341,8 @@ namespace dw {
       
       util::Ref<Mesh>* curMesh = nullptr;
       for (auto& obj : m_objList) {
-        if (curMesh == nullptr || obj.m_mesh != *curMesh) {
-          curMesh = &obj.m_mesh;
+        if (curMesh == nullptr || obj->m_mesh != *curMesh) {
+          curMesh = &obj->m_mesh;
 
           const VkBuffer&    buff   = curMesh->ref.getVertexBuffer();
           const VkDeviceSize offset = 0;

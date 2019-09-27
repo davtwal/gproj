@@ -38,7 +38,7 @@
 #include <cassert>
 #include <algorithm>
 #include <unordered_map>
-
+#include <chrono>
 
 namespace dw {
 
@@ -101,7 +101,14 @@ namespace dw {
     m_renderer->initSpecific();
 
     // fill scene
+    auto  currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
+
     m_triangleObject = util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0));
+    m_triangleObject->setPosition({ 0, .5f * sin(time), 0 });
+    m_triangleObject->setRotation({ time * glm::radians(90.f), {0.f, 0.f, 1.f} });
+
+    //m_triangleObject->setPosition()
 
     m_camera
       .setNearDepth(0.1f)
@@ -117,7 +124,18 @@ namespace dw {
   }
 
   int Application::loop() const {
+    static auto startTime = std::chrono::high_resolution_clock::now();
+
     while (!m_renderer->done()) {
+      auto  currentTime = std::chrono::high_resolution_clock::now();
+      float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+      m_triangleObject->setPosition({ 0, .5f * sin(time), 0 });
+      m_triangleObject->setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f}));
+
+
+      //m_renderer->setScene(m_camera, { *m_triangleObject });
+
       m_renderer->drawFrame();
     }
 

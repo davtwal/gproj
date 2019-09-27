@@ -26,12 +26,12 @@ namespace dw {
   public:
     Camera();
 
-    static inline const glm::vec3 UP_DIR = { 0, 1, 0 };
+    static inline const glm::vec3 UP_DIR = { 0, 0, 1.f };
 
     glm::mat4 const& getView();
     glm::mat4 const& getProj();
 
-    Camera& setDimensions(float width, float height);
+    //Camera& setDimensions(float width, float height);
     Camera& setNearDepth(float near);
     Camera& setFarDepth(float far);
     Camera& setEyePos(glm::vec3 const& pos);
@@ -47,8 +47,10 @@ namespace dw {
 
   private:
 
-    float m_width = 10;
-    float m_height = 10;
+    //float m_width = 10;
+    //float m_height = 10;
+    float m_aspect = 1;
+    float m_fov = 45.f;
     float m_nearDist = 0.1f;
     float m_farDist = 100.f;
 
