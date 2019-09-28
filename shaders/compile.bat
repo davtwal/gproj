@@ -11,3 +11,5 @@ FOR %%f IN (*.*) DO (
     )
   )
 )
+
+PAUSE

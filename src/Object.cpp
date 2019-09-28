@@ -62,4 +62,9 @@ namespace dw {
     m_isDirty = true;
     return *this;
   }
+
+  void Object::callBehavior(float curTime, float dt) {
+    m_behavior(*this, curTime, dt);
+  }
+
 }

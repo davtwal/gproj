@@ -27,6 +27,7 @@ namespace dw {
                            bool           indivCmdBfrResetable,
                            bool           frequentRecording)
     : m_device(device),
+      m_pool(nullptr),
       m_qFamily(queueFamilyIndex),
       m_individualReset(indivCmdBfrResetable) {
 

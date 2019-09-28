@@ -20,12 +20,12 @@
 #define DW_APPLICATION_H
 
 #include "Renderer.h"
-
-#include <memory>
 #include "Camera.h"
 
-namespace dw {
+#include <chrono>
+#include <memory>
 
+namespace dw {
   class Application {
   public:
     int parseCommandArgs(int argc, char** argv);
@@ -33,11 +33,17 @@ namespace dw {
 
   private:
     int initialize();
-    int loop() const;
+    int loop();
 
     int shutdown();
+
+    // TIME VARIABLES
+    using ClockType = std::chrono::high_resolution_clock;
+    using DurationType = std::chrono::duration<float, std::chrono::seconds::period>;
+    ClockType::time_point m_startTime;
+
     // SCENE VARIABLES
-    util::ptr<Object>    m_triangleObject;
+    std::vector<util::ptr<Object>> m_scene;
     util::ptr<Renderer> m_renderer{ nullptr };
     Camera    m_camera;
   };

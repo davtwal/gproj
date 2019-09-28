@@ -102,7 +102,9 @@ namespace dw::util {
   }
 
   template <typename T>
-  class Ref {
+  using Ref = std::reference_wrapper<T>;
+
+  /*class Ref {
   public:
     using type = T;
 
@@ -138,8 +140,8 @@ namespace dw::util {
 
     NO_DISCARD type& operator*() const {
       return ref;
-    }
-  };
+    }*/
+  //};
 }
 
 #endif

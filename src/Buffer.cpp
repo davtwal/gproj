@@ -48,11 +48,11 @@ namespace dw {
   }
 
   Buffer::operator VkBuffer() const {
-    return m_buffer;
+    return m_info.buffer;
   }
 
   Buffer::operator VkBuffer() {
-    return m_buffer;
+    return m_info.buffer;
   }
 
   Buffer::Buffer(LogicalDevice& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
@@ -68,9 +68,11 @@ namespace dw {
       nullptr // ignored if VK_SHARING_MODE_EXCLUSIVE
     };
 
-    vkCreateBuffer(m_device, &createInfo, nullptr, &m_buffer);
-    if (!m_buffer)
+    vkCreateBuffer(m_device, &createInfo, nullptr, &m_info.buffer);
+    if (!m_info.buffer)
       throw std::bad_alloc();
+
+    m_info.range = size;
 
     MemoryAllocator allocator(getOwningPhysical());
     back(allocator, properties);
@@ -78,19 +80,19 @@ namespace dw {
 
   Buffer::Buffer(Buffer&& o) noexcept
     : m_device(o.m_device),
-      m_buffer(o.m_buffer),
       m_memory(o.m_memory),
       m_memSize(o.m_memSize),
+      m_info(o.m_info),
       m_isMapped(o.m_isMapped) {
-    o.m_buffer = nullptr;
     o.m_memory = nullptr;
     o.m_memSize = 0;
     o.m_isMapped = false;
+    o.m_info = {nullptr, 0, 0};
   }
 
   void Buffer::back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags) {
     VkMemoryRequirements memReqs;
-    vkGetBufferMemoryRequirements(m_device, m_buffer, &memReqs);
+    vkGetBufferMemoryRequirements(m_device, m_info.buffer, &memReqs);
 
     VkMemoryAllocateInfo allocInfo = {
       VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -104,7 +106,7 @@ namespace dw {
 
     m_memSize = memReqs.size;
 
-    if (vkBindBufferMemory(m_device, m_buffer, m_memory, 0) != VK_SUCCESS)
+    if (vkBindBufferMemory(m_device, m_info.buffer, m_memory, 0) != VK_SUCCESS)
       throw std::bad_alloc();
   }
 
@@ -114,8 +116,8 @@ namespace dw {
       m_memory = nullptr;
     }
 
-    if (m_buffer) {
-      vkDestroyBuffer(m_device, m_buffer, nullptr);
+    if (m_info.buffer) {
+      vkDestroyBuffer(m_device, m_info.buffer, nullptr);
       m_memory = nullptr;
     }
   }
@@ -137,4 +139,11 @@ namespace dw {
     }
   }
 
+  VkDescriptorBufferInfo const& Buffer::getDescriptorInfo() const {
+    return m_info;
+  }
+
+  VkDeviceSize Buffer::getSize() const {
+    return m_memSize;
+  }
 }

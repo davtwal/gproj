@@ -45,6 +45,17 @@ namespace dw {
   class DependentImage;
   class ImageView;
 
+  struct ObjectUniform {
+    alignas(16) glm::mat4 model;
+  };
+
+  struct CameraUniform {
+    alignas(16) glm::mat4 view;
+    alignas(16) glm::mat4 proj;
+    alignas(16) glm::vec3 eyePos;
+    alignas(16) glm::vec3 viewVec;
+  };
+
   class Renderer {
   public:
     // initialize
@@ -57,7 +68,11 @@ namespace dw {
     void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
     void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
 
-    void setScene(Camera const& camera, std::vector<util::Ref<Object>> const& objects);
+    using SceneContainer = std::vector<util::Ref<Object>>;
+
+    void setScene(SceneContainer const& objects);
+    void setCamera(util::Ref<Camera> camera);
+
     void drawFrame();
 
     void shutdown();
@@ -80,19 +95,25 @@ namespace dw {
 
     // specific to the rendering engine & what i support setup
     void setupDepthTestResources();
-
     void setupShaders();
+    void setupUniformBuffers();
     void setupDescriptors();
     void setupRenderSteps();
     void setupSwapChainFrameBuffers() const;
     void setupPipeline();
     void initManagers();
 
-    // drawing helpers
+    // specific to the current scene
     void writeCommandBuffers();
+    void releasePreviousDynamicUniforms();
+    void prepareDynamicUniformBuffers();
+    void updateDescriptorSets();
+
+    // called every frame
     void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
 
     // shutdown helpers
+    void shutdownScene();
     void shutdownManagers();
 
     void recreateSwapChain();
@@ -100,6 +121,8 @@ namespace dw {
     //////////////////////////////////////////////////////
     //// GENERAL VARIABLES
     //////////////////////////////////////////////////////
+    static Camera s_defaultCamera;
+    ///
     VulkanControl* m_control{ nullptr };
     GLFWWindow* m_window{ nullptr };
     InputHandler* m_inputHandler{ nullptr };
@@ -135,12 +158,15 @@ namespace dw {
     MeshManager m_meshManager;
 
     // Scene variables
-    Camera m_camera;
-    std::vector<util::Ref<Object>> m_objList;
+    util::Ref<Camera> m_camera { s_defaultCamera };
+    SceneContainer m_objList;
+    size_t m_modelUBOdynamicAlignment {0};
+    ObjectUniform* m_modelUBOdata = nullptr;
 
     // Specific, per-swapchain-image variables
+    std::vector<Buffer> m_cameraUBOs;
+    std::vector<Buffer> m_modelUBOs;
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
-    std::vector<Buffer> m_uniformBuffers;
     std::vector<VkDescriptorSet> m_descriptorSets;
 
 #ifdef _DEBUG

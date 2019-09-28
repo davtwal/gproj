@@ -61,24 +61,107 @@ namespace dw {
   }
 
   void MeshManager::loadBasicMeshes() {
-    std::vector<Vertex> vertices = {
-      {{-0.5f, -0.5f, 0.0f},  {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-      {{0.5f, -0.5f, 0.0f},   {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-      {{0.5f, 0.5f, 0.0f},    {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-      {{-0.5f, 0.5f, 0.0f},   {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+    {
+      std::vector<Vertex> vertices = {
+        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
 
-      {{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-      {{0.5f, -0.5f, -0.5f},  {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-      {{0.5f, 0.5f, -0.5f},   {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-      {{-0.5f, 0.5f, -0.5f},  {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
-    };
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+      };
 
-    std::vector<uint32_t> indices = {
-      0, 1, 2, 2, 3, 0,
-      4, 5, 6, 6, 7, 4
-    };
+      std::vector<uint32_t> indices = {
+        0, 1, 2, 2, 3, 0,
+        4, 5, 6, 6, 7, 4
+      };
 
-    addMesh(vertices, indices);
+      addMesh(vertices, indices);
+    }
+
+    // 1: Non-face-normal cube
+    {
+      std::vector<Vertex> vertices = {
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+      };
+
+      vertices[0].normal = glm::normalize(glm::vec3{ 0, 0, -1 } + glm::vec3{ 0, -1, 0 } + glm::vec3{ -1, 0, 0 });
+      vertices[1].normal = glm::normalize(glm::vec3{ 0, 0, -1 } + glm::vec3{ 0, -1, 0 } + glm::vec3{  1, 0, 0 });
+      vertices[2].normal = glm::normalize(glm::vec3{ 0, 0, -1 } + glm::vec3{ 0,  1, 0 } + glm::vec3{ -1, 0, 0 });
+      vertices[3].normal = glm::normalize(glm::vec3{ 0, 0, -1 } + glm::vec3{ 0,  1, 0 } + glm::vec3{  1, 0, 0 });
+      vertices[4].normal = glm::normalize(glm::vec3{ 0, 0,  1 } + glm::vec3{ 0, -1, 0 } + glm::vec3{ -1, 0, 0 });
+      vertices[5].normal = glm::normalize(glm::vec3{ 0, 0,  1 } + glm::vec3{ 0, -1, 0 } + glm::vec3{  1, 0, 0 });
+      vertices[6].normal = glm::normalize(glm::vec3{ 0, 0,  1 } + glm::vec3{ 0,  1, 0 } + glm::vec3{ -1, 0, 0 });
+      vertices[7].normal = glm::normalize(glm::vec3{ 0, 0,  1 } + glm::vec3{ 0,  1, 0 } + glm::vec3{  1, 0, 0 });
+
+      std::vector<uint32_t> indices = {
+        0, 2, 1, 1, 2, 3, // -Z
+        4, 5, 6, 5, 7, 6, // +Z
+        0, 1, 4, 1, 5, 4, // -Y
+        6, 3, 2, 3, 6, 7, // +Y
+        2, 0, 4, 2, 4, 6, // -X
+        1, 3, 7, 5, 1, 7  // +X
+      };
+
+      addMesh(vertices, indices);
+    }
+
+    // 2: Face-normal cube
+    {
+      std::vector<Vertex> vertices = {
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+
+        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+
+        {{-0.5f, -0.5f, -0.5f}, {0, -1, 0}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, -1, 0}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {0, -1, 0}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, -1, 0}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+
+        {{-0.5f,  0.5f, -0.5f}, {0, 1, 0}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 1, 0}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 1, 0}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 1, 0}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+
+        {{-0.5f, -0.5f, -0.5f}, {-1, 0, 0}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {-1, 0, 0}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {-1, 0, 0}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {-1, 0, 0}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+
+        {{ 0.5f, -0.5f, -0.5f}, {1, 0, 0}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1, 0, 0}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {1, 0, 0}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1, 0, 0}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+      };
+
+      std::vector<uint32_t> indices = {
+        0, 2, 1, 1, 2, 3, // need to reverse winding here
+        4, 5, 6, 5, 7, 6,
+        8, 9, 10, 9, 11, 10,
+        14, 13, 12, 13, 14, 15,
+        17, 16, 18, 17, 18, 19,
+        20, 21, 22, 21, 23, 22
+      };
+
+      addMesh(vertices, indices);
+    }
   }
 
 
@@ -104,11 +187,25 @@ namespace dw {
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
 
-    m_triangleObject = util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0));
-    m_triangleObject->setPosition({ 0, .5f * sin(time), 0 });
-    m_triangleObject->setRotation({ time * glm::radians(90.f), {0.f, 0.f, 1.f} });
+    m_scene.reserve(3);
+    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setPosition({ 0, .5f * sin(time), 0 });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
+    };
 
-    //m_triangleObject->setPosition()
+    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(2)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setPosition({ 0, -.5f * sin(time), 0 });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
+    };
+
+    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ .5f, .5f, .5f });
+      o.setPosition({ 0, 0, .5f * cos(time) });
+      o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
 
     m_camera
       .setNearDepth(0.1f)
@@ -116,25 +213,34 @@ namespace dw {
       .setEyePos({ 2.f, 2.f, 2.f })
       .setLookAt({ 0.f, 0.f, 0.f })
       .setFOVDeg(45.f);
-      //.setDimensions(800, 800);
 
-    m_renderer->setScene(m_camera, {*m_triangleObject});
+    m_renderer->setCamera(m_camera);
+
+    Renderer::SceneContainer scene;
+    scene.reserve(m_scene.size());
+    for (auto& obj : m_scene) {
+      scene.push_back(*obj);
+    }
+    m_renderer->setScene(scene);
+
+    m_startTime = ClockType::now();
 
     return 0;
   }
 
-  int Application::loop() const {
-    static auto startTime = std::chrono::high_resolution_clock::now();
-
+  int Application::loop() {
+    ClockType::time_point prevTime = ClockType::now();
+    ClockType::time_point curTime = ClockType::now();
     while (!m_renderer->done()) {
-      auto  currentTime = std::chrono::high_resolution_clock::now();
-      float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+      prevTime = curTime;
+      curTime = ClockType::now();
 
-      m_triangleObject->setPosition({ 0, .5f * sin(time), 0 });
-      m_triangleObject->setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0.f, 0.f, 1.f}));
+      float time = DurationType(curTime - m_startTime).count();
+      float dt = DurationType(curTime - prevTime).count();
 
-
-      //m_renderer->setScene(m_camera, { *m_triangleObject });
+      for(auto& obj : m_scene) {
+        obj->callBehavior(time, dt);
+      }
 
       m_renderer->drawFrame();
     }
@@ -143,7 +249,7 @@ namespace dw {
   }
 
   int Application::shutdown() {
-    m_triangleObject.reset();
+    m_scene.clear();
 
     m_renderer->shutdown();
     return 0;

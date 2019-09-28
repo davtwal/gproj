@@ -21,15 +21,27 @@
 
 #include "MyMath.h"
 
+#ifndef NO_DISCARD
+#define NO_DISCARD [[nodiscard]]
+#endif
+
 namespace dw {
   class Camera {
   public:
     Camera();
 
-    static inline const glm::vec3 UP_DIR = { 0, 0, 1.f };
+    static inline const glm::vec3 UP_DIR = { 0, 0.f, 1.f };
 
     glm::mat4 const& getView();
     glm::mat4 const& getProj();
+    NO_DISCARD glm::vec3 const& getEyePos() const;
+    NO_DISCARD glm::vec3 const& getViewDir() const;
+
+    NO_DISCARD float getAspect() const;
+    NO_DISCARD float getFOV() const;
+    NO_DISCARD float getFOVDeg() const;
+    NO_DISCARD float getNearDist() const;
+    NO_DISCARD float getFarDist() const;
 
     //Camera& setDimensions(float width, float height);
     Camera& setNearDepth(float near);

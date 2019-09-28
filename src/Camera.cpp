@@ -18,9 +18,6 @@
 
 #include "Camera.h"
 
-#include <cmath>
-#include <corecrt_math_defines.h>
-
 namespace dw {
   Camera::Camera() {
     setFOVDeg(m_fov);
@@ -44,6 +41,34 @@ namespace dw {
     }
 
     return m_proj;
+  }
+
+  glm::vec3 const& Camera::getEyePos() const {
+    return m_eyePos;
+  }
+
+  glm::vec3 const& Camera::getViewDir() const {
+    return m_viewDir;
+  }
+
+  float Camera::getAspect() const {
+    return m_aspect;
+  }
+
+  float Camera::getFOV() const {
+    return m_fov;
+  }
+
+  float Camera::getFOVDeg() const {
+    return glm::degrees(m_fov);
+  }
+
+  float Camera::getNearDist() const {
+    return m_nearDist;
+  }
+
+  float Camera::getFarDist() const {
+    return m_farDist;
   }
 
   Camera& Camera::setEyePos(glm::vec3 const& pos) {
@@ -83,7 +108,7 @@ namespace dw {
 
 
   Camera& Camera::setFOVDeg(float degrees) {
-    return setFOV(M_PI * degrees / 180.f);
+    return setFOV(glm::radians(degrees));
   }
 
   Camera& Camera::setAspect(float aspect) {

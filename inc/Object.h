@@ -40,7 +40,14 @@ namespace dw {
 
     // graphics
     util::Ref<Mesh> m_mesh;
-    
+
+    // behavior
+    using BehaviorFn = void(*)(Object & o, float curTime, float dt);
+
+    BehaviorFn m_behavior;
+
+    void callBehavior(float curTime, float dt);
+
   private:
 
     // transform

@@ -33,7 +33,8 @@ namespace dw {
     ret.reserve(NUM_BINDING_ATTRIBUTES);
       // LOC, BINDING, FORMAT, OFFSET
     ret.push_back({ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 });
-    ret.push_back({ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) });
+    ret.push_back({ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal) });
+    ret.push_back({ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) });
     return ret;
   }
 }

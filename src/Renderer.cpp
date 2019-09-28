@@ -28,13 +28,40 @@
 #include "Mesh.h"
 #include "Framebuffer.h"  // ReSharper likes to think this isn't used. IT IS!!!
 #include "MemoryAllocator.h"
+#include "Camera.h"
 
 #include <array>
 #include <cassert>
 #include <algorithm>
-#include "Camera.h"
+#include <stdlib.h>
+
+// Wrapper functions for aligned memory allocation
+// There is currently no standard for this in C++ that works across all platforms and vendors, so we abstract this
+void* alignedAlloc(size_t size, size_t alignment)
+{
+  void* data = nullptr;
+#if defined(_MSC_VER) || defined(__MINGW32__)
+  data = _aligned_malloc(size, alignment);
+#else 
+  int res = posix_memalign(&data, alignment, size);
+  if (res != 0)
+    data = nullptr;
+#endif
+  return data;
+}
+
+void alignedFree(void* data)
+{
+#if	defined(_MSC_VER) || defined(__MINGW32__)
+  _aligned_free(data);
+#else 
+  free(data);
+#endif
+}
 
 namespace dw {
+  Camera Renderer::s_defaultCamera;
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -59,8 +86,9 @@ namespace dw {
 
   void Renderer::initSpecific() {
     setupDepthTestResources();
-
+    sizeof(CameraUniform);
     setupShaders();
+    setupUniformBuffers();
     setupDescriptors();
     setupRenderSteps();
     setupSwapChainFrameBuffers();
@@ -75,14 +103,21 @@ namespace dw {
     shutdownManagers();
     m_objList.clear();
 
+    if (m_modelUBOdata)
+      alignedFree(m_modelUBOdata);
+
+    m_modelUBOdata = nullptr;
+
     vkDestroyPipeline(*m_device, m_graphicsPipeline, nullptr);
     vkDestroyPipelineLayout(*m_device, m_graphicsPipelineLayout, nullptr);
 
     m_renderPass.reset();
 
     vkDestroyDescriptorPool(*m_device, m_descriptorPool, nullptr);
-    m_uniformBuffers.clear();
     vkDestroyDescriptorSetLayout(*m_device, m_descriptorSetLayout, nullptr);
+
+    m_modelUBOs.clear();
+    m_cameraUBOs.clear();
 
     m_triangleFragShader.reset();
     m_triangleVertShader.reset();
@@ -111,8 +146,8 @@ namespace dw {
 
 #ifdef _DEBUG
     auto destroyFn = (PFN_vkDestroyDebugUtilsMessengerEXT)
-        glfwGetInstanceProcAddress(*m_control,
-                                   "vkDestroyDebugUtilsMessengerEXT");
+      glfwGetInstanceProcAddress(*m_control,
+        "vkDestroyDebugUtilsMessengerEXT");
     if (destroyFn) {
       destroyFn(*m_control, m_debugMessenger, nullptr);
       m_debugMessenger = nullptr;
@@ -145,24 +180,6 @@ namespace dw {
     return m_window->shouldClose();
   }
 
-  struct MVPTransformUniform {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-  };
-
-  struct ObjectUniform {
-    alignas(16) glm::mat4 model;
-    alignas(16) glm::vec3 position;
-  };
-
-  struct CameraUniform {
-    alignas(16) glm::mat4 view;
-    alignas(16) glm::mat4 proj;
-    alignas(16) glm::vec3 eyePos;
-    alignas(16) glm::vec3 viewVec;
-  };
-
   void Renderer::drawFrame() {
     assert(m_swapchain->isPresentReady());
     if (m_objList.empty())
@@ -171,49 +188,23 @@ namespace dw {
     GLFWControl::Poll();
 
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
-    Image const& nextImage      = m_swapchain->getNextImage();
+    Image const& nextImage = m_swapchain->getNextImage();
 
     auto& graphicsQueue = *m_graphicsQueue;
 
-    /*VkEventCreateInfo eventInfo = {
-      VK_STRUCTURE_TYPE_EVENT_CREATE_INFO,
-      nullptr,
-      0
-    };
 
-    VkEvent vkevent;
-    vkCreateEvent(*m_device, &eventInfo, nullptr, &vkevent);
-    vkSetEvent(*m_device, vkevent);
+    updateUniformBuffers(nextImageIndex);
+    graphicsQueue.get().submitOne(m_commandBuffers[nextImageIndex],
+      { m_swapchain->getNextImageSemaphore() },
+      { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT },
+      { m_swapchain->getImageRenderReadySemaphore() });
 
-
-    for(auto& obj : m_objList) {
-      vkGetEventStatus(*m_device, vkevent);
-      MVPTransformUniform mvp = {
-        obj.getTransform(),
-        m_camera.getView(),
-        m_camera.getProj()
-      };
-
-      void* data = m_uniformBuffers[nextImageIndex].map();
-      memcpy(data, &mvp, sizeof(mvp));
-      m_uniformBuffers[nextImageIndex].unMap();
-
-    }*/
-    
-    updateUniformBuffers(nextImageIndex);//, m_camera, );
-    //writeCommandBuffers();
-
-    graphicsQueue->submitOne(*m_commandBuffers[nextImageIndex],
-                             {m_swapchain->getNextImageSemaphore()},
-                             {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-                             {m_swapchain->getImageRenderReadySemaphore()});
-
-    graphicsQueue->waitSubmit();
-    graphicsQueue->waitIdle();
+    graphicsQueue.get().waitSubmit();
+    graphicsQueue.get().waitIdle();
 
     //vkDestroyEvent(*m_device, vkevent, nullptr);
     m_swapchain->present();
-    graphicsQueue->waitIdle();
+    graphicsQueue.get().waitIdle();
   }
 
   void Renderer::uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const {
@@ -233,8 +224,8 @@ namespace dw {
     }
     moveBuff.end();
 
-    m_transferQueue->ref.submitOne(moveBuff);
-    m_transferQueue->ref.waitIdle();
+    m_transferQueue->get().submitOne(moveBuff);
+    m_transferQueue->get().waitIdle();
 
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
@@ -243,56 +234,149 @@ namespace dw {
     std::vector<Mesh::StagingBuffs> stagingBuffers;
     stagingBuffers.reserve(meshes.size());
     for (auto& mesh : meshes) {
-      stagingBuffers.push_back(mesh->createAllBuffs(*m_device));
-      mesh->uploadStaging(stagingBuffers.back());
+      stagingBuffers.push_back(mesh.get().createAllBuffs(*m_device));
+      mesh.get().uploadStaging(stagingBuffers.back());
     }
 
     CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
 
     moveBuff.start(true);
     for (size_t i = 0; i < meshes.size(); ++i) {
-      meshes[i]->uploadCmds(moveBuff, stagingBuffers[i]);
+      meshes[i].get().uploadCmds(moveBuff, stagingBuffers[i]);
     }
     moveBuff.end();
 
-    m_transferQueue->ref.submitOne(moveBuff);
-    m_transferQueue->ref.waitIdle();
+    m_transferQueue->get().submitOne(moveBuff);
+    m_transferQueue->get().waitIdle();
 
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::setScene(Camera const& camera, std::vector<util::Ref<Object>> const& objects) {
+  void Renderer::updateUniformBuffers(uint32_t imageIndex) {
+    CameraUniform cam = {
+      m_camera.get().getView(),
+      m_camera.get().getProj(),
+      m_camera.get().getEyePos(),
+      m_camera.get().getViewDir()
+    };
+
+    void* data = m_cameraUBOs[imageIndex].map();
+    memcpy(data, &cam, sizeof(cam));
+    m_cameraUBOs[imageIndex].unMap();
+
+    assert(m_modelUBOdata);
+
+    for (uint32_t i = 0; i < m_objList.size(); ++i) {
+      m_modelUBOdata[i].model = m_objList[i].get().getTransform();
+    }
+
+    data = m_modelUBOs[imageIndex].map();
+    memcpy(data, m_modelUBOdata, m_modelUBOs[imageIndex].getSize());
+    m_modelUBOs[imageIndex].unMap();
+
+    // Flush to make changes visible to the host 
+    //VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
+    //memoryRange.memory = uniformBuffers.dynamic.memory;
+    //memoryRange.size = uniformBuffers.dynamic.size;
+    //vkFlushMappedMemoryRanges(device, 1, &memoryRange);
+  }
+
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  //////////////////////////////// SCENE SETUP ////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+  /////////////////////////////////////////////////////////////////////////////
+
+  void Renderer::setCamera(util::Ref<Camera> camera) {
     m_camera = camera;
+  }
+
+  void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
     m_objList = objects;
+
+    if (m_modelUBOdata)
+      alignedFree(m_modelUBOdata);
+
+    prepareDynamicUniformBuffers();
+    updateDescriptorSets();
     writeCommandBuffers();
   }
 
-  void Renderer::updateUniformBuffers(uint32_t imageIndex){//, Camera& cam, Object& obj) {
+  void Renderer::prepareDynamicUniformBuffers() {
+    const size_t minUboAlignment = m_device->getOwningPhysical().getLimits().minUniformBufferOffsetAlignment;
 
-    MVPTransformUniform mvp = {
-      m_objList.front()->getTransform(),
-      m_camera.getView(),
-      m_camera.getProj()
-    };
+    m_modelUBOdynamicAlignment = sizeof(ObjectUniform);
+    if (minUboAlignment > 0) {
+      m_modelUBOdynamicAlignment = (m_modelUBOdynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
+    }
 
-    void* data = m_uniformBuffers[imageIndex].map();
-    memcpy(data, &mvp, sizeof(mvp));
-    m_uniformBuffers[imageIndex].unMap();
+    size_t modelUBOsize = m_modelUBOdynamicAlignment * m_objList.size();
+
+    m_modelUBOdata = (ObjectUniform*)alignedAlloc(modelUBOsize, m_modelUBOdynamicAlignment);
+    assert(m_modelUBOdata);
+
+    size_t numImages = m_swapchain->getNumImages();
+
+    m_modelUBOs.clear();
+    m_modelUBOs.reserve(numImages);
+    for (size_t i = 0; i < numImages; ++i) {
+      m_modelUBOs.emplace_back(Buffer::CreateUniform(*m_device, modelUBOsize));
+    }
+  }
+
+  void Renderer::updateDescriptorSets() {
+    // Descriptor sets are automatically freed once the pool is freed.
+    // They can be individually freed if the pool was created with
+    // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
+    for (size_t i = 0; i < m_descriptorSets.size(); ++i) {
+      std::vector<VkWriteDescriptorSet> descriptorWrites = {
+        {
+          VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          nullptr,
+          m_descriptorSets[i],
+          0,
+          0,
+          1,
+          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+          nullptr,
+          &m_cameraUBOs[i].getDescriptorInfo(),
+          nullptr
+        },
+        {
+          VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          nullptr,
+          m_descriptorSets[i],
+          1,
+          0,
+          1,
+          VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+          nullptr,
+          &m_modelUBOs[i].getDescriptorInfo(),
+          nullptr
+        }
+      };
+
+      vkUpdateDescriptorSets(*m_device, 
+        static_cast<uint32_t>(descriptorWrites.size()),
+        descriptorWrites.data(),
+        0, nullptr);
+    }
   }
 
   void Renderer::writeCommandBuffers() {
     if (m_objList.empty())
       return;
 
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = { {0, 0, 0, 1.f} };
+    clearValues[1].depthStencil = { 1.f, 0 };
+
     auto& framebuffers = m_swapchain->getFrameBuffers();
     for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
       auto& commandBuffer = m_commandBuffers[i];
-
-      commandBuffer->start(false);
-
-      std::array<VkClearValue, 2> clearValues{};
-      clearValues[0].color = { {0, 0, 0, 1.f} };
-      clearValues[1].depthStencil = { 1.f, 0 };
+      //auto pfnpush = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(*m_device, "vkCmdPushDescriptorSetKHR");
 
       VkRenderPassBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -304,58 +388,73 @@ namespace dw {
         clearValues.data()
       };
 
-      vkCmdBindPipeline(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+      // ---- Push descriptor:
+      //VkDescriptorBufferInfo buffInfo = {
+      //  m_uniformBuffers[i],
+      //  0,
+      //  sizeof(MVPTransformUniform)
+      //};
+      //
+      //VkWriteDescriptorSet mvpPushWrite = {
+      //  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+      //  nullptr,
+      //  nullptr, // ignored for push descriptors
+      //  0,
+      //  0,
+      //  1,
+      //  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      //  nullptr,
+      //  &buffInfo,
+      //  nullptr
+      //};
+      ////pfnpush(commandBuffer.get(),
+      //        VK_PIPELINE_BIND_POINT_GRAPHICS,
+      //        m_graphicsPipelineLayout, 0, 1, &mvpPushWrite);
 
-      VkDescriptorBufferInfo buffInfo = {
-        m_uniformBuffers[i],
-        0,
-        sizeof(MVPTransformUniform)
-      };
-
-      VkWriteDescriptorSet mvpPushWrite = {
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        nullptr, // ignored for push descriptors
-        0,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &buffInfo,
-        nullptr
-      };
-
-      vkCmdBeginRenderPass(*commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-      auto pfnpush = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(*m_device, "vkCmdPushDescriptorSetKHR");
-
-      pfnpush(*commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipelineLayout, 0, 1, &mvpPushWrite);
-      //vkCmdBindDescriptorSets(*commandBuffer,
-      //                        VK_PIPELINE_BIND_POINT_GRAPHICS,
-      //                        m_graphicsPipelineLayout,
-      //                        0,
-      //                        1,
-      //                        &m_descriptorSets[i],
-      //                        0,
-      //                        nullptr);
+      commandBuffer.get().start(false);
+      vkCmdBindPipeline(commandBuffer.get(), VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphicsPipeline);
+      vkCmdBeginRenderPass(commandBuffer.get(), &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
       
-      util::Ref<Mesh>* curMesh = nullptr;
-      for (auto& obj : m_objList) {
-        if (curMesh == nullptr || obj->m_mesh != *curMesh) {
-          curMesh = &obj->m_mesh;
+      /*vkCmdBindDescriptorSets(commandBuffer.get(),
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              m_graphicsPipelineLayout,
+                              0,
+                              1,
+                              &m_descriptorSets[i],
+                              0,
+                              nullptr);*/
 
-          const VkBuffer&    buff   = curMesh->ref.getVertexBuffer();
-          const VkDeviceSize offset = 0;
-          vkCmdBindVertexBuffers(*commandBuffer, 0, 1, &buff, &offset);
-          vkCmdBindIndexBuffer(*commandBuffer, curMesh->ref.getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+      if (!m_objList.empty()) {
+        Mesh* curMesh = nullptr;
+
+        for (uint32_t j = 0; j < m_objList.size(); ++j) {
+          auto& obj = m_objList.at(j);
+
+          if (!curMesh || !(obj.get().m_mesh.get() == *curMesh)) {
+            curMesh = &obj.get().m_mesh.get();
+
+            const VkBuffer& buff = curMesh->getVertexBuffer();
+            const VkDeviceSize offset = 0;
+            vkCmdBindVertexBuffers(commandBuffer.get(), 0, 1, &buff, &offset);
+            vkCmdBindIndexBuffer(commandBuffer.get(), curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+          }
+
+          // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
+          uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
+          vkCmdBindDescriptorSets(commandBuffer.get(),
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS, 
+                                  m_graphicsPipelineLayout,
+                                  0, 1, 
+                                  &m_descriptorSets[i],
+                                  1, &dynamicOffset);
+
+          vkCmdDrawIndexed(commandBuffer.get(), curMesh->getNumIndices(), 1, 0, 0, 0);
         }
 
-        vkCmdDrawIndexed(*commandBuffer, curMesh->ref.getNumIndices(), 1, 0, 0, 0);
+        vkCmdEndRenderPass(commandBuffer.get());
       }
 
-      vkCmdEndRenderPass(*commandBuffer);
-
-      commandBuffer->end();
+      commandBuffer.get().end();
     }
   }
 
@@ -516,11 +615,11 @@ namespace dw {
     m_device = new LogicalDevice(physical, deviceLayers, deviceExtensions, queueList, features, features, false);
 
     m_graphicsQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_GRAPHICS_BIT));
-    if (!(*m_graphicsQueue)->isValid())
+    if (!m_graphicsQueue->get().isValid())
       throw std::runtime_error("no graphics queue available");
 
     m_transferQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_TRANSFER_BIT));
-    assert(m_transferQueue && (*m_transferQueue)->isValid()); // graphics queues implicitly allow transfer
+    assert(m_transferQueue && m_transferQueue->get().isValid()); // graphics queues implicitly allow transfer
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -532,7 +631,7 @@ namespace dw {
     m_surface = std::make_unique<Surface>(*m_window, m_device->getOwningPhysical());
 
     m_presentQueue = new util::Ref<Queue>(m_device->getPresentableQueue(*m_surface));
-    if (!(*m_presentQueue)->isValid())
+    if (!m_presentQueue->get().isValid())
       throw std::runtime_error("no present queue available");
   }
 
@@ -625,8 +724,8 @@ namespace dw {
 
     transBuff.end();
 
-    m_transferQueue->ref.submitOne(transBuff);
-    m_transferQueue->ref.waitIdle();
+    m_transferQueue->get().submitOne(transBuff);
+    m_transferQueue->get().waitIdle();
 
     m_transferCmdPool->freeCommandBuffer(transBuff);
   }
@@ -637,8 +736,8 @@ namespace dw {
   /////////////////////////////////////////////////////////////////////////////
 
   void Renderer::setupCommandPools() {
-    m_commandPool     = util::make_ptr<CommandPool>(*m_device, (*m_graphicsQueue)->getFamily());
-    m_transferCmdPool = util::make_ptr<CommandPool>(*m_device, m_transferQueue->ref.getFamily());
+    m_commandPool     = util::make_ptr<CommandPool>(*m_device, m_graphicsQueue->get().getFamily());
+    m_transferCmdPool = util::make_ptr<CommandPool>(*m_device, m_transferQueue->get().getFamily());
   }
 
   void Renderer::setupCommandBuffers() {
@@ -685,8 +784,8 @@ namespace dw {
                           VK_IMAGE_LAYOUT_UNDEFINED,
                           VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
     transBuff.end();
-    m_graphicsQueue->ref.submitOne(transBuff);
-    m_graphicsQueue->ref.waitIdle();
+    m_graphicsQueue->get().submitOne(transBuff);
+    m_graphicsQueue->get().waitIdle();
 
     m_commandPool->freeCommandBuffer(transBuff);
     m_depthStencilView = std::make_shared<ImageView>(m_depthStencilImage->createView(VK_IMAGE_ASPECT_DEPTH_BIT));
@@ -752,7 +851,7 @@ namespace dw {
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
-  //// SHADER LOADING & DESCRIPTOR SET CREATION
+  //// SHADER LOADING, UBO & DESCRIPTOR SET CREATION
   /////////////////////////////////////////////////////////////////////////////
 
   void Renderer::setupShaders() {
@@ -762,94 +861,95 @@ namespace dw {
                                                                                             "triangle_frag.spv"));
   }
 
+  void Renderer::setupUniformBuffers() {
+    VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
+
+    size_t numImages = m_swapchain->getNumImages();
+
+    m_cameraUBOs.reserve(numImages);
+
+    for (auto& image : m_swapchain->getImages()) {
+      m_cameraUBOs.push_back(Buffer::CreateUniform(*m_device, cameraUniformSize));
+    }
+  }
+
   void Renderer::setupDescriptors() {
     // MVP matrices for object transformations
-    VkDescriptorSetLayoutBinding mvpTransformLayoutBinding = {
-      0,
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      1,
-      VK_SHADER_STAGE_VERTEX_BIT,
-      nullptr
+    std::vector<VkDescriptorSetLayoutBinding> layoutBindings = {
+      {
+        0,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        1,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        nullptr
+      },
+      {
+        1,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        1,
+        VK_SHADER_STAGE_VERTEX_BIT,
+        nullptr
+      }
     };
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
       nullptr,
-      VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR, // soon-to-be push descriptor
-      1,
-      &mvpTransformLayoutBinding
+      0, // VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR for push descriptor
+      static_cast<uint32_t>(layoutBindings.size()),
+      layoutBindings.data()
     };
 
     if (vkCreateDescriptorSetLayout(*m_device, &layoutCreateInfo, nullptr, &m_descriptorSetLayout) != VK_SUCCESS || !
         m_descriptorSetLayout)
       throw std::runtime_error("Could not create descriptor set layout");
 
+    ///////////////////////////////////////////////////////
+    // POOL AND SETS
+
     // create uniform buffers - one for each swapchain image
-    VkDeviceSize mvpTransformSize = sizeof(MVPTransformUniform);
+    uint32_t numImages = static_cast<uint32_t>(m_swapchain->getNumImages());
+    std::vector<VkDescriptorPoolSize> poolSizes = {
+      {
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        numImages
+      },
+      {
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        numImages
+      }
+    };
+    
+    VkDescriptorPoolCreateInfo poolCreateInfo = {
+      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      nullptr,
+      0,
+      m_swapchain->getNumImages(),
+      static_cast<uint32_t>(poolSizes.size()),
+      poolSizes.data()
+    };
+    
+    if (vkCreateDescriptorPool(*m_device, &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
+        m_descriptorPool)
+      throw std::runtime_error("Could not create descriptor pool");
 
-    m_uniformBuffers.reserve(m_swapchain->getNumImages());
+    //////////////////
+    // SETS
 
-    for (auto& image : m_swapchain->getImages()) {
-      m_uniformBuffers.push_back(Buffer::CreateUniform(*m_device, mvpTransformSize));
-    }
-
-    //VkDescriptorPoolSize poolSize = {
-    //  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //  m_swapchain->getNumImages()
-    //};
-    //
-    //VkDescriptorPoolCreateInfo poolCreateInfo = {
-    //  VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-    //  nullptr,
-    //  0,
-    //  m_swapchain->getNumImages(),
-    //  1,
-    //  &poolSize
-    //};
-    //
-    //if (vkCreateDescriptorPool(*m_device, &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
-    //    m_descriptorPool)
-    //  throw std::runtime_error("Could not create descriptor pool");
-    //
-    //std::vector<VkDescriptorSetLayout> layouts(m_swapchain->getNumImages(), m_descriptorSetLayout);
-    //
-    //VkDescriptorSetAllocateInfo descSetAllocInfo = {
-    //  VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-    //  nullptr,
-    //  m_descriptorPool,
-    //  m_swapchain->getNumImages(),
-    //  layouts.data()
-    //};
-    //
-    //m_descriptorSets.resize(m_swapchain->getNumImages());
-    //if (vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_descriptorSets.data()) != VK_SUCCESS)
-    //  throw std::runtime_error("Could not allocate descriptor sets");
-    //
-    //// Descriptor sets are automatically freed once the pool is freed.
-    //// They can be individually freed if the pool was created with
-    //// VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT set.
-    //for (size_t i = 0; i < m_descriptorSets.size(); ++i) {
-    //  VkDescriptorBufferInfo buffInfo = {
-    //    m_uniformBuffers[i],
-    //    0,
-    //    sizeof(MVPTransformUniform)
-    //  };
-    //
-    //  VkWriteDescriptorSet descWrite = {
-    //    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-    //    nullptr,
-    //    m_descriptorSets[i],
-    //    0,
-    //    0,
-    //    1,
-    //    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-    //    nullptr,
-    //    &buffInfo,
-    //    nullptr
-    //  };
-    //
-    //  vkUpdateDescriptorSets(*m_device, 1, &descWrite, 0, nullptr);
-    //}
+    std::vector<VkDescriptorSetLayout> layouts(m_swapchain->getNumImages(), m_descriptorSetLayout);
+    VkDescriptorSetAllocateInfo descSetAllocInfo = {
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+      nullptr,
+      m_descriptorPool,
+      numImages,
+      layouts.data()
+    };
+    
+    m_descriptorSets.resize(m_swapchain->getNumImages());
+    if (vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_descriptorSets.data()) != VK_SUCCESS)
+      throw std::runtime_error("Could not allocate descriptor sets");
+    
+    // Descriptor sets are updated once the scene is set
   }
 
   /////////////////////////////////////////////////////////////////////////////

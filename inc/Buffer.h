@@ -44,13 +44,14 @@ namespace dw {
     NO_DISCARD void* map();
     void unMap();
 
-    
+    NO_DISCARD VkDescriptorBufferInfo const& getDescriptorInfo() const;
+    NO_DISCARD VkDeviceSize getSize() const;
 
   private:
     void back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags);
-    VkBuffer m_buffer{ nullptr };
     VkDeviceMemory m_memory{ nullptr };
     VkDeviceSize m_memSize{ 0 };
+    VkDescriptorBufferInfo m_info{};
     bool m_isMapped{ false };
   };
 }
