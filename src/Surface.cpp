@@ -19,6 +19,7 @@
 #include "Surface.h"
 #include "VulkanControl.h"
 #include <algorithm>
+#include <stdexcept>
 
 namespace dw {
   Surface::Surface(GLFWWindow& window, PhysicalDevice& device)
@@ -26,7 +27,7 @@ namespace dw {
     glfwCreateWindowSurface(m_physical.getOwningControl(), m_window.getHandle(), nullptr, &m_surface);
 
     if (!m_surface)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create surface");
 
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR (m_physical, m_surface, &m_capabilities);
 

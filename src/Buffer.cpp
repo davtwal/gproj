@@ -70,7 +70,7 @@ namespace dw {
 
     vkCreateBuffer(m_device, &createInfo, nullptr, &m_info.buffer);
     if (!m_info.buffer)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create buffer");
 
     m_info.range = size;
 
@@ -102,12 +102,12 @@ namespace dw {
     };
 
     if(vkAllocateMemory(m_device, &allocInfo, nullptr, &m_memory) != VK_SUCCESS || !m_memory)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not allocate memory for buffer");
 
     m_memSize = memReqs.size;
 
     if (vkBindBufferMemory(m_device, m_info.buffer, m_memory, 0) != VK_SUCCESS)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not bind memory to buffer");
   }
 
   Buffer::~Buffer() {

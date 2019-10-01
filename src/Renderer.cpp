@@ -89,7 +89,7 @@ namespace dw {
     };
 
     if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
-      throw std::bad_alloc();
+      throw std::runtime_error("Could not create deferred rendering semaphore");
 
     setupDepthTestResources();
     setupGBufferImages();
@@ -1072,7 +1072,7 @@ namespace dw {
     };
 
     if (vkCreateSampler(*m_device, &createInfo, nullptr, &m_sampler) != VK_SUCCESS || !m_sampler)
-      throw std::bad_alloc();
+      throw std::runtime_error("Could not create sampler");
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -1198,7 +1198,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorSetLayout(*m_device, &finalLayoutCreate, nullptr, &m_finalDescSetLayout) != VK_SUCCESS)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create final descriptor set");
 
     uint32_t numImages   = static_cast<uint32_t>(m_swapchain->getNumImages());
     std::vector<VkDescriptorPoolSize> finalPoolSizes = {
@@ -1208,7 +1208,7 @@ namespace dw {
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        numImages
+        numImages * static_cast<uint32_t>(m_gbufferViews.size())
       }
     };
 
@@ -1222,7 +1222,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorPool(*m_device, &finalPoolInfo, nullptr, &m_finalDescPool) != VK_SUCCESS)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create final descrition pool");
 
     std::vector<VkDescriptorSetLayout> finalLayouts = {numImages, m_finalDescSetLayout};
     descSetAllocInfo.pSetLayouts                    = finalLayouts.data();
@@ -1230,8 +1230,23 @@ namespace dw {
     descSetAllocInfo.descriptorSetCount             = numImages;
 
     m_finalDescSets.resize(numImages);
-    if (vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_finalDescSets.data()) != VK_SUCCESS)
-      throw std::bad_alloc();
+    VkResult result = vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_finalDescSets.data());
+    switch(result) {
+    case VK_ERROR_OUT_OF_HOST_MEMORY:
+      throw std::runtime_error("could not allocate descriptor sets (final) (out of host memory)");
+
+    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+      throw std::runtime_error("could not allocate descriptor sets (final) (out of device memory)");
+
+    case VK_ERROR_FRAGMENTED_POOL:
+      throw std::runtime_error("could not allocate descriptor sets (final) (fragmented pool)");
+
+    case VK_ERROR_OUT_OF_POOL_MEMORY:
+      throw std::runtime_error("could not allocate descriptor sets (final) (out of pool memory)");
+
+    default: break;
+    }
+
     // Descriptor sets are updated once the scene is set
   }
 

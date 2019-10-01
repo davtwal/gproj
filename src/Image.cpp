@@ -204,7 +204,7 @@ namespace dw {
     vkCreateImage(getDevice(), &createInfo, nullptr, &m_image);
 
     if (!m_image)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create image");
 
     m_format = format;
     m_mutable = isMutable;
@@ -307,7 +307,7 @@ namespace dw {
     vkCreateImageView(getDevice(), &createInfo, nullptr, &view);
 
     if (!view)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create image view");
 
     return ImageView(getDevice(), view);
   }
@@ -371,7 +371,7 @@ namespace dw {
     };
 
     if (vkAllocateMemory(m_device, &allocInfo, nullptr, &m_memory) != VK_SUCCESS || !m_memory)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not allocate image memory");
 
     m_memSize = requirements.size;
 

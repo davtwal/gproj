@@ -17,10 +17,12 @@ layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    vec4 inPos = texture(inGBuffPosition, inUV);
-    vec4 inNormal = texture(inGBuffNormal,inUV);
-    vec4 inColor = texture(inGBuffColor, inUV);
+    vec3 inPos = texture(inGBuffPosition, inUV).xyz;
+    vec3 inNormal = normalize(texture(inGBuffNormal, inUV).xyz);
+    vec3 inColor = texture(inGBuffColor, inUV).xyz;
     
+    vec3 posToEye = cam.eye - inPos;
     
-    fragColor = vec4(inColor.xyz, 1);
+    float d = dot(normalize(posToEye), inNormal);
+    fragColor = vec4(d * inColor, 1);
 }

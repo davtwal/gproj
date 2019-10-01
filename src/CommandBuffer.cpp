@@ -44,7 +44,7 @@ namespace dw {
     vkCreateCommandPool(m_device, &createInfo, nullptr, &m_pool);
 
     if (!m_pool)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not create command pool");
   }
 
   CommandPool::~CommandPool() {
@@ -88,7 +88,7 @@ namespace dw {
     VkCommandBuffer buff;
     vkAllocateCommandBuffers(m_device, &allocInfo, &buff);
     if (!buff)
-      throw std::bad_alloc();
+      throw std::runtime_error("could not allocate command buffer");
 
     return m_commandBuffers.emplace_back(*this, buff);
   }

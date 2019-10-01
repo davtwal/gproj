@@ -43,6 +43,7 @@ int main(int argc, char** argv) {
   }
   catch (std::exception& e) {
     std::cerr << "EXCEPTION: " << e.what() << std::endl;
+    getchar();
     return EXIT_FAILURE;
   }
 

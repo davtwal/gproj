@@ -24,8 +24,6 @@ void main() {
   outWorldPosition = obj.model * vec4(inPosition, 1.0);
   outWorldNormal = inverse(transpose(obj.model)) * vec4(inNormal, 0);
   outColor = inColor;
-  
-  outWorldNormal.w = 0;
 
   gl_Position = cam.proj * cam.view * outWorldPosition;
 }
