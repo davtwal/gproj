@@ -4,11 +4,7 @@
 layout(location = 0) out vec2 outUV;
 
 void main() {
-  // 0: bottom left   (-1, -1)
-  // 1: bottom right  ( 1, -1)
-  // 2: top right     ( 1,  1)
-  // 3: top left      (-1,  1)
-
-  gl_Position = vec4(gl_VertexIndex % 3 == 0 ? -1 : 1, gl_VertexIndex < 2 ? -1 : 1, 0, 1);
-  outUV = vec2(1, 1);
+  outUV = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+	gl_Position = vec4(outUV * 2.0f - 1.0f, 0.0f, 1.0f);
+  //gl_Position.y = -gl_Position.y;
 }

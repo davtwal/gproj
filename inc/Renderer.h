@@ -44,6 +44,7 @@ namespace dw {
   class Image;
   class DependentImage;
   class ImageView;
+  class Framebuffer;
 
   struct ObjectUniform {
     alignas(16) glm::mat4 model;
@@ -54,6 +55,11 @@ namespace dw {
     alignas(16) glm::mat4 proj;
     alignas(16) glm::vec3 eyePos;
     alignas(16) glm::vec3 viewVec;
+  };
+
+  struct FSQViewUniform {
+    alignas(16) glm::vec3 eye;
+    alignas(16) glm::vec3 dir;
   };
 
   class Renderer {
@@ -91,16 +97,20 @@ namespace dw {
     void setupSwapChain();
     void setupCommandPools();
     void setupCommandBuffers();
-    void transitionSwapChainImages() const;
 
     // specific to the rendering engine & what i support setup
+    void setupGBufferImages();
     void setupDepthTestResources();
-    void setupShaders();
-    void setupUniformBuffers();
-    void setupDescriptors();
+    void transitionRenderImages();
     void setupRenderSteps();
-    void setupSwapChainFrameBuffers() const;
+    void setupDescriptors();
+    void setupUniformBuffers();
+    void setupSamplers();
+    void setupShaders();
     void setupPipeline();
+
+    void setupGBufferFrameBuffer();
+    void setupSwapChainFrameBuffers() const;
     void initManagers();
 
     // specific to the current scene
@@ -143,15 +153,40 @@ namespace dw {
     
     // Almost all of these may/will be replaced with encapsulating
     // classes, e.g. manager or other.
+
+    VkSampler m_sampler{ nullptr };
+    // gbuffer/deferred pass
+    std::vector<DependentImage> m_gbufferImages;
+    std::vector<ImageView> m_gbufferViews;
     util::ptr<DependentImage> m_depthStencilImage{ nullptr };
     util::ptr<ImageView> m_depthStencilView{ nullptr };
-    util::ptr<RenderPass> m_renderPass{ nullptr };
+    util::ptr<Framebuffer> m_gbuffer{ nullptr };
+    util::ptr<RenderPass> m_deferredPass{ nullptr };
+    util::ptr<util::Ref<CommandBuffer>> m_deferredCmdBuff;
+    util::ptr<Buffer> m_modelUBO;
+    util::ptr<Buffer> m_cameraUBO;
+    VkPipelineLayout m_deferredPipeLayout{ nullptr };
+    VkPipeline m_deferredPipeline { nullptr };
+
     util::ptr<IShader>  m_triangleVertShader{ nullptr };
     util::ptr<IShader>  m_triangleFragShader{ nullptr };
-    VkPipelineLayout m_graphicsPipelineLayout{ nullptr };
-    VkPipeline m_graphicsPipeline{ nullptr };
-    VkDescriptorSetLayout m_descriptorSetLayout{ nullptr };
-    VkDescriptorPool m_descriptorPool{nullptr};
+
+    VkDescriptorSetLayout m_deferredDescSetLayout{ nullptr };
+    VkDescriptorPool m_deferredDescPool{ nullptr };
+    VkDescriptorSet m_deferredDescSet{ nullptr };
+
+    VkSemaphore m_deferredSemaphore{ nullptr };
+
+    // final fsq pass
+    std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
+    util::ptr<RenderPass> m_finalPass{ nullptr };
+    util::ptr<IShader> m_fsqVertShader{ nullptr };
+    util::ptr<IShader> m_fsqFragShader{ nullptr };
+    VkPipeline m_finalPipeline{ nullptr };
+    VkPipelineLayout m_finalPipeLayout{ nullptr };
+    VkDescriptorSetLayout m_finalDescSetLayout{ nullptr };
+    VkDescriptorPool m_finalDescPool{ nullptr };
+    std::vector<VkDescriptorSet> m_finalDescSets;
 
     //////////////////////////////////////////////////////
     //// Managers
@@ -164,10 +199,6 @@ namespace dw {
     ObjectUniform* m_modelUBOdata = nullptr;
 
     // Specific, per-swapchain-image variables
-    std::vector<Buffer> m_cameraUBOs;
-    std::vector<Buffer> m_modelUBOs;
-    std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
-    std::vector<VkDescriptorSet> m_descriptorSets;
 
 #ifdef _DEBUG
     VkDebugUtilsMessengerEXT m_debugMessenger{ nullptr };

@@ -54,25 +54,11 @@ namespace dw {
         sbc.colorRefs.push_back({ index, layout });
 
         if (refType & arfResolve) {
-          if (sbc.resolveRefs.empty()) {
-            sbc.resolveRefs.reserve(sbc.colorRefs.capacity());
-            for (size_t j = 0; j < sbc.colorRefs.size() - 1; ++j) {
-              sbc.resolveRefs.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-            }
-          }
-
           sbc.resolveRefs.push_back({ index, layout });
         }
       }
 
       else if (refType & arfDepthStencil) {
-        if (sbc.depthStencilRefs.empty()) {
-          sbc.depthStencilRefs.reserve(sbc.colorRefs.capacity());
-          for (size_t j = 0; j < sbc.colorRefs.size() - 1; ++j) {
-            sbc.depthStencilRefs.push_back({ VK_ATTACHMENT_UNUSED, VK_IMAGE_LAYOUT_UNDEFINED });
-          }
-        }
-
         sbc.depthStencilRefs.push_back({ index, layout });
       }
 
@@ -96,6 +82,8 @@ namespace dw {
     if(m_conInf) {
       size_t i = m_conInf->subpasses.size();
       auto& sbc = m_conInf->sbc[i];
+
+      //if(!sbc.depthStencilRefs.empty() && sbc.depthStencilRefs.size() < sbc.colorRefs.size())
 
       m_conInf->subpasses.push_back({
         0,
