@@ -3,7 +3,7 @@
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 // * Created     : 2019y 09m 26d
-// * Last Altered: 2019y 09m 26d
+// * Last Altered: 2019y 10m 26d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
@@ -34,6 +34,7 @@
 #include <cassert>
 #include <algorithm>
 #include <stdlib.h>
+#include "Light.h"
 
 // Wrapper functions for aligned memory allocation
 // There is currently no standard for this in C++ that works across all platforms and vendors, so we abstract this
@@ -67,11 +68,9 @@ namespace dw {
   ///////////////////////////// SETUP & SHUTDOWN //////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
-  void Renderer::initGeneral() {
-    GLFWControl::Init();
-
-    openWindow();
-
+  void Renderer::initGeneral(GLFWWindow* window) {
+    assert(window);
+    m_window = window;
     setupInstance();
     setupHelpers();
     setupDevice();
@@ -180,14 +179,6 @@ namespace dw {
 
     delete m_control;
     m_control = nullptr;
-
-    delete m_window;
-    m_window = nullptr;
-
-    delete m_inputHandler;
-    m_inputHandler = nullptr;
-
-    GLFWControl::Shutdown();
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -212,14 +203,14 @@ namespace dw {
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
     Image const& nextImage      = m_swapchain->getNextImage();
 
-    auto& graphicsQueue = m_graphicsQueue->get();
+    auto&           graphicsQueue   = m_graphicsQueue->get();
     VkCommandBuffer deferredCmdBuff = m_deferredCmdBuff->get();
-    VkCommandBuffer presentCmdBuff = m_commandBuffers[nextImageIndex].get();
+    VkCommandBuffer presentCmdBuff  = m_commandBuffers[nextImageIndex].get();
 
     updateUniformBuffers(nextImageIndex);
 
     VkPipelineStageFlags semaphoreWaitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo submitInfo = {
+    VkSubmitInfo         submitInfo        = {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
       nullptr,
       1,
@@ -233,13 +224,14 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-    submitInfo.pWaitSemaphores = &m_deferredSemaphore;
+    submitInfo.pWaitSemaphores   = &m_deferredSemaphore;
     submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
-    submitInfo.pCommandBuffers = &presentCmdBuff;
+    submitInfo.pCommandBuffers   = &presentCmdBuff;
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
     //// deferred pass
+    /// TODO: Something is wrong with the submit functions and semaphores.
     //graphicsQueue.submitOne(*m_deferredCmdBuff, 
     //                        {m_swapchain->getNextImageSemaphore()},
     //                        {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
@@ -253,7 +245,7 @@ namespace dw {
     //                        {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
     //                        {m_swapchain->getImageRenderReadySemaphore()});
     //graphicsQueue.waitIdle();
-    
+
     m_swapchain->present();
     graphicsQueue.waitIdle();
   }
@@ -325,7 +317,14 @@ namespace dw {
     memcpy(data, m_modelUBOdata, m_modelUBO->getSize());
     m_modelUBO->unMap();
 
-    // Flush to make changes visible to the host 
+    data = m_lightsUBO->map();
+    LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
+    for (size_t i = 0; i < m_lights.size(); ++i)
+      lightUBOdata[i] = m_lights[i].get().getAsUBO();
+    m_lightsUBO->unMap();
+
+    // Flush to make changes visible to the host
+    // we dont do this cus coherent on my machine
     //VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
     //memoryRange.memory = uniformBuffers.dynamic.memory;
     //memoryRange.size = uniformBuffers.dynamic.size;
@@ -342,6 +341,14 @@ namespace dw {
 
   void Renderer::setCamera(util::Ref<Camera> camera) {
     m_camera = camera;
+  }
+
+  void Renderer::setDynamicLights(LightContainer const& lights) {
+    m_lights = lights;
+    m_lightsUBO.reset();
+
+    VkDeviceSize lightUniformSize = sizeof(LightUBO);
+    m_lightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, lightUniformSize * lights.size()));
   }
 
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
@@ -379,11 +386,11 @@ namespace dw {
     // They can be individually freed if the pool was created with
     // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
     VkDescriptorBufferInfo modelUBOinfo = m_modelUBO->getDescriptorInfo();
-    modelUBOinfo.range = sizeof(ObjectUniform);
+    modelUBOinfo.range                  = sizeof(ObjectUniform);
 
 
     std::vector<VkWriteDescriptorSet> descriptorWrites;
-    descriptorWrites.reserve(2 + m_finalDescSets.size() * m_gbufferViews.size());
+    descriptorWrites.reserve(2 + m_finalDescSets.size() * (m_gbufferViews.size() + 2));
     descriptorWrites.push_back({
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  nullptr,
@@ -417,17 +424,17 @@ namespace dw {
 
     for (auto& set : m_finalDescSets) {
       descriptorWrites.push_back({
-                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                 nullptr,
-                                 set,
-                                 0,
-                                 0,
-                                 1,
-                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                 nullptr,
-                                 &m_cameraUBO->getDescriptorInfo(),
-                                 nullptr
-        });
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   set,
+                                   0,
+                                   0,
+                                   1,
+                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   nullptr,
+                                   &m_cameraUBO->getDescriptorInfo(),
+                                   nullptr
+                                 });
 
       for (uint32_t j = 0; j < m_gbufferViews.size(); ++j) {
         descriptorWrites.push_back({
@@ -443,6 +450,19 @@ namespace dw {
                                      nullptr
                                    });
       }
+
+      descriptorWrites.push_back({
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        set,
+        4,
+        0,
+        1,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        nullptr,
+        &m_lightsUBO->getDescriptorInfo(),
+        nullptr
+        });
     }
 
     vkUpdateDescriptorSets(*m_device,
@@ -582,13 +602,6 @@ namespace dw {
   /////////////////////////////////////////////////////////////////////////////
   //// GENERAL SETUP //////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
-
-  void Renderer::openWindow() {
-    m_window       = new GLFWWindow(800, 800, "hey lol");
-    m_inputHandler = new InputHandler(*m_window);
-
-    m_window->setInputHandler(m_inputHandler);
-  }
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -810,7 +823,7 @@ namespace dw {
                          &barrier);
   }
 
-  void Renderer::transitionRenderImages() {
+  void Renderer::transitionRenderImages() const {
     CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
     transBuff.start(true);
 
@@ -1092,6 +1105,7 @@ namespace dw {
 
   void Renderer::setupUniformBuffers() {
     VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
+
     m_cameraUBO                    = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
   }
 
@@ -1170,8 +1184,8 @@ namespace dw {
 
     // SAMPLERS
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.resize(m_gbufferImages.size() + 1); // one sampler per gbuffer image + one view eye/view dir UBO
-    finalBindings[0] = {
+    finalBindings.resize(m_gbufferImages.size() + 1); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
+    finalBindings.front() = {
       0,
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       1,
@@ -1179,7 +1193,7 @@ namespace dw {
       nullptr
     };
 
-    for (uint32_t i = 1; i < finalBindings.size(); ++i) {
+    for (uint32_t i = 1; i < finalBindings.size() - 1; ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1188,6 +1202,14 @@ namespace dw {
         nullptr
       };
     }
+
+    finalBindings.back() = {
+      4,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      1,
+      VK_SHADER_STAGE_FRAGMENT_BIT,
+      nullptr
+    };
 
     VkDescriptorSetLayoutCreateInfo finalLayoutCreate = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -1200,11 +1222,11 @@ namespace dw {
     if (vkCreateDescriptorSetLayout(*m_device, &finalLayoutCreate, nullptr, &m_finalDescSetLayout) != VK_SUCCESS)
       throw std::runtime_error("could not create final descriptor set");
 
-    uint32_t numImages   = static_cast<uint32_t>(m_swapchain->getNumImages());
+    uint32_t                          numImages      = static_cast<uint32_t>(m_swapchain->getNumImages());
     std::vector<VkDescriptorPoolSize> finalPoolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        numImages
+        numImages * 2
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1231,20 +1253,21 @@ namespace dw {
 
     m_finalDescSets.resize(numImages);
     VkResult result = vkAllocateDescriptorSets(*m_device, &descSetAllocInfo, m_finalDescSets.data());
-    switch(result) {
-    case VK_ERROR_OUT_OF_HOST_MEMORY:
-      throw std::runtime_error("could not allocate descriptor sets (final) (out of host memory)");
+    switch (result) {
+      case VK_ERROR_OUT_OF_HOST_MEMORY:
+        throw std::runtime_error("could not allocate descriptor sets (final) (out of host memory)");
 
-    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-      throw std::runtime_error("could not allocate descriptor sets (final) (out of device memory)");
+      case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+        throw std::runtime_error("could not allocate descriptor sets (final) (out of device memory)");
 
-    case VK_ERROR_FRAGMENTED_POOL:
-      throw std::runtime_error("could not allocate descriptor sets (final) (fragmented pool)");
+      case VK_ERROR_FRAGMENTED_POOL:
+        throw std::runtime_error("could not allocate descriptor sets (final) (fragmented pool)");
 
-    case VK_ERROR_OUT_OF_POOL_MEMORY:
-      throw std::runtime_error("could not allocate descriptor sets (final) (out of pool memory)");
+      case VK_ERROR_OUT_OF_POOL_MEMORY:
+        throw std::runtime_error("could not allocate descriptor sets (final) (out of pool memory)");
 
-    default: break;
+      default:
+        break;
     }
 
     // Descriptor sets are updated once the scene is set
@@ -1483,7 +1506,7 @@ namespace dw {
     createInfo.layout     = m_finalPipeLayout;
     createInfo.renderPass = *m_finalPass;
 
-    VkViewport finalViewport = { 0, 0, m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 0, 1 };
+    VkViewport finalViewport     = {0, 0, m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 0, 1};
     viewportStateInfo.pViewports = &finalViewport;
 
     rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;

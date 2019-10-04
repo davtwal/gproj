@@ -21,6 +21,7 @@
 #include "VulkanControl.h"
 #include "GLFWControl.h"
 #include "GLFWWindow.h"
+#include "InputHandler.h"
 
 #include "Surface.h"
 #include "Swapchain.h"
@@ -177,10 +178,16 @@ namespace dw {
   }
 
   int Application::initialize() {
-    // start renderer
+    GLFWControl::Init();
+    // open window
+    m_window = new GLFWWindow(800, 800, "hey lol");
+    m_inputHandler = new InputHandler(*m_window);
+
+    m_window->setInputHandler(m_inputHandler);
+
     m_renderer = util::make_ptr<Renderer>();
 
-    m_renderer->initGeneral();
+    m_renderer->initGeneral(m_window);
     m_renderer->initSpecific();
 
     // fill scene
@@ -223,6 +230,15 @@ namespace dw {
     }
     m_renderer->setScene(scene);
 
+    m_lights.push_back({
+      {2, 2, 2},
+      {-1, -1, -1},
+      {1, 1, 1},
+      5
+    });
+
+    m_renderer->setDynamicLights({ m_lights[0] });
+
     m_startTime = ClockType::now();
 
     return 0;
@@ -242,6 +258,8 @@ namespace dw {
         obj->callBehavior(time, dt);
       }
 
+      m_lights[0].m_position = { 2 * sqrt(2) * cos(time), 2 * sqrt(2) * sin(time), 2};
+
       m_renderer->drawFrame();
     }
 
@@ -252,6 +270,11 @@ namespace dw {
     m_scene.clear();
 
     m_renderer->shutdown();
+
+    delete m_inputHandler; m_inputHandler = nullptr;
+    delete m_window;
+
+    GLFWControl::Shutdown();
     return 0;
   }
 }

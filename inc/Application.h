@@ -44,7 +44,10 @@ namespace dw {
 
     // SCENE VARIABLES
     std::vector<util::ptr<Object>> m_scene;
+    std::vector<Light> m_lights;
     util::ptr<Renderer> m_renderer{ nullptr };
+    InputHandler* m_inputHandler{ nullptr };
+    GLFWWindow* m_window{ nullptr };
     Camera    m_camera;
   };
 } // namespace dw

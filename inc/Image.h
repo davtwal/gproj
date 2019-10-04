@@ -22,6 +22,9 @@
 #include "LogicalDevice.h"
 
 namespace dw {
+  class DependentImage;
+  class IndependentImage;
+
   CREATE_DEVICE_DEPENDENT(ImageView)
   public:
     ImageView(LogicalDevice& device, VkImageView v = nullptr);
@@ -50,8 +53,9 @@ namespace dw {
 
     Image(Image&& o);
 
-    // Creating
+    static DependentImage Load(LogicalDevice& device, std::string const& filename, uint32_t maxMipLevels = 100);
 
+    DependentImage createStaging();
 
     // Views
     NO_DISCARD ImageView createView(VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,

@@ -23,6 +23,7 @@
 #include "Utils.h"
 #include "Object.h"
 #include "Camera.h"
+#include "Light.h"
 
 #include "MeshManager.h"
 
@@ -57,15 +58,10 @@ namespace dw {
     alignas(16) glm::vec3 viewVec;
   };
 
-  struct FSQViewUniform {
-    alignas(16) glm::vec3 eye;
-    alignas(16) glm::vec3 dir;
-  };
-
   class Renderer {
   public:
     // initialize
-    void initGeneral();
+    void initGeneral(GLFWWindow* window); // will NOT be delete-d by shutdown
     void initSpecific();
 
     NO_DISCARD bool done() const;
@@ -75,8 +71,10 @@ namespace dw {
     void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
 
     using SceneContainer = std::vector<util::Ref<Object>>;
+    using LightContainer = std::vector<util::Ref<Light>>;
 
     void setScene(SceneContainer const& objects);
+    void setDynamicLights(LightContainer const& lights);
     void setCamera(util::Ref<Camera> camera);
 
     void drawFrame();
@@ -89,7 +87,6 @@ namespace dw {
     //// HELPER FUNCTIONS
     //////////////////////////////////////////////////////
     // general vulkan setup
-    void openWindow();
     void setupInstance();
     void setupHelpers(); // e.g. debug messenger
     void setupDevice();
@@ -101,7 +98,7 @@ namespace dw {
     // specific to the rendering engine & what i support setup
     void setupGBufferImages();
     void setupDepthTestResources();
-    void transitionRenderImages();
+    void transitionRenderImages() const;
     void setupRenderSteps();
     void setupDescriptors();
     void setupUniformBuffers();
@@ -135,7 +132,6 @@ namespace dw {
     ///
     VulkanControl* m_control{ nullptr };
     GLFWWindow* m_window{ nullptr };
-    InputHandler* m_inputHandler{ nullptr };
     LogicalDevice* m_device{ nullptr };
 
     util::ptr<Surface> m_surface{ nullptr };
@@ -165,6 +161,7 @@ namespace dw {
     util::ptr<util::Ref<CommandBuffer>> m_deferredCmdBuff;
     util::ptr<Buffer> m_modelUBO;
     util::ptr<Buffer> m_cameraUBO;
+    util::ptr<Buffer> m_lightsUBO;
     VkPipelineLayout m_deferredPipeLayout{ nullptr };
     VkPipeline m_deferredPipeline { nullptr };
 
@@ -194,6 +191,7 @@ namespace dw {
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };
+    LightContainer m_lights;
     SceneContainer m_objList;
     size_t m_modelUBOdynamicAlignment {0};
     ObjectUniform* m_modelUBOdata = nullptr;
