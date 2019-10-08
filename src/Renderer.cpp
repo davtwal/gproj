@@ -517,6 +517,9 @@ namespace dw {
       for (uint32_t j = 0; j < m_objList.size(); ++j) {
         auto& obj = m_objList.at(j);
 
+        vkCmdPushConstants(commandBuff, m_deferredPipeLayout,
+          VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectTransfPushConst), &obj.get().getTransform());
+
         if (!curMesh || !(obj.get().m_mesh.get() == *curMesh)) {
           curMesh = &obj.get().m_mesh.get();
 
@@ -526,21 +529,11 @@ namespace dw {
           vkCmdBindIndexBuffer(commandBuff, curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
         }
 
-        // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
-        /*uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
-        */
-
-        ObjectTransfPushConst transfPush = {
-          obj.get().getTransform(),
-        };
-
         ObjectMtlPushConst mtlPush = {
           {1, 1, 1},
           50
         };
 
-        vkCmdPushConstants(commandBuff, m_deferredPipeLayout,
-          VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectTransfPushConst), &transfPush);
         //vkCmdPushConstants(commandBuff, m_deferredPipeLayout,
         //  VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectTransfPushConst), sizeof(ObjectMtlPushConst), &mtlPush);
 
