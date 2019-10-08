@@ -27,16 +27,16 @@ namespace dw {
     : m_window(window) {
   }
 
-  void InputHandler::registerKeyFunction(int button, KeyCallback callbacks) {
-    m_keyMap.insert_or_assign(button, callbacks);
+  void InputHandler::registerKeyFunction(int button, callbackFn onPress, callbackFn onRelease) {
+    m_keyMap.insert_or_assign(button, KeyCallback{onPress, onRelease});
   }
 
-  void InputHandler::registerMouseKeyFunction(int button, KeyCallback callbacks) {
-    m_mouseMap.insert_or_assign(button, callbacks);
+  void InputHandler::registerMouseKeyFunction(int button, callbackFn onPress, callbackFn onRelease) {
+    m_mouseMap.insert_or_assign(button, KeyCallback{ onPress, onRelease });
   }
 
-  void InputHandler::registerMouseMoveFunction(MouseCallback callback) {
-    m_mouseCB = callback;
+  void InputHandler::registerMouseMoveFunction(moveCBFn callback) {
+    m_mouseCB = { callback };
   }
 
 

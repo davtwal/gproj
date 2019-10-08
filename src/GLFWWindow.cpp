@@ -64,6 +64,12 @@ namespace dw {
     m_resizeCB = newCB;
   }
 
+  void GLFWWindow::setShouldClose(bool close) {
+    if (m_window)
+      glfwSetWindowShouldClose(m_window, close);
+  }
+
+
   GLFWWindow::~GLFWWindow() {
     if (m_window)
       glfwDestroyWindow(m_window);

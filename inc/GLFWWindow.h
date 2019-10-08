@@ -46,8 +46,8 @@ namespace dw {
     //void setRawMouseInput(bool enabled) const;
     void setOnResizeCB(OnResizeCB newCB);
     void setInputHandler(InputHandler* handler);
-    //void setInputHandler(InputHandler* handler);
 
+    void setShouldClose(bool close = true);
 
   private:
     friend class GLFWControl;

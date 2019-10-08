@@ -50,10 +50,10 @@ void main() {
       color += inColor * n_l;
       
       // specular
-      //vec3 R = reflect(-L, N);
-      //float r_v = pow(max(dot(R, V), 0), 100);
-      //
-      //color += inColor * r_v;
+      vec3 R = reflect(-L, N);
+      float r_v = pow(max(dot(R, V), 0), 100);
+      
+      color += inColor * r_v;
     }
     fragColor = vec4(color, 1);
 }

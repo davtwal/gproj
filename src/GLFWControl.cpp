@@ -37,16 +37,26 @@ namespace dw {
   void GLFWControl::KeyCB(GLFWwindow* window, int key, int sc, int action, int mods) {
     auto win = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     assert(win);
+
+    if (action == GLFW_PRESS)
+      win->m_inputHandler->onKeyPress(key);
+    else win->m_inputHandler->onKeyRelease(key);
   }
 
   void GLFWControl::MouseButtonCB(GLFWwindow* window, int button, int action, int mods) {
     auto win = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     assert(win);
+
+    if (action == GLFW_PRESS)
+      win->m_inputHandler->onMousePress(button);
+    else win->m_inputHandler->onMouseRelease(button);
   }
 
   void GLFWControl::MousePosCB(GLFWwindow* window, double x, double y) {
     auto win = reinterpret_cast<GLFWWindow*>(glfwGetWindowUserPointer(window));
     assert(win);
+
+    // TODO
   }
 
   void GLFWControl::WindowSizeCB(GLFWwindow* window, int w, int h) {

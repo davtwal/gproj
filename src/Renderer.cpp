@@ -201,8 +201,6 @@ namespace dw {
     if (m_objList.empty())
       return;
 
-    GLFWControl::Poll();
-
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
     Image const& nextImage      = m_swapchain->getNextImage();
 

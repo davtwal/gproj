@@ -20,6 +20,7 @@
 #define DW_INPUTHANDLER_GLFW_H
 
 #include <map>
+#include <functional>
 
 #ifndef NO_DISCARD
 #define NO_DISCARD [[nodiscard]]
@@ -30,8 +31,8 @@ namespace dw {
 
   class InputHandler {
   public:
-    using callbackFn = void(*)();
-    using moveCBFn = void(*)(double dx, double dy);
+    using callbackFn = std::function<void()>;
+    using moveCBFn = std::function<void(double /*dx*/, double /*dy*/)>;
 
     struct KeyCallback {
       callbackFn onPress{nullptr};
@@ -48,9 +49,9 @@ namespace dw {
     NO_DISCARD bool getMouseState(int button) const;
     void getMousePos(double& out_x, double& out_y) const;
 
-    void registerKeyFunction(int button, KeyCallback callbacks);
-    void registerMouseKeyFunction(int button, KeyCallback callbacks);
-    void registerMouseMoveFunction(MouseCallback callback);
+    void registerKeyFunction(int button, callbackFn onPress = nullptr, callbackFn onRelease = nullptr);
+    void registerMouseKeyFunction(int button, callbackFn onPress = nullptr, callbackFn onRelease = nullptr);
+    void registerMouseMoveFunction(moveCBFn onMove = nullptr);
     void onKeyPress(int button) const;
     void onKeyRelease(int button) const;
 

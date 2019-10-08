@@ -41,6 +41,9 @@
 #include <unordered_map>
 #include <chrono>
 
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 namespace dw {
 
   void MeshManager::clear() {
@@ -201,7 +204,7 @@ namespace dw {
     m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(2)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setPosition({ 0, -.5f * sin(time), 0 });
-      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
+      //o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
     };
 
     m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
@@ -226,7 +229,7 @@ namespace dw {
     m_camera
       .setNearDepth(0.1f)
       .setFarDepth(30.f)
-      .setEyePos({ 4.5f, 4.5f, 7.0f })
+      .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
       .setLookAt({ 0.f, 0.f, 0.f })
       .setFOVDeg(45.f);
 
@@ -258,6 +261,12 @@ namespace dw {
 
     m_startTime = ClockType::now();
 
+    m_inputHandler->registerKeyFunction(GLFW_KEY_ESCAPE, [this]() {
+      m_window->setShouldClose(true);
+      },
+      nullptr
+    );   
+
     return 0;
   }
 
@@ -265,6 +274,30 @@ namespace dw {
     ClockType::time_point prevTime = ClockType::now();
     ClockType::time_point curTime = ClockType::now();
     while (!m_renderer->done()) {
+      GLFWControl::Poll();
+      // input check'
+      static constexpr float STEP_VALUE = 0.005f;
+      static constexpr float RADIUS = M_SQRT2 * 4.5f;
+      static float cameraCurrentT = 0.f;
+
+      // Camera Movement Part 1:
+      // W = Move up
+      // S = Move down
+      // A = Rotate around origin (+t)
+      // D = Rotate around origin (-t)
+
+      if(m_inputHandler->getKeyState(GLFW_KEY_A)) {
+        cameraCurrentT += STEP_VALUE;
+        m_camera.setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), m_camera.getEyePos().z });
+        m_camera.setLookAt({ 0, 0, 0 });
+      }
+
+      if(m_inputHandler->getKeyState(GLFW_KEY_D)) {
+        cameraCurrentT -= STEP_VALUE;
+        m_camera.setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), m_camera.getEyePos().z });
+        m_camera.setLookAt({ 0, 0, 0 });
+      }
+
       prevTime = curTime;
       curTime = ClockType::now();
 
