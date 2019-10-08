@@ -24,6 +24,6 @@ layout(location = 2) out vec4 outColor;
 void main() {    
     outPos    = vec4(inWorldPosition.xyz, 1.0);
     outNormal = vec4(normalize(inWorldNormal.xyz), 1.0);
-    outColor  = vec4(inColor.xyz, 50);
+    outColor  = vec4(inColor.xyz, 1.0);
     //outColor  = vec4(obj.albedo * inColor.xyz, obj.specExp);
 }

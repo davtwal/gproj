@@ -34,18 +34,16 @@ layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    vec4 sampledColor = texture(inGBuffColor, inUV);
-
     vec3 inPos = texture(inGBuffPosition, inUV).xyz;
-    vec3 inColor = sampledColor.xyz;
-    float inSpecExp = sampledColor.w;
+    vec3 inColor = texture(inGBuffColor, inUV).xyz;
     
     vec3 N = normalize(texture(inGBuffNormal, inUV).xyz);
     vec3 V = normalize(cam.eye - inPos);
     
     vec3 color = vec3(0, 0, 0);
     for(int i = 0; i < MAX_DYNAMIC_LIGHTS; ++i) {
-      // diffuse
+      // diffuse only for the moment
+      // as objects/materials do not have anything other than diffuse color atm
       vec3 L = normalize(dynLights.at[i].pos - inPos);
       float n_l = max(dot(N, L), 0);
       
@@ -53,7 +51,7 @@ void main() {
       
       // specular
       vec3 R = reflect(-L, N);
-      float r_v = pow(max(dot(R, V), 0), inSpecExp);
+      float r_v = pow(max(dot(R, V), 0), 100);
       
       color += inColor * r_v;
     }
