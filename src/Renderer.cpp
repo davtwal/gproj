@@ -129,6 +129,8 @@ namespace dw {
     m_deferredPass.reset();
     m_finalPass.reset();
 
+    vkDestroyDescriptorPool(*m_device, m_finalDescPool, nullptr);
+    vkDestroyDescriptorSetLayout(*m_device, m_finalDescSetLayout, nullptr);
     vkDestroyDescriptorPool(*m_device, m_deferredDescPool, nullptr);
     vkDestroyDescriptorSetLayout(*m_device, m_deferredDescSetLayout, nullptr);
 
@@ -138,6 +140,7 @@ namespace dw {
     m_depthStencilImage.reset();
     m_gbuffer.reset();
 
+    m_lightsUBO.reset();
     m_modelUBO.reset();
     m_cameraUBO.reset();
     m_commandBuffers.clear();
@@ -1184,7 +1187,7 @@ namespace dw {
 
     // SAMPLERS
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.resize(m_gbufferImages.size() + 1); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
+    finalBindings.resize(m_gbufferImages.size() + 2); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
     finalBindings.front() = {
       0,
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,

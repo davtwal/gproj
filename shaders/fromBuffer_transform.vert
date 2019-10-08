@@ -12,6 +12,10 @@ layout(binding = 1) uniform ObjectUBO {
   mat4 model;
 } obj;
 
+//layout(push_constant) uniform PushConstant {
+//  mat4 model;
+//} obj;
+
 layout(location = 0) in vec3 inPosition;
 layout(location = 1) in vec3 inNormal;
 layout(location = 2) in vec3 inColor;

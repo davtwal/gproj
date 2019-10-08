@@ -20,7 +20,7 @@ struct Light {
   int type;
 };
 
-#define MAX_DYNAMIC_LIGHTS 1
+#define MAX_DYNAMIC_LIGHTS 2
 #define LIGHT_TYPE_POINT 0
 #define LIGHT_TYPE_SPOT 1
 #define LIGHT_TYPE_DIRECTIONAL 2
@@ -48,6 +48,12 @@ void main() {
       float n_l = max(dot(N, L), 0);
       
       color += inColor * n_l;
+      
+      // specular
+      //vec3 R = reflect(-L, N);
+      //float r_v = pow(max(dot(R, V), 0), 100);
+      //
+      //color += inColor * r_v;
     }
     fragColor = vec4(color, 1);
 }
