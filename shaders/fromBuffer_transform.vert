@@ -8,7 +8,7 @@ layout(binding = 0) uniform CameraUBO {
   vec3 viewDir;
 } cam;
 
-layout(binding = 1) uniform ObjectUBO {
+layout(push_constant) uniform PushConstant {
   mat4 model;
 } obj;
 

@@ -62,17 +62,13 @@ namespace dw {
   }
 
   void MeshManager::loadBasicMeshes() {
+    // 0: Ground plane
     {
       std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
-
-        {{-0.5f, -0.5f, -0.5f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {0.0f, 1.0f}},
       };
 
       std::vector<uint32_t> indices = {
@@ -126,30 +122,30 @@ namespace dw {
         {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
         {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
 
-        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {1.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {0.0f, 1.0f}}
+        {{-0.5f, -0.5f,  0.5f}, {0, 0,  1}, {0.5f, 0.5f, 0.5}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, 0,  1}, {0.5f, 0.5f, 0.5}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 0,  1}, {0.5f, 0.5f, 0.5}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 0,  1}, {0.5f, 0.5f, 0.5}},// {0.0f, 1.0f}}
 
         {{-0.5f, -0.5f, -0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
         {{ 0.5f, -0.5f, -0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
         {{-0.5f, -0.5f,  0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
         {{ 0.5f, -0.5f,  0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
 
-        {{-0.5f,  0.5f, -0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
+        {{-0.5f,  0.5f, -0.5f}, {0,  1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0,  1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0,  1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0,  1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
 
         {{-0.5f, -0.5f, -0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
         {{-0.5f,  0.5f, -0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
         {{-0.5f, -0.5f,  0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
         {{-0.5f,  0.5f,  0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
 
-        {{ 0.5f, -0.5f, -0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
+        {{ 0.5f, -0.5f, -0.5f}, { 1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, { 1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, { 1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, { 1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
       };
 
       std::vector<uint32_t> indices = {
@@ -194,11 +190,12 @@ namespace dw {
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
 
-    m_scene.reserve(3);
+    m_scene.reserve(5);
     m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0)))
       ->m_behavior = [](Object& o, float time, float dt) {
-      o.setPosition({ 0, .5f * sin(time), 0 });
-      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
+      o.setScale({ 20, 20, 20 });
+      o.setPosition({ 0, 0, -0.5f });
+      //o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
     };
 
     m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(2)))
@@ -214,14 +211,44 @@ namespace dw {
       o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
+    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 0.1f, 0.1f, 0.1f });
+      o.setPosition({ 2 * sqrt(2) * cos(4 *time), 2 * sqrt(2) * sin(4*time), 2 });
+    };
+
+    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 0.1f, 0.1f, 0.1f });
+      o.setPosition({ -2 * sqrt(2) * cos(4 * time), -2 * sqrt(2) * sin(4 * time), 2 });
+    };
+
     m_camera
       .setNearDepth(0.1f)
-      .setFarDepth(10.f)
-      .setEyePos({ 2.f, 2.f, 2.f })
+      .setFarDepth(30.f)
+      .setEyePos({ 4.5f, 4.5f, 7.f })
       .setLookAt({ 0.f, 0.f, 0.f })
       .setFOVDeg(45.f);
 
     m_renderer->setCamera(m_camera);
+
+    m_lights.push_back({
+      {2, 2, 2},
+      {-1, -1, -1},
+      {1, 1, 1},
+      5
+      });
+
+    m_lights.push_back({ 
+      {-2, -2, -2},
+      {1, 1, 1,},
+      {1, 1, 1},
+      5
+    });
+
+    m_renderer->setDynamicLights({ m_lights.begin(), m_lights.end() });
+
+    // right now, setScene needs to be the last scene setup call.
 
     Renderer::SceneContainer scene;
     scene.reserve(m_scene.size());
@@ -229,15 +256,6 @@ namespace dw {
       scene.push_back(*obj);
     }
     m_renderer->setScene(scene);
-
-    m_lights.push_back({
-      {2, 2, 2},
-      {-1, -1, -1},
-      {1, 1, 1},
-      5
-    });
-
-    m_renderer->setDynamicLights({ m_lights[0] });
 
     m_startTime = ClockType::now();
 
@@ -258,7 +276,8 @@ namespace dw {
         obj->callBehavior(time, dt);
       }
 
-      m_lights[0].m_position = { 2 * sqrt(2) * cos(time), 2 * sqrt(2) * sin(time), 2};
+      m_lights[0].m_position = { 2 * sqrt(2) * cos(4 * time), 2 * sqrt(2) * sin(4 * time), 2};
+      m_lights[1].m_position = { -2 * sqrt(2) * cos(4 * time), -2 * sqrt(2) * sin(4 * time), 2 };
 
       m_renderer->drawFrame();
     }

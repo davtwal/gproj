@@ -114,10 +114,10 @@ namespace dw {
     shutdownManagers();
     m_objList.clear();
 
-    if (m_modelUBOdata)
+    /*if (m_modelUBOdata)
       alignedFree(m_modelUBOdata);
 
-    m_modelUBOdata = nullptr;
+    m_modelUBOdata = nullptr;*/
 
     vkDestroySampler(*m_device, m_sampler, nullptr);
 
@@ -129,7 +129,9 @@ namespace dw {
     m_deferredPass.reset();
     m_finalPass.reset();
 
+    vkDestroyDescriptorPool(*m_device, m_finalDescPool, nullptr);
     vkDestroyDescriptorPool(*m_device, m_deferredDescPool, nullptr);
+    vkDestroyDescriptorSetLayout(*m_device, m_finalDescSetLayout, nullptr);;
     vkDestroyDescriptorSetLayout(*m_device, m_deferredDescSetLayout, nullptr);
 
     m_gbufferViews.clear();
@@ -138,7 +140,8 @@ namespace dw {
     m_depthStencilImage.reset();
     m_gbuffer.reset();
 
-    m_modelUBO.reset();
+    //m_modelUBO.reset();
+    m_lightsUBO.reset();
     m_cameraUBO.reset();
     m_commandBuffers.clear();
 
@@ -307,7 +310,7 @@ namespace dw {
     memcpy(data, &cam, sizeof(cam));
     m_cameraUBO->unMap();
 
-    assert(m_modelUBOdata);
+    /*assert(m_modelUBOdata);
 
     for (uint32_t i = 0; i < m_objList.size(); ++i) {
       m_modelUBOdata[i].model = m_objList[i].get().getTransform();
@@ -315,7 +318,7 @@ namespace dw {
 
     data = m_modelUBO->map();
     memcpy(data, m_modelUBOdata, m_modelUBO->getSize());
-    m_modelUBO->unMap();
+    m_modelUBO->unMap();*/
 
     data = m_lightsUBO->map();
     LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
@@ -354,8 +357,8 @@ namespace dw {
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
     m_objList = objects;
 
-    if (m_modelUBOdata)
-      alignedFree(m_modelUBOdata);
+    //if (m_modelUBOdata)
+    //  alignedFree(m_modelUBOdata);
 
     prepareDynamicUniformBuffers();
     updateDescriptorSets();
@@ -363,7 +366,7 @@ namespace dw {
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
-    const size_t minUboAlignment = m_device->getOwningPhysical().getLimits().minUniformBufferOffsetAlignment;
+    /*const size_t minUboAlignment = m_device->getOwningPhysical().getLimits().minUniformBufferOffsetAlignment;
 
     m_modelUBOdynamicAlignment = sizeof(ObjectUniform);
     if (minUboAlignment > 0) {
@@ -378,15 +381,15 @@ namespace dw {
     size_t numImages = m_swapchain->getNumImages();
 
     m_modelUBO.reset();
-    m_modelUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, modelUBOsize));
+    m_modelUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, modelUBOsize));*/
   }
 
   void Renderer::updateDescriptorSets() {
     // Descriptor sets are automatically freed once the pool is freed.
     // They can be individually freed if the pool was created with
     // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
-    VkDescriptorBufferInfo modelUBOinfo = m_modelUBO->getDescriptorInfo();
-    modelUBOinfo.range                  = sizeof(ObjectUniform);
+    /*VkDescriptorBufferInfo modelUBOinfo = m_modelUBO->getDescriptorInfo();
+    modelUBOinfo.range                  = sizeof(ObjectUniform);*/
 
 
     std::vector<VkWriteDescriptorSet> descriptorWrites;
@@ -403,7 +406,7 @@ namespace dw {
                                  &m_cameraUBO->getDescriptorInfo(),
                                  nullptr
                                });
-    descriptorWrites.push_back({
+    /*descriptorWrites.push_back({
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  nullptr,
                                  m_deferredDescSet,
@@ -414,7 +417,7 @@ namespace dw {
                                  nullptr,
                                  &modelUBOinfo,
                                  nullptr
-                               });
+                               });*/
 
     std::vector<VkDescriptorImageInfo> imageInfos;
     imageInfos.reserve(m_gbufferViews.size());
@@ -502,6 +505,15 @@ namespace dw {
 
       Mesh* curMesh = nullptr;
 
+      vkCmdBindDescriptorSets(commandBuff,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_deferredPipeLayout,
+        0,
+        1,
+        &m_deferredDescSet,
+        0,
+        nullptr);
+
       for (uint32_t j = 0; j < m_objList.size(); ++j) {
         auto& obj = m_objList.at(j);
 
@@ -515,15 +527,22 @@ namespace dw {
         }
 
         // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
-        uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
-        vkCmdBindDescriptorSets(commandBuff,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                m_deferredPipeLayout,
-                                0,
-                                1,
-                                &m_deferredDescSet,
-                                1,
-                                &dynamicOffset);
+        /*uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
+        */
+
+        ObjectTransfPushConst transfPush = {
+          obj.get().getTransform(),
+        };
+
+        ObjectMtlPushConst mtlPush = {
+          {1, 1, 1},
+          50
+        };
+
+        vkCmdPushConstants(commandBuff, m_deferredPipeLayout,
+          VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(ObjectTransfPushConst), &transfPush);
+        //vkCmdPushConstants(commandBuff, m_deferredPipeLayout,
+        //  VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(ObjectTransfPushConst), sizeof(ObjectMtlPushConst), &mtlPush);
 
         vkCmdDrawIndexed(commandBuff, curMesh->getNumIndices(), 1, 0, 0, 0);
       }
@@ -691,7 +710,7 @@ namespace dw {
     std::vector<const char*> deviceLayers;
 
     deviceExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-    deviceExtensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+    //deviceExtensions.push_back(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
     //deviceExtensions.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
 
     VkPhysicalDeviceFeatures features               = {};
@@ -1112,20 +1131,20 @@ namespace dw {
   void Renderer::setupDescriptors() {
     // MVP matrices for object transformations
     std::vector<VkDescriptorSetLayoutBinding> layoutBindings = {
-      {
+      { // camera
         0,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         1,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         nullptr
       },
-      {
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        1,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        nullptr
-      }
+      //{
+      //  1,
+      //  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+      //  1,
+      //  VK_SHADER_STAGE_VERTEX_BIT,
+      //  nullptr
+      //}
     };
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
@@ -1145,14 +1164,14 @@ namespace dw {
 
     // create uniform buffers - one for each swapchain image
     std::vector<VkDescriptorPoolSize> poolSizes = {
-      {
+      { // camera
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         1
       },
-      {
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        1
-      }
+      //{
+      //  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+      //  1
+      //}
     };
 
     VkDescriptorPoolCreateInfo poolCreateInfo = {
@@ -1184,7 +1203,7 @@ namespace dw {
 
     // SAMPLERS
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.resize(m_gbufferImages.size() + 1); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
+    finalBindings.resize(m_gbufferImages.size() + 2); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
     finalBindings.front() = {
       0,
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1438,16 +1457,33 @@ namespace dw {
     // the creation of these layouts, because shaders may or may not be compatible with
     // a given pipeline layout given if the shader actually uses descriptor sets.
     // But then again, I don't know enough about those yet so *shrug*
+
+    // object material/model transform push constants
+    static_assert(sizeof(ObjectTransfPushConst) % 4 == 0);
+    static_assert(sizeof(ObjectMtlPushConst) % 4 == 0);
+
+    const std::array<VkPushConstantRange, 2> pipePushConsts = {{
+      {
+        VK_SHADER_STAGE_VERTEX_BIT,
+        0,
+        sizeof(ObjectTransfPushConst)
+      },
+      {
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        sizeof(ObjectTransfPushConst),
+        sizeof(ObjectMtlPushConst)
+      }
+    }};
+
     VkPipelineLayoutCreateInfo pipeLayoutInfo = {
       VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
       nullptr,
       0,
       1,
       &m_deferredDescSetLayout,
-      0,
-      nullptr
+      pipePushConsts.size(),
+      pipePushConsts.data()
     };
-
     if (!m_deferredDescSetLayout) {
       pipeLayoutInfo.pSetLayouts    = nullptr;
       pipeLayoutInfo.setLayoutCount = 0;
@@ -1459,6 +1495,8 @@ namespace dw {
     // create final pass pipe layout
     pipeLayoutInfo.setLayoutCount = 1;
     pipeLayoutInfo.pSetLayouts    = &m_finalDescSetLayout;
+    pipeLayoutInfo.pushConstantRangeCount = 0;
+    pipeLayoutInfo.pPushConstantRanges = nullptr;
     vkCreatePipelineLayout(*m_device, &pipeLayoutInfo, nullptr, &m_finalPipeLayout);
     assert(m_finalPipeLayout);
 

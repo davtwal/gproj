@@ -47,15 +47,20 @@ namespace dw {
   class ImageView;
   class Framebuffer;
 
-  struct ObjectUniform {
-    alignas(16) glm::mat4 model;
-  };
-
   struct CameraUniform {
     alignas(16) glm::mat4 view;
     alignas(16) glm::mat4 proj;
     alignas(16) glm::vec3 eyePos;
     alignas(16) glm::vec3 viewVec;
+  };
+
+  struct ObjectTransfPushConst {
+    alignas(16) glm::mat4 model;
+  };
+
+  struct ObjectMtlPushConst {
+    alignas(16) glm::vec3 albedo;
+    alignas(04) float specularExponent;
   };
 
   class Renderer {
@@ -159,7 +164,7 @@ namespace dw {
     util::ptr<Framebuffer> m_gbuffer{ nullptr };
     util::ptr<RenderPass> m_deferredPass{ nullptr };
     util::ptr<util::Ref<CommandBuffer>> m_deferredCmdBuff;
-    util::ptr<Buffer> m_modelUBO;
+    //util::ptr<Buffer> m_modelUBO;
     util::ptr<Buffer> m_cameraUBO;
     util::ptr<Buffer> m_lightsUBO;
     VkPipelineLayout m_deferredPipeLayout{ nullptr };
@@ -193,8 +198,8 @@ namespace dw {
     util::Ref<Camera> m_camera { s_defaultCamera };
     LightContainer m_lights;
     SceneContainer m_objList;
-    size_t m_modelUBOdynamicAlignment {0};
-    ObjectUniform* m_modelUBOdata = nullptr;
+    //size_t m_modelUBOdynamicAlignment {0};
+    //ObjectUniform* m_modelUBOdata = nullptr;
 
     // Specific, per-swapchain-image variables
 

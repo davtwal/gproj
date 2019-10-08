@@ -8,6 +8,11 @@ layout(binding = 0) uniform CameraUBO {
   vec3 viewDir;
 } cam;
 
+//layout(push_constant) uniform PushConstant {
+//  vec3 albedo;
+//  float specExp;
+//} obj;
+
 layout(location = 0) in vec4 inWorldPosition;
 layout(location = 1) in vec4 inWorldNormal;
 layout(location = 2) in vec3 inColor;
@@ -19,5 +24,6 @@ layout(location = 2) out vec4 outColor;
 void main() {    
     outPos    = vec4(inWorldPosition.xyz, 1.0);
     outNormal = vec4(normalize(inWorldNormal.xyz), 1.0);
-    outColor  = vec4(inColor.xyz, 1.0);
+    outColor  = vec4(inColor.xyz, 50);
+    //outColor  = vec4(obj.albedo * inColor.xyz, obj.specExp);
 }
