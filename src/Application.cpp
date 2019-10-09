@@ -49,10 +49,10 @@ namespace dw {
     // 0: Ground plane
     {
       std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0.7f, 0.7f, 0.7f}},// {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {}, {}, {}, {0.7f, 0.7f, 0.7f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {}, {}, {}, {0.7f, 0.7f, 0.7f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {}, {}, {}, {0.7f, 0.7f, 0.7f}},// {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {}, {}, {}, {0.7f, 0.7f, 0.7f}},// {0.0f, 1.0f}},
       };
 
       std::vector<uint32_t> indices = {
@@ -66,15 +66,15 @@ namespace dw {
     // 1: Non-face-normal cube
     {
       std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}},
 
-        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
+        {{-0.5f, -0.5f,  0.5f}, {0, 0,  1}, {}, {}, {}, {1.0f, 0.0f, 0.0f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, 0,  1}, {}, {}, {}, {0.0f, 1.0f, 0.0f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 0,  1}, {}, {}, {}, {0.0f, 0.0f, 1.0f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 0,  1}, {}, {}, {}, {1.0f, 1.0f, 1.0f}},// {0.0f, 1.0f}}
       };
 
       vertices[0].normal = glm::normalize(glm::vec3{ 0, 0, -1 } + glm::vec3{ 0, -1, 0 } + glm::vec3{ -1, 0, 0 });
@@ -101,35 +101,35 @@ namespace dw {
     // 2: Face-normal cube
     {
       std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 0, -1}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
 
-        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {1.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {0.5f, 0.5f, 0.5}},// {0.0f, 1.0f}}
+        {{-0.5f, -0.5f,  0.5f}, {0, 0, 1}, {}, {}, {}, {0.5f, 0.5f, 0.5}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, 0, 1}, {}, {}, {}, {0.5f, 0.5f, 0.5}},// {1.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 0, 1}, {}, {}, {}, {0.5f, 0.5f, 0.5}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 0, 1}, {}, {}, {}, {0.5f, 0.5f, 0.5}},// {0.0f, 1.0f}}
 
-        {{-0.5f, -0.5f, -0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, -0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{-0.5f, -0.5f,  0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {0, -1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {0, -1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, -0.5f}, {0, -1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {0, -1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {0, -1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
 
-        {{-0.5f,  0.5f, -0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {0, 1, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
+        {{-0.5f,  0.5f, -0.5f}, {0, 1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {0, 1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {0, 1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {0, 1, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
 
-        {{-0.5f, -0.5f, -0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
-        {{-0.5f,  0.5f, -0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
-        {{-0.5f, -0.5f,  0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
-        {{-0.5f,  0.5f,  0.5f}, {-1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{-0.5f, -0.5f, -0.5f}, {-1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
+        {{-0.5f,  0.5f, -0.5f}, {-1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
+        {{-0.5f, -0.5f,  0.5f}, {-1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 0.0f}},
+        {{-0.5f,  0.5f,  0.5f}, {-1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 1.0f}},
 
-        {{ 0.5f, -0.5f, -0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, -0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
-        {{ 0.5f, -0.5f,  0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f,  0.5f}, {1, 0, 0}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
+        {{ 0.5f, -0.5f, -0.5f}, {1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, -0.5f}, {1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}},
+        {{ 0.5f, -0.5f,  0.5f}, {1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f,  0.5f}, {1, 0, 0}, {}, {}, {}, {0.5f, 0.5f, 0.5f}},// {0.0f, 1.0f}}
       };
 
       std::vector<uint32_t> indices = {
@@ -170,38 +170,45 @@ namespace dw {
     m_renderer->initGeneral(m_window);
     m_renderer->initSpecific();
 
+    // load the objects that i want
+    m_meshManager.loadBasicMeshes();
+
+    m_meshManager.load("data/objects/teapot.obj");
+
+    m_meshManager.uploadMeshes(*m_renderer);
+
     // fill scene
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
 
     m_scene.reserve(5);
-    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(0)))
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(0)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 20, 20, 20 });
       o.setPosition({ 0, 0, -0.5f });
       //o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(2)))
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(3)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setPosition({ 0, -.5f * sin(time), 0 });
-      //o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 1.f, 0.f }));
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .5f, .5f, .5f });
       o.setPosition({ 0, 0, .5f * cos(time) });
       o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .1f, .1f, .1f });
       o.setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_renderer->getMeshManager().getMesh(1)))
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .1f, .1f, .1f });
       o.setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
@@ -301,6 +308,7 @@ namespace dw {
   int Application::shutdown() {
     m_scene.clear();
 
+    m_meshManager.clear();
     m_renderer->shutdown();
 
     delete m_inputHandler; m_inputHandler = nullptr;

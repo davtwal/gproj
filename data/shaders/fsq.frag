@@ -34,10 +34,14 @@ layout(location = 0) in vec2 inUV;
 layout(location = 0) out vec4 fragColor;
 
 void main() {
-    vec3 inPos = texture(inGBuffPosition, inUV).xyz;
-    vec3 inColor = texture(inGBuffColor, inUV).xyz;
+    vec4 sampledPos = texture(inGBuffPosition, inUV);
+    vec4 sampledColor = texture(inGBuffColor, inUV);
+    vec4 sampledNormal = texture(inGBuffNormal, inUV);
+
+    vec3 inPos = sampledPos.xyz;
+    vec3 inColor = sampledColor.xyz;
     
-    vec3 N = normalize(texture(inGBuffNormal, inUV).xyz);
+    vec3 N = normalize(sampledNormal.xyz);
     vec3 V = normalize(cam.eye - inPos);
     
     vec3 color = vec3(0, 0, 0);

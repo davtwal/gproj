@@ -21,6 +21,7 @@
 
 #include "Renderer.h"
 #include "Camera.h"
+#include "MeshManager.h"
 
 #include <chrono>
 #include <memory>
@@ -49,6 +50,7 @@ namespace dw {
     InputHandler* m_inputHandler{ nullptr };
     GLFWWindow* m_window{ nullptr };
     Camera    m_camera;
+    MeshManager m_meshManager;
   };
 } // namespace dw
 #endif

@@ -103,7 +103,6 @@ namespace dw {
     setupSwapChainFrameBuffers();
 
     transitionRenderImages();
-    initManagers();
   }
 
   void Renderer::shutdown() {
@@ -111,7 +110,6 @@ namespace dw {
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
 
-    shutdownManagers();
     m_objList.clear();
 
     if (m_modelUBOdata)
@@ -568,27 +566,6 @@ namespace dw {
       vkCmdEndRenderPass(commandBuffer);
       commandBuffer.end();
     }
-  }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  ///////////////////////////////// MANAGERS //////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-
-  void Renderer::initManagers() {
-    m_meshManager.loadBasicMeshes();
-    m_meshManager.uploadMeshes(*this);
-  }
-
-  void Renderer::shutdownManagers() {
-    m_meshManager.clear();
-  }
-
-  MeshManager& Renderer::getMeshManager() {
-    return m_meshManager;
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -1397,12 +1374,12 @@ namespace dw {
     // It really depends on what the format is and what the use of the framebuffer is,
     // so I'm not sure where I'll end up putting this info.
     VkPipelineColorBlendAttachmentState colorAttachmentInfo = {
-      VK_TRUE,
+      VK_FALSE, // This is disabled because transparency is not currently allowed during the geometry pass.
       VK_BLEND_FACTOR_SRC_ALPHA,
       VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
       VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_ONE,
-      VK_BLEND_FACTOR_ZERO,
+      VK_BLEND_FACTOR_SRC_ALPHA,
+      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
       VK_BLEND_OP_ADD,
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
     };

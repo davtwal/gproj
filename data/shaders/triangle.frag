@@ -10,7 +10,10 @@ layout(binding = 0) uniform CameraUBO {
 
 layout(location = 0) in vec4 inWorldPosition;
 layout(location = 1) in vec4 inWorldNormal;
-layout(location = 2) in vec3 inColor;
+layout(location = 2) in vec3 inTangent;
+layout(location = 3) in vec3 inBitangent;
+layout(location = 4) in vec2 inUV;
+layout(location = 5) in vec3 inColor;
 
 layout(location = 0) out vec4 outPos;
 layout(location = 1) out vec4 outNormal;
@@ -19,6 +22,6 @@ layout(location = 2) out vec4 outColor;
 void main() {    
     outPos    = vec4(inWorldPosition.xyz, 1.0);
     outNormal = vec4(normalize(inWorldNormal.xyz), 1.0);
-    outColor  = vec4(inColor.xyz, 1.0);
+    outColor  = vec4(inColor.xyz, 100.0);
     //outColor  = vec4(obj.albedo * inColor.xyz, obj.specExp);
 }

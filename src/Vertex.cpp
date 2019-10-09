@@ -32,9 +32,12 @@ namespace dw {
     std::vector<VkVertexInputAttributeDescription> ret;
     ret.reserve(NUM_BINDING_ATTRIBUTES);
       // LOC, BINDING, FORMAT, OFFSET
-    ret.push_back({ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, 0 });
+    ret.push_back({ 0, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, pos) });
     ret.push_back({ 1, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, normal) });
-    ret.push_back({ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) });
+    ret.push_back({ 2, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, tangent) });
+    ret.push_back({ 3, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, bitangent) });
+    ret.push_back({ 4, 0, VK_FORMAT_R32G32_SFLOAT, offsetof(Vertex, texCoord) });
+    ret.push_back({ 5, 0, VK_FORMAT_R32G32B32_SFLOAT, offsetof(Vertex, color) });
     return ret;
   }
 }

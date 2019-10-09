@@ -24,6 +24,7 @@ namespace dw {
   class MeshManager {
   public:
     using MeshKey = uint32_t;
+    using MeshMap = std::unordered_map<MeshKey, Mesh>;
 
     /* After this call is resolved the following meshes will be available:
      * 0 - Unit Square
@@ -33,7 +34,7 @@ namespace dw {
      */
     void loadBasicMeshes();
 
-    MeshKey addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices);
+    MeshMap::reference addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices);
     void uploadMeshes(Renderer& renderer);
 
     util::Ref<Mesh> getMesh(MeshKey key);
@@ -43,7 +44,7 @@ namespace dw {
     void clear();
 
   private:
-    std::unordered_map<MeshKey, Mesh> m_loadedMeshes;
+    MeshMap m_loadedMeshes;
     MeshKey m_curKey{ 0 };
   };
 }

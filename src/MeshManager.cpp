@@ -16,6 +16,7 @@
 #include "MeshManager.h"
 #include "Renderer.h"
 #include "Trace.h"
+#include <algorithm>
 
 namespace dw {
   void MeshManager::clear() {
@@ -23,9 +24,8 @@ namespace dw {
     m_curKey = 0;
   }
 
-  MeshManager::MeshKey MeshManager::addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices) {
-    m_loadedMeshes.try_emplace(m_curKey, std::move(verts), std::move(indices));
-    return m_curKey++;
+  MeshManager::MeshMap::reference MeshManager::addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices) {
+    return *m_loadedMeshes.try_emplace(m_curKey++, std::move(verts), std::move(indices)).first;
   }
 
   util::Ref<Mesh> MeshManager::getMesh(MeshKey key) {
@@ -40,6 +40,7 @@ namespace dw {
     using namespace tinyobj;
     /* Attributes:
      *  - Contains vertices, normals, texture coords, (colors)
+     *    ALL IN SEPERATE VECTORS
      *
      * Shapes:
      *  - Contain mesh, lines, points. ONLY MESHES SUPPORTED
@@ -90,7 +91,113 @@ namespace dw {
       return std::numeric_limits<MeshKey>::max();
     }
 
-    // Vertices, normals, texcoords
+    std::vector<Vertex> vertices;
+    const size_t vertexCount = attributes.vertices.size() / 3;
+    assert(attributes.vertices.size() % 3 == 0);
+
+    vertices.reserve(vertexCount);
+    for(size_t i = 0; i < attributes.vertices.size(); i += 3) {
+      Vertex v;
+
+      v.pos = glm::vec3(attributes.vertices[i],  attributes.vertices[i + 1],  attributes.vertices[i + 2]);
+
+      if(i < attributes.normals.size())
+        v.normal = glm::vec3(attributes.normals[i],   attributes.normals[i + 1],   attributes.normals[i + 2]);
+
+      if(i < attributes.texcoords.size())
+        v.texCoord = glm::vec2(attributes.texcoords[i], attributes.texcoords[i + 1]);
+
+      if(i < attributes.colors.size())
+        v.color = glm::vec3(attributes.colors[i],    attributes.colors[i + 1],    attributes.colors[i + 2]);
+
+      vertices.push_back(v);
+    }
+
+    size_t faceCount = 0;
+    // compute tangent/bitangent for each face, and add to a specific vertex
+    for(auto& shape : shapes) { // += 3 here because we triangulated.
+      for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+        ++faceCount;
+
+        // http://www.opengl-tutorial.org/intermediate-tutorials/tutorial-13-normal-mapping/
+        auto& index0 = shape.mesh.indices[i];
+        auto& index1 = shape.mesh.indices[i + 1];
+        auto& index2 = shape.mesh.indices[i + 2];
+
+        if (index0.normal_index == -1 || index1.normal_index == -1 || index2.normal_index == -1
+          || index0.texcoord_index == -1 || index1.texcoord_index == -1 || index2.texcoord_index == -1)
+          continue;
+
+        auto& v0 = vertices[index0.vertex_index].pos;
+        auto& v1 = vertices[index1.vertex_index].pos;
+        auto& v2 = vertices[index2.vertex_index].pos;
+
+        auto& uv0 = vertices[index0.texcoord_index].texCoord;
+        auto& uv1 = vertices[index1.texcoord_index].texCoord;
+        auto& uv2 = vertices[index2.texcoord_index].texCoord;
+
+        glm::vec3 deltaP0 = v1 - v0;
+        glm::vec3 deltaP1 = v2 - v0;
+        glm::vec2 deltaUV0 = uv1 - uv0;
+        glm::vec2 deltaUV1 = uv2 - uv0;
+
+        float denom = 1.f / (deltaUV0.x * deltaUV1.y - deltaUV0.y * deltaUV1.x);
+
+        // normalize?
+        glm::vec3 tangent   = (deltaP0 * deltaUV1.y - deltaP1 * deltaUV0.y) * denom;
+        glm::vec3 bitangent = (deltaP1 * deltaUV0.x - deltaP0 * deltaUV1.x) * denom;
+
+        vertices[index0.vertex_index].tangent += tangent;
+        vertices[index1.vertex_index].tangent += tangent;
+        vertices[index2.vertex_index].tangent += tangent;
+
+        vertices[index0.vertex_index].bitangent += bitangent;
+        vertices[index1.vertex_index].bitangent += bitangent;
+        vertices[index2.vertex_index].bitangent += bitangent;
+      }
+    }
+
+    // POST-PROCESS STEPS
+    // Normalize normals, tangents, and bitangents
+    for(auto& vert : vertices) {
+      vert.normal = normalize(vert.normal);
+      vert.tangent = normalize(vert.tangent);
+      vert.bitangent = normalize(vert.bitangent);
+    }
+
+    // Center vertices
+    glm::vec3 rollingAverage = vertices[0].pos;
+    for(size_t i = 1; i < vertices.size(); ++i) {
+      rollingAverage = (vertices[i].pos + glm::vec3(i) * rollingAverage) / glm::vec3(i + 1);
+    }
+
+    float biggestExtent = glm::length2(vertices[0].pos - rollingAverage);
+    for(auto& vert : vertices) {
+      vert.pos -= rollingAverage;
+      biggestExtent = std::max(biggestExtent, glm::length2(vert.pos));
+    }
+
+    biggestExtent = 1.f / sqrt(biggestExtent);
+    for(auto& vert : vertices) {
+      vert.pos *= biggestExtent;
+    }
+
+    // form index vector
+    std::vector<uint32_t> indices;
+    indices.reserve(faceCount * 3); // *3 because triangulated
+
+    for(auto& shape : shapes) {
+      for(size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
+        // This reverses the winding of the faces.
+        indices.push_back(shape.mesh.indices[i].vertex_index);
+        indices.push_back(shape.mesh.indices[i + 2].vertex_index);
+        indices.push_back(shape.mesh.indices[i + 1].vertex_index);
+      }
+    }
+
+    indices.shrink_to_fit();
+
+    addMesh(vertices, indices);
     return m_curKey++;
   }
 }

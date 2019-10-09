@@ -65,7 +65,6 @@ namespace dw {
     void initSpecific();
 
     NO_DISCARD bool done() const;
-    NO_DISCARD MeshManager& getMeshManager();
 
     void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
     void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
@@ -108,7 +107,6 @@ namespace dw {
 
     void setupGBufferFrameBuffer();
     void setupSwapChainFrameBuffers() const;
-    void initManagers();
 
     // specific to the current scene
     void writeCommandBuffers();
@@ -121,7 +119,6 @@ namespace dw {
 
     // shutdown helpers
     void shutdownScene();
-    void shutdownManagers();
 
     void recreateSwapChain();
     //////////////////////////////////////////////////////
@@ -184,10 +181,6 @@ namespace dw {
     VkDescriptorSetLayout m_finalDescSetLayout{ nullptr };
     VkDescriptorPool m_finalDescPool{ nullptr };
     std::vector<VkDescriptorSet> m_finalDescSets;
-
-    //////////////////////////////////////////////////////
-    //// Managers
-    MeshManager m_meshManager;
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };

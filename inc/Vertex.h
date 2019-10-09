@@ -30,6 +30,9 @@ namespace dw {
   struct Vertex {
     glm::vec3 pos   { 0.f, 0.f, 0.f };
     glm::vec3 normal{ 0.f, 0.f, 1.f };
+    glm::vec3 tangent {0, 0, 0};
+    glm::vec3 bitangent {0, 0, 0};
+    glm::vec2 texCoord{ 0.f, 0.f };
     glm::vec3 color { 1.f, 1.f, 1.f };
 
     static constexpr unsigned NUM_BINDING_ATTRIBUTES = 3;
