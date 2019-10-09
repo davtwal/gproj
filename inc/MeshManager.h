@@ -39,7 +39,7 @@ namespace dw {
 
     util::Ref<Mesh> getMesh(MeshKey key);
 
-    MeshKey load(std::string const& filename);
+    MeshKey load(std::string const& filename, bool flipWinding = false);
 
     void clear();
 

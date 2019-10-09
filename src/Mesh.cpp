@@ -112,6 +112,10 @@ namespace dw {
   void Mesh::uploadCmds(CommandBuffer& cmdBuff, StagingBuffs& buffs) const {
     VkBufferCopy vertCopy = { 0, 0, getSizeOfVertices() };
     VkBufferCopy indexCopy = { 0, 0, getSizeOfIndices() };
+
+    assert(m_vertexBuff);
+    assert(m_indexBuff);
+
     vkCmdCopyBuffer(cmdBuff, buffs.first, *m_vertexBuff, 1, &vertCopy);
     vkCmdCopyBuffer(cmdBuff, buffs.second, *m_indexBuff, 1, &indexCopy);
   }

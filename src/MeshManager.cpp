@@ -36,7 +36,7 @@ namespace dw {
     renderer.uploadMeshes(m_loadedMeshes);
   }
 
-  MeshManager::MeshKey MeshManager::load(std::string const& filename) {
+  MeshManager::MeshKey MeshManager::load(std::string const& filename, bool flipWinding) {
     using namespace tinyobj;
     /* Attributes:
      *  - Contains vertices, normals, texture coords, (colors)
@@ -91,6 +91,9 @@ namespace dw {
       return std::numeric_limits<MeshKey>::max();
     }
 
+    bool computeNormals = attributes.normals.empty();
+    bool computeTangents = !attributes.texcoords.empty();
+
     std::vector<Vertex> vertices;
     const size_t vertexCount = attributes.vertices.size() / 3;
     assert(attributes.vertices.size() % 3 == 0);
@@ -114,7 +117,7 @@ namespace dw {
     }
 
     size_t faceCount = 0;
-    // compute tangent/bitangent for each face, and add to a specific vertex
+    // do per-face fixing (compute normals, compute tangents)
     for(auto& shape : shapes) { // += 3 here because we triangulated.
       for (size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
         ++faceCount;
@@ -124,36 +127,44 @@ namespace dw {
         auto& index1 = shape.mesh.indices[i + 1];
         auto& index2 = shape.mesh.indices[i + 2];
 
-        if (index0.normal_index == -1 || index1.normal_index == -1 || index2.normal_index == -1
-          || index0.texcoord_index == -1 || index1.texcoord_index == -1 || index2.texcoord_index == -1)
-          continue;
+        auto& v0 = vertices[index0.vertex_index];
+        auto& v1 = vertices[index1.vertex_index];
+        auto& v2 = vertices[index2.vertex_index];
+        glm::vec3 deltaP0 = v1.pos - v0.pos;
+        glm::vec3 deltaP1 = v2.pos - v0.pos;
 
-        auto& v0 = vertices[index0.vertex_index].pos;
-        auto& v1 = vertices[index1.vertex_index].pos;
-        auto& v2 = vertices[index2.vertex_index].pos;
+        if (computeNormals) {
+          glm::vec3 N = normalize(cross(deltaP0, deltaP1));
+          v0.normal += N;
+          v1.normal += N;
+          v2.normal += N;
+        }
 
-        auto& uv0 = vertices[index0.texcoord_index].texCoord;
-        auto& uv1 = vertices[index1.texcoord_index].texCoord;
-        auto& uv2 = vertices[index2.texcoord_index].texCoord;
+        if (computeTangents) {
+          if (index0.texcoord_index == -1 || index1.texcoord_index == -1 || index2.texcoord_index == -1)
+            continue;
 
-        glm::vec3 deltaP0 = v1 - v0;
-        glm::vec3 deltaP1 = v2 - v0;
-        glm::vec2 deltaUV0 = uv1 - uv0;
-        glm::vec2 deltaUV1 = uv2 - uv0;
+          auto& uv0 = vertices[index0.texcoord_index].texCoord;
+          auto& uv1 = vertices[index1.texcoord_index].texCoord;
+          auto& uv2 = vertices[index2.texcoord_index].texCoord;
 
-        float denom = 1.f / (deltaUV0.x * deltaUV1.y - deltaUV0.y * deltaUV1.x);
+          glm::vec2 deltaUV0 = uv1 - uv0;
+          glm::vec2 deltaUV1 = uv2 - uv0;
 
-        // normalize?
-        glm::vec3 tangent   = (deltaP0 * deltaUV1.y - deltaP1 * deltaUV0.y) * denom;
-        glm::vec3 bitangent = (deltaP1 * deltaUV0.x - deltaP0 * deltaUV1.x) * denom;
+          float denom = 1.f / (deltaUV0.x * deltaUV1.y - deltaUV0.y * deltaUV1.x);
 
-        vertices[index0.vertex_index].tangent += tangent;
-        vertices[index1.vertex_index].tangent += tangent;
-        vertices[index2.vertex_index].tangent += tangent;
+          // normalize?
+          glm::vec3 tangent = (deltaP0 * deltaUV1.y - deltaP1 * deltaUV0.y) * denom;
+          glm::vec3 bitangent = (deltaP1 * deltaUV0.x - deltaP0 * deltaUV1.x) * denom;
 
-        vertices[index0.vertex_index].bitangent += bitangent;
-        vertices[index1.vertex_index].bitangent += bitangent;
-        vertices[index2.vertex_index].bitangent += bitangent;
+          vertices[index0.vertex_index].tangent += tangent;
+          vertices[index1.vertex_index].tangent += tangent;
+          vertices[index2.vertex_index].tangent += tangent;
+
+          vertices[index0.vertex_index].bitangent += bitangent;
+          vertices[index1.vertex_index].bitangent += bitangent;
+          vertices[index2.vertex_index].bitangent += bitangent;
+        }
       }
     }
 
@@ -190,14 +201,18 @@ namespace dw {
       for(size_t i = 0; i < shape.mesh.indices.size(); i += 3) {
         // This reverses the winding of the faces.
         indices.push_back(shape.mesh.indices[i].vertex_index);
-        indices.push_back(shape.mesh.indices[i + 2].vertex_index);
-        indices.push_back(shape.mesh.indices[i + 1].vertex_index);
+        if (flipWinding) {
+          indices.push_back(shape.mesh.indices[i + 2].vertex_index);
+          indices.push_back(shape.mesh.indices[i + 1].vertex_index);
+        } else {
+          indices.push_back(shape.mesh.indices[i + 1].vertex_index);
+          indices.push_back(shape.mesh.indices[i + 2].vertex_index);
+        }
       }
     }
 
     indices.shrink_to_fit();
 
-    addMesh(vertices, indices);
-    return m_curKey++;
+    return addMesh(vertices, indices).first;
   }
 }

@@ -51,13 +51,13 @@ void main() {
       vec3 L = normalize(dynLights.at[i].pos - inPos);
       float n_l = max(dot(N, L), 0);
       
-      color += inColor * n_l;
+      color += inColor * n_l * dynLights.at[i].color;
       
       // specular
       vec3 R = reflect(-L, N);
       float r_v = pow(max(dot(R, V), 0), 100);
       
-      color += inColor * r_v;
+      color += inColor * r_v * dynLights.at[i].color;
     }
-    fragColor = vec4(color, 1);
+    fragColor = vec4(color.xyz, 1);
 }

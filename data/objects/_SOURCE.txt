@@ -1,1 +1,4 @@
 https://people.sc.fsu.edu/~jburkardt/data/obj/obj.html
+
+Gourd has shit normals but the face winding is correct for the project.
+Teapot has reversed windings and they need to be flipped.

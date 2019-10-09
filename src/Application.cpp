@@ -173,7 +173,8 @@ namespace dw {
     // load the objects that i want
     m_meshManager.loadBasicMeshes();
 
-    m_meshManager.load("data/objects/teapot.obj");
+    m_meshManager.load("data/objects/lamp.obj");
+    m_meshManager.load("data/objects/teapot.obj", true);
 
     m_meshManager.uploadMeshes(*m_renderer);
 
@@ -181,20 +182,28 @@ namespace dw {
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
 
-    m_scene.reserve(5);
+    // Ground plane
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(0)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 20, 20, 20 });
       o.setPosition({ 0, 0, -0.5f });
-      //o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 0.f, 1.f }));
     };
 
+    // Random objects
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(3)))
       ->m_behavior = [](Object& o, float time, float dt) {
-      o.setPosition({ 0, -.5f * sin(time), 0 });
-      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0.f, 1.f, 0.f }));
+      o.setScale({ 2, 2, 2 });
+      o.setPosition({ 0, 1.f, 1.f });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0, 0, 1}) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
+    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(4)))
+      ->m_behavior = [](Object& o, float time, float dt) {
+      o.setPosition({ 0, -1.f, 0 });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
+
+    // Flying color cube
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .5f, .5f, .5f });
@@ -202,6 +211,7 @@ namespace dw {
       o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
+    // Lights
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .1f, .1f, .1f });
@@ -226,19 +236,18 @@ namespace dw {
     m_lights.push_back({
       {2, 2, 2},
       {-1, -1, -1},
-      {1, 1, 1},
+      {0.5f, 1, 1},
       5
       });
 
     m_lights.push_back({
       {-2, -2, -2},
       {1, 1, 1},
-      {1, 1, 1},
+      {1, 0.5f, 1},
       5
       });
 
     m_renderer->setDynamicLights({ m_lights.begin(), m_lights.end() });
-
 
     Renderer::SceneContainer scene;
     scene.reserve(m_scene.size());
