@@ -45,25 +45,6 @@
 #include <math.h>
 
 namespace dw {
-
-  void MeshManager::clear() {
-    m_loadedMeshes.clear();
-    m_curKey = 0;
-  }
-
-  MeshManager::MeshKey MeshManager::addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices) {
-    m_loadedMeshes.try_emplace(m_curKey, std::move(verts), std::move(indices));
-    return m_curKey++;
-  }
-
-  util::Ref<Mesh> MeshManager::getMesh(MeshKey key) {
-    return m_loadedMeshes.at(key);
-  }
-
-  void MeshManager::uploadMeshes(Renderer& renderer) {
-    renderer.uploadMeshes(m_loadedMeshes);
-  }
-
   void MeshManager::loadBasicMeshes() {
     // 0: Ground plane
     {

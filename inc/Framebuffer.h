@@ -34,6 +34,8 @@ namespace dw {
 
   private:
     VkFramebuffer m_framebuffer{ nullptr };
+    std::vector<VkImage> m_images;
+    std::vector<VkImageView> m_views;
   };
 
 }

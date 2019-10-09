@@ -34,9 +34,11 @@ namespace dw {
     void loadBasicMeshes();
 
     MeshKey addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices);
+    void uploadMeshes(Renderer& renderer);
+
     util::Ref<Mesh> getMesh(MeshKey key);
 
-    void uploadMeshes(Renderer& renderer);
+    MeshKey load(std::string const& filename);
 
     void clear();
 

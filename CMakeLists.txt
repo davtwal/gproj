@@ -18,11 +18,11 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # Create directory variables and glob files
 # This section isn't fully utilized (e.g. OBJECT_DIR isn't used)
 # TODO
-set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/inc")
 set(SOURCE_DIR "${PROJECT_SOURCE_DIR}/src")
 set(OBJECT_DIR "${PROJECT_SOURCE_DIR}/obj")
 set(BINARY_DIR "${PROJECT_SOURCE_DIR}/bin")
 set(DEP_BASE_DIR "${PROJECT_SOURCE_DIR}/dep")
+set(INCLUDE_DIR "${PROJECT_SOURCE_DIR}/inc" "${DEP_BASE_DIR}/inc")
 
 if(WIN32)
 	set(DEPENDANCY_DIR "${DEP_BASE_DIR}/win")
@@ -36,17 +36,16 @@ set(INCLUDE_DIRS ${INCLUDE_DIR})
 # If we didn't want to recursively go into each subdirectory 
 # then we use GLOB instead of GLOB_RECURSE
 message("|| Gathering files")
+
+set(GLM_DIRECTORY ${DEP_BASE_DIR}/inc/glm)
 file(GLOB SRC_CPP src/*.cpp)
 file(GLOB HEADERS inc/*.h)
 file(GLOB INLINE inc/*.inl)
-file(GLOB_RECURSE GLM_HEADERS inc/glm/*.hpp)
-file(GLOB_RECURSE VULKAN_BACKEND_SOURCE src/VKBackend/*.cpp)
-file(GLOB_RECURSE VULKAN_BACKEND_HEADERS inc/VKBackend/*.h)
-
-set(VULKAN_BACKEND ${VULKAN_BACKEND_SOURCE} ${VULKAN_BACKEND_HEADERS})
+file(GLOB_RECURSE GLM_HEADERS ${GLM_DIRECTORY}/*.hpp)
+file(GLOB DEPENDENCY_FILES ${DEP_BASE_DIR}/inc/*.h ${DEP_BASE_DIR}/src/*.cc)
 
 message("|| Gathering GLM")
-add_subdirectory(inc/glm)
+add_subdirectory(${GLM_DIRECTORY})
 
 # Find required packages
 set(CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake/modules")
@@ -83,12 +82,9 @@ else()
     add_compile_definitions(DW_DISABLE_VULKAN=1)
 endif()
 
-add_compile_definitions(DW_DISABLE_DX11=1)
-add_compile_definitions(DW_DISABLE_OPENGL=1)
-
 # Create targets
 message("|| Creating executable")
-add_executable(${PROJ_NAME} ${SRC_CPP} ${HEADERS} ${GLM_HEADERS} ${VULKAN_BACKEND} ${INLINE})
+add_executable(${PROJ_NAME} ${SRC_CPP} ${HEADERS} ${GLM_HEADERS} ${DEPENDENCY_FILES} ${INLINE})
 
 if(MSVC)
   set(CompilerFlags
@@ -106,11 +102,11 @@ endif()
 
 # This creates filters for IDEs like Visual Studio
 message("|| Creating source groups (filters)")
+source_group("inl" FILES ${INLINE})
 source_group("inc" FILES ${HEADERS})
-source_group("inc\\glm" FILES ${GLM_HEADERS})
-source_group("inc\\vk" FILES ${VULKAN_BACKEND_HEADERS})
+source_group("dep\\glm" FILES ${GLM_HEADERS})
+source_group("dep" FILES ${DEPENDENCY_FILES})
 source_group("src" FILES ${SRC_CPP})
-source_group("src\\vk" FILES ${VULKAN_BACKEND_SOURCE})
 
 # Add include directories and link locations/libraries to the executable
 message("|| Adding target specifications")

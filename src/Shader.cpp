@@ -55,7 +55,7 @@ namespace dw {
     namespace fs = std::filesystem;
 
     std::fstream file;
-    fs::path shaderFolder = fs::current_path() / fs::path("shaders");
+    fs::path shaderFolder = fs::current_path() / fs::path("data") / "shaders";
     Trace::All << "Loading shader: " << shaderFolder << " : " << shaderFolder / filename << Trace::Stop;
 
     file.open(shaderFolder / filename, std::ios_base::in | std::ios_base::ate | std::ios_base::binary);
