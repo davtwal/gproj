@@ -20,7 +20,7 @@
 #define DW_UTILS_H
 
 #include <memory>
-#include <vulkan/vulkan.h>
+#include "Vulkan.h"
 
 #ifndef NO_DISCARD
 #define NO_DISCARD [[nodiscard]]

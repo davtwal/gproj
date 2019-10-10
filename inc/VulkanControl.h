@@ -21,8 +21,7 @@
 
 #include <string>
 #include <vector>
-
-#include <vulkan/vulkan.h>
+#include "Vulkan.h"
 
 #ifndef NO_DISCARD
   #define NO_DISCARD [[nodiscard]]

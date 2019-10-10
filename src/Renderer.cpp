@@ -29,6 +29,7 @@
 #include "Framebuffer.h"  // ReSharper likes to think this isn't used. IT IS!!!
 #include "MemoryAllocator.h"
 #include "Camera.h"
+#include "Image.h"
 
 #include <array>
 #include <cassert>
@@ -60,6 +61,83 @@ void alignedFree(void* data) {
 #endif
 }
 
+static void transitionImageLayout(dw::CommandBuffer&  cmdBuff,
+                                  dw::Image const&    image,
+                                  VkImageLayout       oldLayout,
+                                  VkImageLayout       newLayout)
+{
+  VkImageMemoryBarrier barrier = {
+    VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+    nullptr,
+    VK_ACCESS_MEMORY_WRITE_BIT,
+    VK_ACCESS_MEMORY_READ_BIT,
+    oldLayout,
+    newLayout,
+    VK_QUEUE_FAMILY_IGNORED,
+    VK_QUEUE_FAMILY_IGNORED,
+    image,
+    {
+      VK_IMAGE_ASPECT_COLOR_BIT,
+      0,
+      1,
+      0,
+      1
+    }
+  };
+  VkPipelineStageFlags sourceStage, destinationStage;
+
+  if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+    if (dw::util::IsFormatStencil(image.getFormat())) {
+      barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+    }
+  }
+  else {
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  }
+
+  if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && (
+    newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)) {
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+  }
+  else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    ) {
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+  }
+  else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+    barrier.srcAccessMask = 0;
+    barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
+      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+  }
+
+  else {
+    throw std::invalid_argument("unsupported layout transition!");
+  }
+
+  vkCmdPipelineBarrier(cmdBuff,
+    sourceStage,
+    destinationStage,
+    0,
+    0,
+    nullptr,
+    0,
+    nullptr,
+    1,
+    &barrier);
+}
+
 namespace dw {
   Camera Renderer::s_defaultCamera;
 
@@ -79,7 +157,6 @@ namespace dw {
     setupSurface();
     setupSwapChain();
     setupCommandPools();
-    setupCommandBuffers();
   }
 
   void Renderer::initSpecific() {
@@ -92,19 +169,20 @@ namespace dw {
     if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create deferred rendering semaphore");
 
-    setupDepthTestResources();
-    setupGBufferImages();
-    setupRenderSteps();
-    setupDescriptors();
-    setupUniformBuffers();
+    //setupCommandBuffers();
+    //setupDepthTestResources();
+    //setupGBufferImages();
     setupSamplers();
-    setupShaders();
-
-    setupPipeline();
-    setupGBufferFrameBuffer();
-    setupSwapChainFrameBuffers();
-
+    setupUniformBuffers();
+    setupFrameBufferImages();
+    setupRenderSteps();
+    setupFrameBuffers();
     transitionRenderImages();
+    //setupDescriptors();
+    //setupShaders();
+
+    //setupPipeline();
+
   }
 
   void Renderer::shutdown() {
@@ -205,8 +283,8 @@ namespace dw {
     Image const& nextImage      = m_swapchain->getNextImage();
 
     auto&           graphicsQueue   = m_graphicsQueue->get();
-    VkCommandBuffer deferredCmdBuff = m_deferredCmdBuff->get();
-    VkCommandBuffer presentCmdBuff  = m_commandBuffers[nextImageIndex].get();
+    VkCommandBuffer deferredCmdBuff = m_geometryStep->getCommandBuffer();//m_deferredCmdBuff->get();
+    VkCommandBuffer presentCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);//m_commandBuffers[nextImageIndex].get();
 
     updateUniformBuffers(nextImageIndex);
 
@@ -351,6 +429,9 @@ namespace dw {
     VkDeviceSize lightUniformSize = sizeof(LightUBO);
     m_lightsUBO                   = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
                                                                                  lightUniformSize * lights.size()));
+
+    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), *m_cameraUBO, *m_lightsUBO, m_sampler);
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers());
   }
 
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
@@ -360,8 +441,9 @@ namespace dw {
       alignedFree(m_modelUBOdata);
 
     prepareDynamicUniformBuffers();
-    updateDescriptorSets();
-    writeDeferredCommandBuffer();
+
+    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO);
+    m_geometryStep->writeCmdBuff(*m_gbuffer, m_objList, m_modelUBOdynamicAlignment);
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
@@ -381,193 +463,6 @@ namespace dw {
 
     m_modelUBO.reset();
     m_modelUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, modelUBOsize));
-  }
-
-  void Renderer::updateDescriptorSets() {
-    // Descriptor sets are automatically freed once the pool is freed.
-    // They can be individually freed if the pool was created with
-    // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
-    VkDescriptorBufferInfo modelUBOinfo = m_modelUBO->getDescriptorInfo();
-    modelUBOinfo.range                  = sizeof(ObjectUniform);
-
-
-    std::vector<VkWriteDescriptorSet> descriptorWrites;
-    descriptorWrites.reserve(2 + m_finalDescSets.size() * (m_gbufferViews.size() + 2));
-    descriptorWrites.push_back({
-                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                 nullptr,
-                                 m_deferredDescSet,
-                                 0,
-                                 0,
-                                 1,
-                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                 nullptr,
-                                 &m_cameraUBO->getDescriptorInfo(),
-                                 nullptr
-                               });
-    descriptorWrites.push_back({
-                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                 nullptr,
-                                 m_deferredDescSet,
-                                 1,
-                                 0,
-                                 1,
-                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                                 nullptr,
-                                 &modelUBOinfo,
-                                 nullptr
-                               });
-
-    std::vector<VkDescriptorImageInfo> imageInfos;
-    imageInfos.reserve(m_gbufferViews.size());
-    for (uint32_t i = 0; i < m_gbufferViews.size(); ++i) {
-      imageInfos.push_back({m_sampler, m_gbufferViews[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
-    }
-
-    for (auto& set : m_finalDescSets) {
-      descriptorWrites.push_back({
-                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                   nullptr,
-                                   set,
-                                   0,
-                                   0,
-                                   1,
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   nullptr,
-                                   &m_cameraUBO->getDescriptorInfo(),
-                                   nullptr
-                                 });
-
-      for (uint32_t j = 0; j < m_gbufferViews.size(); ++j) {
-        descriptorWrites.push_back({
-                                     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                     nullptr,
-                                     set,
-                                     j + 1,
-                                     0,
-                                     1,
-                                     VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                     &imageInfos[j],
-                                     nullptr,
-                                     nullptr
-                                   });
-      }
-
-      descriptorWrites.push_back({
-                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                   nullptr,
-                                   set,
-                                   4,
-                                   0,
-                                   1,
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   nullptr,
-                                   &m_lightsUBO->getDescriptorInfo(),
-                                   nullptr
-                                 });
-    }
-
-    vkUpdateDescriptorSets(*m_device,
-                           static_cast<uint32_t>(descriptorWrites.size()),
-                           descriptorWrites.data(),
-                           0,
-                           nullptr);
-  }
-
-  void Renderer::writeDeferredCommandBuffer() {
-    // 1: deferred pass
-    if (!m_objList.empty()) {
-      std::array<VkClearValue, 4> clearValues{};
-      clearValues[0].color        = {{0, 0, 0, 0}};
-      clearValues[1].color        = {{0}};
-      clearValues[2].color        = {{0}};
-      clearValues[3].depthStencil = {1.f, 0};
-
-      auto& commandBuff = m_deferredCmdBuff->get();
-      commandBuff.start(false);
-      VkRenderPassBeginInfo beginInfo = {
-        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        nullptr,
-        *m_deferredPass,
-        *m_gbuffer,
-        {{0, 0}, m_swapchain->getImageSize()},
-        static_cast<uint32_t>(clearValues.size()),
-        clearValues.data()
-      };
-
-
-      vkCmdBindPipeline(commandBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferredPipeline);
-      vkCmdBeginRenderPass(commandBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-      Mesh* curMesh = nullptr;
-
-      for (uint32_t j = 0; j < m_objList.size(); ++j) {
-        auto& obj = m_objList.at(j);
-
-        if (!curMesh || !(obj.get().m_mesh.get() == *curMesh)) {
-          curMesh = &obj.get().m_mesh.get();
-
-          const VkBuffer&    buff   = curMesh->getVertexBuffer();
-          const VkDeviceSize offset = 0;
-          vkCmdBindVertexBuffers(commandBuff, 0, 1, &buff, &offset);
-          vkCmdBindIndexBuffer(commandBuff, curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
-        }
-
-        // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
-        uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
-        vkCmdBindDescriptorSets(commandBuff,
-                                VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                m_deferredPipeLayout,
-                                0,
-                                1,
-                                &m_deferredDescSet,
-                                1,
-                                &dynamicOffset);
-
-        vkCmdDrawIndexed(commandBuff, curMesh->getNumIndices(), 1, 0, 0, 0);
-      }
-
-      vkCmdEndRenderPass(commandBuff);
-      commandBuff.end();
-    }
-  }
-
-
-  void Renderer::writeFinalCommandBuffer() {
-    // 2: final pass
-    const auto count = m_swapchain->getNumImages();
-
-    std::array<VkClearValue, 2> clearValues{};
-    clearValues[0].color = {{0, 0, 0, 0}};
-    auto& framebuffers   = m_swapchain->getFrameBuffers();
-    for (size_t i = 0; i < count; ++i) {
-      auto& commandBuffer = m_commandBuffers[i].get();
-
-      VkRenderPassBeginInfo beginInfo = {
-        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        nullptr,
-        *m_finalPass,
-        framebuffers[i],
-        {{0, 0}, m_swapchain->getImageSize()},
-        static_cast<uint32_t>(clearValues.size()),
-        clearValues.data()
-      };
-
-      commandBuffer.start(false);
-      vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_finalPipeline);
-      vkCmdBindDescriptorSets(commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              m_finalPipeLayout,
-                              0,
-                              1,
-                              &m_finalDescSets[i],
-                              0,
-                              nullptr);
-      vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      vkCmdDraw(commandBuffer, 4, 1, 0, 0);
-      vkCmdEndRenderPass(commandBuffer);
-      commandBuffer.end();
-    }
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -723,334 +618,9 @@ namespace dw {
     m_swapchain = std::make_unique<Swapchain>(*m_device, *m_surface, *m_presentQueue);
   }
 
-  static void transitionImageLayout(CommandBuffer& cmdBuff,
-                                    Image&         image,
-                                    VkImageLayout  oldLayout,
-                                    VkImageLayout  newLayout) {
-    VkImageMemoryBarrier barrier = {
-      VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-      nullptr,
-      VK_ACCESS_MEMORY_WRITE_BIT,
-      VK_ACCESS_MEMORY_READ_BIT,
-      oldLayout,
-      newLayout,
-      VK_QUEUE_FAMILY_IGNORED,
-      VK_QUEUE_FAMILY_IGNORED,
-      image,
-      {
-        VK_IMAGE_ASPECT_COLOR_BIT,
-        0,
-        1,
-        0,
-        1
-      }
-    };
-    VkPipelineStageFlags sourceStage, destinationStage;
-
-    if (newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-      barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-
-      if (util::IsFormatStencil(image.getFormat())) {
-        barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-      }
-    }
-    else {
-      barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    }
-
-    if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && (
-          newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)) {
-      barrier.srcAccessMask = 0;
-      barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-      sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-      destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    ) {
-      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-      sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
-      destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-    }
-    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
-      barrier.srcAccessMask = 0;
-      barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-                              VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-
-      sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-      destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
-    }
-      //deelse if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-      //de  barrier.srcAccessMask = 0;
-      //de  barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-      //de
-      //de}
-    else {
-      throw std::invalid_argument("unsupported layout transition!");
-    }
-
-    vkCmdPipelineBarrier(cmdBuff,
-                         sourceStage,
-                         destinationStage,
-                         0,
-                         0,
-                         nullptr,
-                         0,
-                         nullptr,
-                         1,
-                         &barrier);
-  }
-
-  void Renderer::transitionRenderImages() const {
-    CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
-    transBuff.start(true);
-
-    for (auto& image : m_swapchain->getImages()) {
-      transitionImageLayout(transBuff, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-    }
-
-    transBuff.end();
-
-    m_transferQueue->get().submitOne(transBuff);
-    m_transferQueue->get().waitIdle();
-
-    m_transferCmdPool->freeCommandBuffer(transBuff);
-  }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// COMMAND POOLS & BUFFER SETUP
-  /////////////////////////////////////////////////////////////////////////////
-
   void Renderer::setupCommandPools() {
     m_commandPool     = util::make_ptr<CommandPool>(*m_device, m_graphicsQueue->get().getFamily());
     m_transferCmdPool = util::make_ptr<CommandPool>(*m_device, m_transferQueue->get().getFamily());
-  }
-
-  void Renderer::setupCommandBuffers() {
-    size_t imageCount = m_swapchain->getNumImages();
-    m_commandBuffers.reserve(imageCount);
-    for (size_t i = 0; i < imageCount; ++i) {
-      m_commandBuffers.emplace_back(m_commandPool->allocateCommandBuffer());
-    }
-
-    m_deferredCmdBuff = util::make_ptr<util::Ref<CommandBuffer>>(m_commandPool->allocateCommandBuffer());
-  }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// SPECIFIC SETUP /////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// DEPTH TESTING RESOURCES
-  /////////////////////////////////////////////////////////////////////////////
-
-  void Renderer::setupDepthTestResources() {
-    m_depthStencilImage = util::make_ptr<DependentImage>(*m_device);
-    m_depthStencilImage->initImage(VK_IMAGE_TYPE_2D,
-                                   VK_IMAGE_VIEW_TYPE_2D,
-                                   VK_FORMAT_D32_SFLOAT,
-                                   {m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1},
-                                   VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                                   1,
-                                   1,
-                                   false,
-                                   false,
-                                   false,
-                                   false);
-
-    // TODO on MemoryAllocator : remove
-    MemoryAllocator allocator(m_device->getOwningPhysical());
-    m_depthStencilImage->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-    CommandBuffer& transBuff = m_commandPool->allocateCommandBuffer();
-    transBuff.start(true);
-    transitionImageLayout(transBuff,
-                          *m_depthStencilImage,
-                          VK_IMAGE_LAYOUT_UNDEFINED,
-                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
-    transBuff.end();
-    m_graphicsQueue->get().submitOne(transBuff);
-    m_graphicsQueue->get().waitIdle();
-
-    m_commandPool->freeCommandBuffer(transBuff);
-    m_depthStencilView = std::make_shared<ImageView>(m_depthStencilImage->createView(VK_IMAGE_ASPECT_DEPTH_BIT));
-  }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// RENDER STEPS & BACK-BUFFERS SETUP
-  /////////////////////////////////////////////////////////////////////////////
-
-  void Renderer::setupRenderSteps() {
-    GeometryStep geometryStep(*m_device);
-
-    geometryStep.setupShaders();
-    geometryStep.setupDescriptors();
-    geometryStep.setupRenderPass();
-    geometryStep.setupPipelineLayout();
-    geometryStep.setupPipeline(m_swapchain->getImageSize());
-
-    FinalStep finalStep(*m_device);
-
-    finalStep.setupShaders();
-    finalStep.setupDescriptors();
-    finalStep.setupRenderPass();
-    finalStep.setupPipelineLayout();
-    finalStep.setupPipeline(m_swapchain->getImageSize());
-
-    m_deferredPass = std::make_unique<RenderPass>(*m_device);
-    m_deferredPass->reserveAttachments(1);
-    m_deferredPass->reserveSubpasses(1);
-    m_deferredPass->reserveAttachmentRefs(1);
-    m_deferredPass->reserveSubpassDependencies(1);
-
-    for (uint32_t i = 0; i < m_gbufferImages.size(); ++i) {
-      m_deferredPass->addAttachment(m_gbufferImages[i].getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
-                                                                         VK_ATTACHMENT_STORE_OP_STORE,
-                                                                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
-      m_deferredPass->addAttachmentRef(i, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
-    }
-
-    m_deferredPass->addAttachment(m_depthStencilImage->getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
-                                                                         VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                                                                         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL));
-    m_deferredPass->addAttachmentRef(m_gbufferImages.size(),
-                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-                                     RenderPass::arfDepthStencil);
-    m_deferredPass->finishSubpass();
-
-    m_deferredPass->addSubpassDependency({
-                                           VK_SUBPASS_EXTERNAL,
-                                           0,
-                                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                           VK_ACCESS_MEMORY_READ_BIT,
-                                           VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                           VK_DEPENDENCY_BY_REGION_BIT
-                                         });
-
-    m_deferredPass->addSubpassDependency({
-                                           0,
-                                           VK_SUBPASS_EXTERNAL,
-                                           VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                           VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                           VK_ACCESS_MEMORY_READ_BIT,
-                                           VK_DEPENDENCY_BY_REGION_BIT
-                                         });
-
-    m_deferredPass->finishRenderPass();
-
-    // final pass (fsq)
-    m_finalPass = util::make_ptr<RenderPass>(*m_device);
-    m_finalPass->addAttachment(m_swapchain->getImageAttachmentDesc());
-    m_finalPass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
-
-    /*for (uint32_t i = 0; i < m_gbufferImages.size(); ++i) {
-      m_finalPass->addAttachment(m_gbufferImages[i].getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_LOAD,
-                                                                      VK_ATTACHMENT_STORE_OP_STORE,
-                                                                      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                                                      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
-      m_finalPass->addInputRef(i + 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    }*/
-
-    m_finalPass->finishSubpass();
-
-    m_finalPass->addSubpassDependency({
-                                        VK_SUBPASS_EXTERNAL,
-                                        0,
-                                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                        VK_ACCESS_MEMORY_WRITE_BIT,
-                                        VK_ACCESS_SHADER_READ_BIT,
-                                        VK_DEPENDENCY_BY_REGION_BIT
-                                      });
-
-    m_finalPass->addSubpassDependency({
-                                        0,
-                                        VK_SUBPASS_EXTERNAL,
-                                        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                        VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                                        VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                        VK_ACCESS_MEMORY_READ_BIT,
-                                        VK_DEPENDENCY_BY_REGION_BIT
-                                      });
-
-    m_finalPass->finishRenderPass();
-  }
-
-  void Renderer::setupSwapChainFrameBuffers() const {
-    // this is preferred when we are only using a color attachment on the output
-    // framebuffers, e.g., when you are just rendering a FSQ to do the final lighting pass
-    // and the backbuffer is just the final location in the rendering chain.
-    //m_swapchain->createFramebuffers(*m_renderPass);
-
-    // this method is used when you want additional attachments on each framebuffer.
-    std::vector<Framebuffer> framebuffers;
-    framebuffers.reserve(m_swapchain->getNumImages());
-
-    for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
-      std::vector<VkImageView> views(1);
-      views.at(0) = m_swapchain->getViews()[i];
-
-      framebuffers.emplace_back(*m_device,
-                                *m_finalPass,
-                                views,
-                                VkExtent3D{m_surface->getWidth(), m_surface->getHeight(), 1});
-    }
-
-    m_swapchain->setFramebuffers(std::move(framebuffers));
-  }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// GBUFFER & SAMPLERS SETUP
-  /////////////////////////////////////////////////////////////////////////////
-
-  void Renderer::setupGBufferImages() {
-    static constexpr unsigned GBUFFER_IMAGE_COUNT = 3; // pos, normal, albedo
-
-    m_gbufferImages.reserve(GBUFFER_IMAGE_COUNT);
-    m_gbufferViews.reserve(GBUFFER_IMAGE_COUNT);
-
-    VkExtent3D gbuffExtent = {m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1};
-    for (unsigned i = 0; i < GBUFFER_IMAGE_COUNT; ++i) {
-      m_gbufferImages.emplace_back(*m_device).initImage(VK_IMAGE_TYPE_2D,
-                                                        VK_IMAGE_VIEW_TYPE_2D,
-                                                        VK_FORMAT_R32G32B32A32_SFLOAT,
-                                                        gbuffExtent,
-                                                        VK_IMAGE_USAGE_SAMPLED_BIT |
-                                                        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-                                                        1,
-                                                        1,
-                                                        false,
-                                                        false,
-                                                        false,
-                                                        false);
-      MemoryAllocator allocator(m_device->getOwningPhysical());
-      m_gbufferImages.back().back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-      m_gbufferViews.emplace_back(m_gbufferImages.back().createView());
-    }
-  }
-
-  void Renderer::setupGBufferFrameBuffer() {
-    std::vector<VkImageView> gbufferViews;
-    gbufferViews.reserve(m_gbufferViews.size() + 1);
-
-    for (auto& view : m_gbufferViews) {
-      gbufferViews.emplace_back(view);
-    }
-
-    gbufferViews.emplace_back(*m_depthStencilView);
-
-    VkExtent3D gbuffExtent = {m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1};
-    m_gbuffer              = util::make_ptr<Framebuffer>(*m_device, *m_deferredPass, gbufferViews, gbuffExtent);
   }
 
 
@@ -1080,10 +650,478 @@ namespace dw {
       throw std::runtime_error("Could not create sampler");
   }
 
+  void Renderer::setupUniformBuffers() {
+    VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
+
+    m_cameraUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
+  }
+
+  void Renderer::setupFrameBufferImages() {
+    VkExtent3D gbuffExtent = { m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1 };
+
+    m_gbuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
+
+    for (uint32_t i = 0; i < RenderStep::NUM_EXPECTED_GBUFFER_IMAGES; ++i)
+      m_gbuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        gbuffExtent,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
+
+    m_gbuffer->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
+      VK_IMAGE_TYPE_2D,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_D32_SFLOAT,
+      gbuffExtent,
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      1,
+      1,
+      false,
+      false,
+      false,
+      false);
+  }
+
+  void Renderer::setupRenderSteps() {
+    m_geometryStep = util::make_ptr<GeometryStep>(*m_device, *m_commandPool);
+
+    m_geometryStep->setupShaders();
+    m_geometryStep->setupDescriptors();
+    m_geometryStep->setupRenderPass({ m_gbuffer->getImages().begin(), m_gbuffer->getImages().end() });
+    m_geometryStep->setupPipelineLayout();
+    m_geometryStep->setupPipeline(m_swapchain->getImageSize());
+
+    m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_commandPool, m_swapchain->getNumImages());
+
+    m_finalStep->setupShaders();
+    m_finalStep->setupDescriptors();
+    m_finalStep->setupRenderPass({m_swapchain->getImages()[0]});
+    m_finalStep->setupPipelineLayout();
+    m_finalStep->setupPipeline(m_swapchain->getImageSize());
+
+    //m_deferredPass = std::make_unique<RenderPass>(*m_device);
+    //m_deferredPass->reserveAttachments(1);
+    //m_deferredPass->reserveSubpasses(1);
+    //m_deferredPass->reserveAttachmentRefs(1);
+    //m_deferredPass->reserveSubpassDependencies(1);
+
+    //for (uint32_t i = 0; i < m_gbufferImages.size(); ++i) {
+    //  m_deferredPass->addAttachment(m_gbufferImages[i].getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
+    //                                                                     VK_ATTACHMENT_STORE_OP_STORE,
+    //                                                                     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+    //  m_deferredPass->addAttachmentRef(i, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
+    //}
+
+    //m_deferredPass->addAttachment(m_depthStencilImage->getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
+    //                                                                     VK_ATTACHMENT_STORE_OP_DONT_CARE,
+    //                                                                     VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL));
+    //m_deferredPass->addAttachmentRef(m_gbufferImages.size(),
+    //                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+    //                                 RenderPass::arfDepthStencil);
+    //m_deferredPass->finishSubpass();
+
+    //m_deferredPass->addSubpassDependency({
+    //                                       VK_SUBPASS_EXTERNAL,
+    //                                       0,
+    //                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    //                                       VK_ACCESS_MEMORY_READ_BIT,
+    //                                       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    //                                       VK_DEPENDENCY_BY_REGION_BIT
+    //                                     });
+
+    //m_deferredPass->addSubpassDependency({
+    //                                       0,
+    //                                       VK_SUBPASS_EXTERNAL,
+    //                                       VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    //                                       VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                                       VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    //                                       VK_ACCESS_MEMORY_READ_BIT,
+    //                                       VK_DEPENDENCY_BY_REGION_BIT
+    //                                     });
+
+    //m_deferredPass->finishRenderPass();
+
+    //// final pass (fsq)
+    //m_finalPass = util::make_ptr<RenderPass>(*m_device);
+    //m_finalPass->addAttachment(m_swapchain->getImageAttachmentDesc());
+    //m_finalPass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
+
+    ///*for (uint32_t i = 0; i < m_gbufferImages.size(); ++i) {
+    //  m_finalPass->addAttachment(m_gbufferImages[i].getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_LOAD,
+    //                                                                  VK_ATTACHMENT_STORE_OP_STORE,
+    //                                                                  VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    //                                                                  VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL));
+    //  m_finalPass->addInputRef(i + 1, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    //}*/
+
+    //m_finalPass->finishSubpass();
+
+    //m_finalPass->addSubpassDependency({
+    //                                    VK_SUBPASS_EXTERNAL,
+    //                                    0,
+    //                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+    //                                    VK_ACCESS_MEMORY_WRITE_BIT,
+    //                                    VK_ACCESS_SHADER_READ_BIT,
+    //                                    VK_DEPENDENCY_BY_REGION_BIT
+    //                                  });
+
+    //m_finalPass->addSubpassDependency({
+    //                                    0,
+    //                                    VK_SUBPASS_EXTERNAL,
+    //                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+    //                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+    //                                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+    //                                    VK_ACCESS_MEMORY_READ_BIT,
+    //                                    VK_DEPENDENCY_BY_REGION_BIT
+    //                                  });
+
+    //m_finalPass->finishRenderPass();
+  }
+  
+  void Renderer::setupFrameBuffers() {
+    m_gbuffer->finalize(m_geometryStep->getRenderPass());
+
+    // this is preferred when we are only using a color attachment on the output
+    // framebuffers, e.g., when you are just rendering a FSQ to do the final lighting pass
+    // and the backbuffer is just the final location in the rendering chain.
+    //m_swapchain->createFramebuffers(*m_renderPass);
+
+    // this method is used when you want additional attachments on each framebuffer.
+    std::vector<Framebuffer> framebuffers;
+    framebuffers.reserve(m_swapchain->getNumImages());
+
+    for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
+      framebuffers.emplace_back(*m_device,
+        m_finalStep->getRenderPass(),
+        std::vector<VkImageView>{m_swapchain->getViews()[i]},
+        VkExtent3D{ m_surface->getWidth(), m_surface->getHeight(), 1 });
+    }
+
+    m_swapchain->setFramebuffers(std::move(framebuffers));
+
+    //std::vector<VkImageView> gbufferViews;
+    //gbufferViews.reserve(m_gbufferViews.size() + 1);
+    //
+    //for (auto& view : m_gbufferViews) {
+    //  gbufferViews.emplace_back(view);
+    //}
+    //
+    //gbufferViews.emplace_back(*m_depthStencilView);
+    //
+    //m_gbuffer              = util::make_ptr<Framebuffer>(*m_device, *m_deferredPass, gbufferViews, gbuffExtent);
+  }
+
+  void Renderer::transitionRenderImages() const {
+    CommandBuffer& transBuff = m_transferCmdPool->allocateCommandBuffer();
+    transBuff.start(true);
+
+    for (auto& image : m_swapchain->getImages()) {
+      transitionImageLayout(transBuff, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+    }
+
+    transBuff.end();
+    m_transferQueue->get().submitOne(transBuff);
+    m_transferQueue->get().waitIdle();
+
+    m_transferCmdPool->freeCommandBuffer(transBuff);
+
+    CommandBuffer& graphicsBuff = m_commandPool->allocateCommandBuffer();
+    graphicsBuff.start(true);
+
+    const Image& depthImage = dynamic_cast<const Image&>(m_gbuffer->getImages().back());
+    transitionImageLayout(graphicsBuff, depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+
+    graphicsBuff.end();
+    m_graphicsQueue->get().submitOne(graphicsBuff);
+    m_graphicsQueue->get().waitIdle();
+
+    m_commandPool->freeCommandBuffer(graphicsBuff);
+  }
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
-  //// SHADER LOADING, UBO & DESCRIPTOR SET CREATION
+  //// FACTORED OUT
   /////////////////////////////////////////////////////////////////////////////
+  /// The following functions have been refactored into two separate
+  /// RenderSteps and should no longer be called.
+
+  void Renderer::updateDescriptorSets() {
+    // Descriptor sets are automatically freed once the pool is freed.
+    // They can be individually freed if the pool was created with
+    // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
+    VkDescriptorBufferInfo modelUBOinfo = m_modelUBO->getDescriptorInfo();
+    modelUBOinfo.range = sizeof(ObjectUniform);
+
+
+    std::vector<VkWriteDescriptorSet> descriptorWrites;
+    descriptorWrites.reserve(2 + m_finalDescSets.size() * (m_gbufferViews.size() + 2));
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_deferredDescSet,
+                                 0,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &m_cameraUBO->getDescriptorInfo(),
+                                 nullptr
+      });
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_deferredDescSet,
+                                 1,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                 nullptr,
+                                 &modelUBOinfo,
+                                 nullptr
+      });
+
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    imageInfos.reserve(m_gbufferViews.size());
+    for (uint32_t i = 0; i < m_gbufferViews.size(); ++i) {
+      imageInfos.push_back({ m_sampler, m_gbufferViews[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
+    }
+
+    for (auto& set : m_finalDescSets) {
+      descriptorWrites.push_back({
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   set,
+                                   0,
+                                   0,
+                                   1,
+                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   nullptr,
+                                   &m_cameraUBO->getDescriptorInfo(),
+                                   nullptr
+        });
+
+      for (uint32_t j = 0; j < m_gbufferViews.size(); ++j) {
+        descriptorWrites.push_back({
+                                     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                     nullptr,
+                                     set,
+                                     j + 1,
+                                     0,
+                                     1,
+                                     VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                     &imageInfos[j],
+                                     nullptr,
+                                     nullptr
+          });
+      }
+
+      descriptorWrites.push_back({
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   set,
+                                   4,
+                                   0,
+                                   1,
+                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   nullptr,
+                                   &m_lightsUBO->getDescriptorInfo(),
+                                   nullptr
+        });
+    }
+
+    vkUpdateDescriptorSets(*m_device,
+      static_cast<uint32_t>(descriptorWrites.size()),
+      descriptorWrites.data(),
+      0,
+      nullptr);
+  }
+
+  void Renderer::writeDeferredCommandBuffer() {
+    // 1: deferred pass
+    if (!m_objList.empty()) {
+      std::array<VkClearValue, 4> clearValues{};
+      clearValues[0].color = { {0, 0, 0, 0} };
+      clearValues[1].color = { {0} };
+      clearValues[2].color = { {0} };
+      clearValues[3].depthStencil = { 1.f, 0 };
+
+      auto& commandBuff = m_deferredCmdBuff->get();
+      commandBuff.start(false);
+      VkRenderPassBeginInfo beginInfo = {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        *m_deferredPass,
+        *m_gbuffer,
+        {{0, 0}, m_swapchain->getImageSize()},
+        static_cast<uint32_t>(clearValues.size()),
+        clearValues.data()
+      };
+
+
+      vkCmdBindPipeline(commandBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, m_deferredPipeline);
+      vkCmdBeginRenderPass(commandBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+      Mesh* curMesh = nullptr;
+
+      for (uint32_t j = 0; j < m_objList.size(); ++j) {
+        auto& obj = m_objList.at(j);
+
+        if (!curMesh || !(obj.get().m_mesh.get() == *curMesh)) {
+          curMesh = &obj.get().m_mesh.get();
+
+          const VkBuffer& buff = curMesh->getVertexBuffer();
+          const VkDeviceSize offset = 0;
+          vkCmdBindVertexBuffers(commandBuff, 0, 1, &buff, &offset);
+          vkCmdBindIndexBuffer(commandBuff, curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+        }
+
+        // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
+        uint32_t dynamicOffset = j * static_cast<uint32_t>(m_modelUBOdynamicAlignment);
+        vkCmdBindDescriptorSets(commandBuff,
+          VK_PIPELINE_BIND_POINT_GRAPHICS,
+          m_deferredPipeLayout,
+          0,
+          1,
+          &m_deferredDescSet,
+          1,
+          &dynamicOffset);
+
+        vkCmdDrawIndexed(commandBuff, curMesh->getNumIndices(), 1, 0, 0, 0);
+      }
+
+      vkCmdEndRenderPass(commandBuff);
+      commandBuff.end();
+    }
+  }
+
+  void Renderer::writeFinalCommandBuffer() {
+    // 2: final pass
+    const auto count = m_swapchain->getNumImages();
+
+    std::array<VkClearValue, 2> clearValues{};
+    clearValues[0].color = { {0, 0, 0, 0} };
+    auto& framebuffers = m_swapchain->getFrameBuffers();
+    for (size_t i = 0; i < count; ++i) {
+      auto& commandBuffer = m_commandBuffers[i].get();
+
+      VkRenderPassBeginInfo beginInfo = {
+        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        nullptr,
+        *m_finalPass,
+        framebuffers[i],
+        {{0, 0}, m_swapchain->getImageSize()},
+        static_cast<uint32_t>(clearValues.size()),
+        clearValues.data()
+      };
+
+      commandBuffer.start(false);
+      vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, m_finalPipeline);
+      vkCmdBindDescriptorSets(commandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        m_finalPipeLayout,
+        0,
+        1,
+        &m_finalDescSets[i],
+        0,
+        nullptr);
+      vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+      vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+      vkCmdEndRenderPass(commandBuffer);
+      commandBuffer.end();
+    }
+  }
+
+
+  void Renderer::setupDepthTestResources() {
+    m_depthStencilImage = util::make_ptr<DependentImage>(*m_device);
+    m_depthStencilImage->initImage(VK_IMAGE_TYPE_2D,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_D32_SFLOAT,
+      { m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1 },
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      1,
+      1,
+      false,
+      false,
+      false,
+      false);
+
+    // TODO on MemoryAllocator : remove
+    MemoryAllocator allocator(m_device->getOwningPhysical());
+    m_depthStencilImage->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    CommandBuffer& transBuff = m_commandPool->allocateCommandBuffer();
+    transBuff.start(true);
+    transitionImageLayout(transBuff,
+      *m_depthStencilImage,
+      VK_IMAGE_LAYOUT_UNDEFINED,
+      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    transBuff.end();
+    m_graphicsQueue->get().submitOne(transBuff);
+    m_graphicsQueue->get().waitIdle();
+
+    m_commandPool->freeCommandBuffer(transBuff);
+    m_depthStencilView = std::make_shared<ImageView>(m_depthStencilImage->createView(VK_IMAGE_ASPECT_DEPTH_BIT));
+  }
+
+  void Renderer::setupCommandBuffers() {
+    size_t imageCount = m_swapchain->getNumImages();
+    m_commandBuffers.reserve(imageCount);
+    for (size_t i = 0; i < imageCount; ++i) {
+      m_commandBuffers.emplace_back(m_commandPool->allocateCommandBuffer());
+    }
+
+    m_deferredCmdBuff = util::make_ptr<util::Ref<CommandBuffer>>(m_commandPool->allocateCommandBuffer());
+  }
+
+  void Renderer::setupGBufferImages() {
+    static constexpr unsigned GBUFFER_IMAGE_COUNT = RenderStep::NUM_EXPECTED_GBUFFER_IMAGES; // pos, normal, albedo
+
+    VkExtent3D gbuffExtent = { m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1 };
+    m_gbuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+      VK_IMAGE_TYPE_2D,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_R32G32B32A32_SFLOAT,
+      gbuffExtent,
+      VK_IMAGE_USAGE_SAMPLED_BIT |
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      1,
+      1,
+      false,
+      false,
+      false,
+      false);
+
+    m_gbufferImages.reserve(GBUFFER_IMAGE_COUNT);
+    m_gbufferViews.reserve(GBUFFER_IMAGE_COUNT);
+
+    for (unsigned i = 0; i < GBUFFER_IMAGE_COUNT; ++i) {
+      m_gbufferImages.emplace_back(*m_device).initImage(VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        gbuffExtent,
+        VK_IMAGE_USAGE_SAMPLED_BIT |
+        VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
+      MemoryAllocator allocator(m_device->getOwningPhysical());
+      m_gbufferImages.back().back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+      m_gbufferViews.emplace_back(m_gbufferImages.back().createView());
+    }
+  }
 
   void Renderer::setupShaders() {
     m_triangleVertShader = util::make_ptr<Shader<ShaderStage::Vertex>>(ShaderModule::Load(*m_device,
@@ -1093,12 +1131,6 @@ namespace dw {
 
     m_fsqVertShader = util::make_ptr<Shader<ShaderStage::Vertex>>(ShaderModule::Load(*m_device, "fsq_vert.spv"));
     m_fsqFragShader = util::make_ptr<Shader<ShaderStage::Fragment>>(ShaderModule::Load(*m_device, "fsq_frag.spv"));
-  }
-
-  void Renderer::setupUniformBuffers() {
-    VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
-
-    m_cameraUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
   }
 
   void Renderer::setupDescriptors() {
@@ -1265,11 +1297,6 @@ namespace dw {
 
     // Descriptor sets are updated once the scene is set
   }
-
-  /////////////////////////////////////////////////////////////////////////////
-  /////////////////////////////////////////////////////////////////////////////
-  //// PIPELINES SETUP
-  /////////////////////////////////////////////////////////////////////////////
 
   void Renderer::setupPipeline() {
     auto vertexAttributes = Vertex::GetBindingAttributes();

@@ -20,7 +20,7 @@
 #define DW_TRACE_VK_INL
 
 #include "Trace.h"
-#include <vulkan/vulkan.h>
+#include "Vulkan.h"
 #include <vector>
 
 template <>

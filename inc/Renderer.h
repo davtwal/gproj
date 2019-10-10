@@ -31,6 +31,9 @@
 
 namespace dw {
   //class Camera;
+  class GeometryStep;
+  class FinalStep;
+
   class PhysicalDevice;
   class VulkanControl;
   class GLFWWindow;
@@ -75,7 +78,6 @@ namespace dw {
     void setScene(SceneContainer const& objects);
     void setDynamicLights(LightContainer const& lights);
     void setCamera(util::Ref<Camera> camera);
-    void setDebugDraw(bool enabled);
 
     void drawFrame();
 
@@ -93,31 +95,32 @@ namespace dw {
     void setupSurface();
     void setupSwapChain();
     void setupCommandPools();
-    void setupCommandBuffers();
 
     // specific to the rendering engine & what i support setup
-    void setupGBufferImages();
-    void setupDepthTestResources();
-    void transitionRenderImages() const;
-    void setupRenderSteps();
-    void setupDescriptors();
-    void setupUniformBuffers();
     void setupSamplers();
-    void setupShaders();
-    void setupPipeline();
-
-    void setupGBufferFrameBuffer();
-    void setupSwapChainFrameBuffers() const;
+    void setupUniformBuffers();
+    void setupFrameBufferImages();
+    void setupRenderSteps();
+    void setupFrameBuffers();
+    void transitionRenderImages() const;
 
     // specific to the current scene
-    void writeDeferredCommandBuffer();
-    void writeFinalCommandBuffer();
     void releasePreviousDynamicUniforms();
     void prepareDynamicUniformBuffers();
-    void updateDescriptorSets();
 
     // called every frame
     void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
+
+    // factored out
+    void setupPipeline();
+    void setupCommandBuffers();
+    void setupGBufferImages();
+    void setupDepthTestResources();
+    void setupDescriptors();
+    void setupShaders();
+    void writeDeferredCommandBuffer();
+    void writeFinalCommandBuffer();
+    void updateDescriptorSets();
 
     // shutdown helpers
     void shutdownScene();
@@ -149,31 +152,35 @@ namespace dw {
     // Almost all of these may/will be replaced with encapsulating
     // classes, e.g. manager or other.
 
+    // global
     VkSampler m_sampler{ nullptr };
+    util::ptr<Buffer> m_modelUBO;
+    util::ptr<Buffer> m_cameraUBO;
+    util::ptr<Buffer> m_lightsUBO;
+
     // gbuffer/deferred pass
+    util::ptr<GeometryStep> m_geometryStep;
+    util::ptr<Framebuffer> m_gbuffer{ nullptr };
+    VkSemaphore m_deferredSemaphore{ nullptr };
+
     std::vector<DependentImage> m_gbufferImages;
     std::vector<ImageView> m_gbufferViews;
     util::ptr<DependentImage> m_depthStencilImage{ nullptr };
     util::ptr<ImageView> m_depthStencilView{ nullptr };
-    util::ptr<Framebuffer> m_gbuffer{ nullptr };
     util::ptr<RenderPass> m_deferredPass{ nullptr };
     util::ptr<util::Ref<CommandBuffer>> m_deferredCmdBuff;
-    util::ptr<Buffer> m_modelUBO;
-    util::ptr<Buffer> m_cameraUBO;
-    util::ptr<Buffer> m_lightsUBO;
     VkPipelineLayout m_deferredPipeLayout{ nullptr };
-    VkPipeline m_deferredPipeline { nullptr };
-
+    VkPipeline m_deferredPipeline{ nullptr };
     util::ptr<IShader>  m_triangleVertShader{ nullptr };
     util::ptr<IShader>  m_triangleFragShader{ nullptr };
-
     VkDescriptorSetLayout m_deferredDescSetLayout{ nullptr };
     VkDescriptorPool m_deferredDescPool{ nullptr };
     VkDescriptorSet m_deferredDescSet{ nullptr };
 
-    VkSemaphore m_deferredSemaphore{ nullptr };
 
     // final fsq pass
+    util::ptr<FinalStep> m_finalStep;
+
     std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
     util::ptr<RenderPass> m_finalPass{ nullptr };
     util::ptr<IShader> m_fsqVertShader{ nullptr };
@@ -190,7 +197,6 @@ namespace dw {
     SceneContainer m_objList;
     size_t m_modelUBOdynamicAlignment {0};
     ObjectUniform* m_modelUBOdata = nullptr;
-    bool m_debugDraw = false;
 
     // Specific, per-swapchain-image variables
 
