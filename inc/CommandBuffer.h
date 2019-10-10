@@ -77,6 +77,8 @@ namespace dw {
     void endRenderpass();
     void end();
 
+    void freeSelf();
+
     // singular submit to a queue.
     void submit(Queue& q);
 

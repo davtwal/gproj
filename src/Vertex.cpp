@@ -17,8 +17,7 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 #include "Vertex.h"
-
-#include <vulkan/vulkan.h>
+#include "Vulkan.h"
 
 namespace dw {
   std::vector<VkVertexInputBindingDescription> Vertex::GetBindingDescriptions() {

@@ -39,16 +39,21 @@ namespace dw {
   class GraphicsPipelineCreator {
   public:
     GraphicsPipelineCreator();
-      VkPipelineVertexInputStateCreateInfo         vertexInput;
-      VkPipelineInputAssemblyStateCreateInfo       inputAssembly;
-      VkPipelineViewportStateCreateInfo            viewport;
-      VkPipelineTessellationStateCreateInfo        tessellation;
-      VkPipelineRasterizationStateCreateInfo       rasterization;
-      VkPipelineMultisampleStateCreateInfo         multisample;
-      VkPipelineDepthStencilStateCreateInfo        depthstencil;
-      VkPipelineColorBlendStateCreateInfo          colorBlend;
-      VkPipelineDynamicStateCreateInfo             dynamic;
-      std::vector<VkPipelineShaderStageCreateInfo> shaders;
+    VkPipelineVertexInputStateCreateInfo         m_vertexInput;
+    VkPipelineInputAssemblyStateCreateInfo       m_inputAssembly;
+    VkPipelineViewportStateCreateInfo            m_viewport;
+    std::vector<VkViewport> m_viewports;
+    std::vector<VkRect2D> m_scissors;
+    VkPipelineTessellationStateCreateInfo        m_tessellation;
+    VkPipelineRasterizationStateCreateInfo       m_rasterization;
+    VkPipelineMultisampleStateCreateInfo         m_multisample;
+    VkPipelineDepthStencilStateCreateInfo        m_depthstencil;
+    VkPipelineColorBlendStateCreateInfo          m_colorBlend;
+    VkPipelineDynamicStateCreateInfo             m_dynamic;
+    std::vector<VkVertexInputBindingDescription> m_bindings;
+    std::vector<VkVertexInputAttributeDescription> m_attribs;
+    std::vector<VkPipelineShaderStageCreateInfo> m_shaders;
+    std::vector<VkPipelineColorBlendAttachmentState> m_colorBlendStates;
 
     /* What can be dynamic in a graphics pipeline:
      *  - Viewport              ViewportState
@@ -107,7 +112,7 @@ namespace dw {
 
     // SETUP PIPELINE
     // 
-
+    //GraphicsPipelineCreator& reset();
 
     // VERTEX INPUT
     void setVertexType(std::vector<VkVertexInputBindingDescription> const&   bindings,
@@ -126,11 +131,9 @@ namespace dw {
                                    float             minDepth = 0.f,
                                    float             maxDepth = 1.f);
     GraphicsPipelineCreator& setViewport(VkViewport const& viewport);                 // Default: {0,0}, {100,100}, 0, 1
-    GraphicsPipelineCreator&
-    setViewports(std::vector<VkViewport> const& viewports);  // Must be the same number as the number of scissors
+    GraphicsPipelineCreator& setViewports(std::vector<VkViewport> const& viewports);  // Must be the same number as the number of scissors
     GraphicsPipelineCreator& setScissor(VkRect2D const& scissor);                 // Default: {0, 0}, {100, 100}
-    GraphicsPipelineCreator&
-    setScissors(std::vector<VkRect2D> const& scissors);  // Must be the same number as the number of viewports
+    GraphicsPipelineCreator& setScissors(std::vector<VkRect2D> const& scissors);  // Must be the same number as the number of viewports
 
     // RASTERIZER
     GraphicsPipelineCreator& setPolygonMode(VkPolygonMode mode);  // Default: FILL
@@ -152,33 +155,27 @@ namespace dw {
     // DEPTH STENCIL
     GraphicsPipelineCreator& setDepthTesting(bool        enabled,
                                              VkCompareOp compareOp  = VK_COMPARE_OP_LESS,
-                                             bool        boundsTest = false);
-  
-    // COLOR BLEND
-    GraphicsPipelineCreator& setBlendFactor(VkBlendFactor source      = VK_BLEND_FACTOR_SRC_ALPHA,
-                                            VkBlendFactor dest        = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-                                            VkBlendFactor sourceAlpha = VK_BLEND_FACTOR_ONE,
-                                            VkBlendFactor destAlpha   = VK_BLEND_FACTOR_ZERO);
+                                             bool        boundsTest = false,
+                                             bool        depthWrite = true);
+    // TODO: other depth stencil stuff
 
-    GraphicsPipelineCreator& setBlendOps(VkBlendOp color = VK_BLEND_OP_ADD, VkBlendOp alpha = VK_BLEND_OP_ADD);
-    GraphicsPipelineCreator& setColorWriteMask(
-      VkColorComponentFlags flags = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT);
-    GraphicsPipelineCreator& addAttachment();
-    GraphicsPipelineCreator& setBlendConstants(float constants[4]);
-    GraphicsPipelineCreator& setLogicOp(bool enable, VkLogicOp op = VK_LOGIC_OP_COPY);
-  
+    // COLOR BLEND
+    GraphicsPipelineCreator& addAttachment(VkPipelineColorBlendAttachmentState const& attachment);
+    GraphicsPipelineCreator& setAttachments(std::vector<VkPipelineColorBlendAttachmentState> const& attachments);;
+
     // DYNAMIC
+    // TODO
 
     // SHADER STAGES
+    GraphicsPipelineCreator& addShaderStage(VkPipelineShaderStageCreateInfo const& info);
+    GraphicsPipelineCreator& setShaderStages(std::vector<VkPipelineShaderStageCreateInfo> const& infos);
 
     // FINISH
     NO_DISCARD GraphicsPipeline finishCreate(LogicalDevice&   device,
                                              VkPipelineLayout layout,
-                                             RenderPass       renderPass,
+                                             RenderPass&      renderPass,
                                              uint32_t         subPass,
                                              bool             enableDepthStencil = false,
-                                             bool             enableMultisample  = false,
                                              bool             enableTessellation = false,
                                              bool             enableRasterizer   = true);
   };

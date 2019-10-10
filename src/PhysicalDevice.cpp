@@ -17,7 +17,6 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 #include "PhysicalDevice.h"
-#include <vulkan/vulkan.h>
 #include <cassert>
 #include "Trace.h"
 

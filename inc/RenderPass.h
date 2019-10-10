@@ -25,6 +25,7 @@ namespace dw {
   CREATE_DEVICE_DEPENDENT(RenderPass)
   public:
     RenderPass(LogicalDevice& device);
+    ~RenderPass();
 
     void startConstruction();
     void reserveAttachmentRefs(uint32_t num);

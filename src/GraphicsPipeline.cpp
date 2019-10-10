@@ -29,8 +29,9 @@ namespace dw {
 
   GraphicsPipeline::GraphicsPipeline(GraphicsPipeline&& o) noexcept
     : m_device(o.m_device),
-      m_pipeline(o.m_pipeline)
-  {}
+      m_pipeline(o.m_pipeline) {
+    o.m_pipeline = nullptr;
+  }
 
   GraphicsPipeline::GraphicsPipeline(LogicalDevice& device)
     : m_device(device) {

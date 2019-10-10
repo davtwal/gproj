@@ -51,6 +51,7 @@ namespace dw {
     GLFWWindow* m_window{ nullptr };
     Camera    m_camera;
     MeshManager m_meshManager;
+    bool m_displayGBuffer{ false };
   };
 } // namespace dw
 #endif
