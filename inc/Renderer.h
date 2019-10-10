@@ -111,17 +111,6 @@ namespace dw {
     // called every frame
     void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
 
-    // factored out
-    void setupPipeline();
-    void setupCommandBuffers();
-    void setupGBufferImages();
-    void setupDepthTestResources();
-    void setupDescriptors();
-    void setupShaders();
-    void writeDeferredCommandBuffer();
-    void writeFinalCommandBuffer();
-    void updateDescriptorSets();
-
     // shutdown helpers
     void shutdownScene();
 
@@ -163,33 +152,8 @@ namespace dw {
     util::ptr<Framebuffer> m_gbuffer{ nullptr };
     VkSemaphore m_deferredSemaphore{ nullptr };
 
-    std::vector<DependentImage> m_gbufferImages;
-    std::vector<ImageView> m_gbufferViews;
-    util::ptr<DependentImage> m_depthStencilImage{ nullptr };
-    util::ptr<ImageView> m_depthStencilView{ nullptr };
-    util::ptr<RenderPass> m_deferredPass{ nullptr };
-    util::ptr<util::Ref<CommandBuffer>> m_deferredCmdBuff;
-    VkPipelineLayout m_deferredPipeLayout{ nullptr };
-    VkPipeline m_deferredPipeline{ nullptr };
-    util::ptr<IShader>  m_triangleVertShader{ nullptr };
-    util::ptr<IShader>  m_triangleFragShader{ nullptr };
-    VkDescriptorSetLayout m_deferredDescSetLayout{ nullptr };
-    VkDescriptorPool m_deferredDescPool{ nullptr };
-    VkDescriptorSet m_deferredDescSet{ nullptr };
-
-
     // final fsq pass
     util::ptr<FinalStep> m_finalStep;
-
-    std::vector<util::Ref<CommandBuffer>> m_commandBuffers;
-    util::ptr<RenderPass> m_finalPass{ nullptr };
-    util::ptr<IShader> m_fsqVertShader{ nullptr };
-    util::ptr<IShader> m_fsqFragShader{ nullptr };
-    VkPipeline m_finalPipeline{ nullptr };
-    VkPipelineLayout m_finalPipeLayout{ nullptr };
-    VkDescriptorSetLayout m_finalDescSetLayout{ nullptr };
-    VkDescriptorPool m_finalDescPool{ nullptr };
-    std::vector<VkDescriptorSet> m_finalDescSets;
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };

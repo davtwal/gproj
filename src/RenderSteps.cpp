@@ -604,7 +604,7 @@ namespace dw {
                          extent
                        });
 
-    creator.setFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
+    creator.setFrontFace(VK_FRONT_FACE_CLOCKWISE);
     creator.setShaderStages({m_vertexShader->getCreateInfo(), m_fragmentShader->getCreateInfo()});
 
     m_pipeline = util::make_ptr<GraphicsPipeline>(
@@ -713,6 +713,4 @@ namespace dw {
                            0,
                            nullptr);
   }
-
-
 }

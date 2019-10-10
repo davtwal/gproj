@@ -27,6 +27,16 @@ namespace dw {
     startConstruction();
   }
 
+  RenderPass::RenderPass(RenderPass&& o) noexcept
+    : m_device(o.m_device), m_pass(o.m_pass) {
+    o.m_pass = nullptr;
+  }
+
+  RenderPass::~RenderPass() {
+    destroy();
+  }
+
+
   void RenderPass::addAttachment(VkAttachmentDescription const& desc) {
     if(m_conInf) {
       m_conInf->attachments.push_back(desc);

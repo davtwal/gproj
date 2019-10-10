@@ -40,6 +40,12 @@ namespace dw {
   }
 
   LogicalDevice::~LogicalDevice() {
+    for(auto& queueFam : m_queues) {
+      for(auto& queue : queueFam ) {
+        queue.stop(nullptr);
+      }
+    }
+
     vkDeviceWaitIdle(m_device);
     vkDestroyDevice(m_device, nullptr);
   }
