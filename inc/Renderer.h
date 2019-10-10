@@ -75,6 +75,7 @@ namespace dw {
     void setScene(SceneContainer const& objects);
     void setDynamicLights(LightContainer const& lights);
     void setCamera(util::Ref<Camera> camera);
+    void setDebugDraw(bool enabled);
 
     void drawFrame();
 
@@ -109,7 +110,8 @@ namespace dw {
     void setupSwapChainFrameBuffers() const;
 
     // specific to the current scene
-    void writeCommandBuffers();
+    void writeDeferredCommandBuffer();
+    void writeFinalCommandBuffer();
     void releasePreviousDynamicUniforms();
     void prepareDynamicUniformBuffers();
     void updateDescriptorSets();
@@ -188,6 +190,7 @@ namespace dw {
     SceneContainer m_objList;
     size_t m_modelUBOdynamicAlignment {0};
     ObjectUniform* m_modelUBOdata = nullptr;
+    bool m_debugDraw = false;
 
     // Specific, per-swapchain-image variables
 

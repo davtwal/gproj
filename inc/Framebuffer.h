@@ -32,6 +32,8 @@ namespace dw {
     operator VkFramebuffer() const;
     operator VkFramebuffer();
 
+    NO_DISCARD VkExtent2D getExtent() const;
+
   private:
     VkFramebuffer m_framebuffer{ nullptr };
     std::vector<VkImage> m_images;

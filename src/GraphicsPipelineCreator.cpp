@@ -70,7 +70,7 @@ namespace dw {
       false,
       VK_POLYGON_MODE_FILL,
       VK_CULL_MODE_BACK_BIT,
-      VK_FRONT_FACE_CLOCKWISE,
+      VK_FRONT_FACE_COUNTER_CLOCKWISE,
       false,
       0.f,
       0.f,

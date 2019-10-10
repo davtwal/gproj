@@ -36,6 +36,8 @@
 #include <stdlib.h>
 #include "Light.h"
 
+#include "RenderSteps.h"
+
 // Wrapper functions for aligned memory allocation
 // There is currently no standard for this in C++ that works across all platforms and vendors, so we abstract this
 void* alignedAlloc(size_t size, size_t alignment) {
@@ -316,9 +318,9 @@ namespace dw {
     memcpy(data, m_modelUBOdata, m_modelUBO->getSize());
     m_modelUBO->unMap();
 
-    data = m_lightsUBO->map();
+    data                   = m_lightsUBO->map();
     LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
-    for (size_t i = 0; i < m_lights.size(); ++i)
+    for (size_t i     = 0; i < m_lights.size(); ++i)
       lightUBOdata[i] = m_lights[i].get().getAsUBO();
     m_lightsUBO->unMap();
 
@@ -347,7 +349,8 @@ namespace dw {
     m_lightsUBO.reset();
 
     VkDeviceSize lightUniformSize = sizeof(LightUBO);
-    m_lightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, lightUniformSize * lights.size()));
+    m_lightsUBO                   = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+                                                                                 lightUniformSize * lights.size()));
   }
 
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
@@ -358,7 +361,7 @@ namespace dw {
 
     prepareDynamicUniformBuffers();
     updateDescriptorSets();
-    writeCommandBuffers();
+    writeDeferredCommandBuffer();
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
@@ -451,17 +454,17 @@ namespace dw {
       }
 
       descriptorWrites.push_back({
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        set,
-        4,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &m_lightsUBO->getDescriptorInfo(),
-        nullptr
-        });
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   set,
+                                   4,
+                                   0,
+                                   1,
+                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   nullptr,
+                                   &m_lightsUBO->getDescriptorInfo(),
+                                   nullptr
+                                 });
     }
 
     vkUpdateDescriptorSets(*m_device,
@@ -471,10 +474,7 @@ namespace dw {
                            nullptr);
   }
 
-  void Renderer::writeCommandBuffers() {
-
-    const auto count = m_swapchain->getNumImages();
-
+  void Renderer::writeDeferredCommandBuffer() {
     // 1: deferred pass
     if (!m_objList.empty()) {
       std::array<VkClearValue, 4> clearValues{};
@@ -530,16 +530,18 @@ namespace dw {
       vkCmdEndRenderPass(commandBuff);
       commandBuff.end();
     }
+  }
 
+
+  void Renderer::writeFinalCommandBuffer() {
     // 2: final pass
+    const auto count = m_swapchain->getNumImages();
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = {{0, 0, 0, 0}};
     auto& framebuffers   = m_swapchain->getFrameBuffers();
     for (size_t i = 0; i < count; ++i) {
       auto& commandBuffer = m_commandBuffers[i].get();
-  
-      //auto pfnpush = (PFN_vkCmdPushDescriptorSetKHR)vkGetDeviceProcAddr(*m_device, "vkCmdPushDescriptorSetKHR");
 
       VkRenderPassBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -809,10 +811,6 @@ namespace dw {
       transitionImageLayout(transBuff, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     }
 
-    //for (auto& image : m_gbufferImages) {
-    //  transitionImageLayout(transBuff, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-    //}
-
     transBuff.end();
 
     m_transferQueue->get().submitOne(transBuff);
@@ -890,6 +888,22 @@ namespace dw {
   /////////////////////////////////////////////////////////////////////////////
 
   void Renderer::setupRenderSteps() {
+    GeometryStep geometryStep(*m_device);
+
+    geometryStep.setupShaders();
+    geometryStep.setupDescriptors();
+    geometryStep.setupRenderPass();
+    geometryStep.setupPipelineLayout();
+    geometryStep.setupPipeline(m_swapchain->getImageSize());
+
+    FinalStep finalStep(*m_device);
+
+    finalStep.setupShaders();
+    finalStep.setupDescriptors();
+    finalStep.setupRenderPass();
+    finalStep.setupPipelineLayout();
+    finalStep.setupPipeline(m_swapchain->getImageSize());
+
     m_deferredPass = std::make_unique<RenderPass>(*m_device);
     m_deferredPass->reserveAttachments(1);
     m_deferredPass->reserveSubpasses(1);
@@ -1084,7 +1098,7 @@ namespace dw {
   void Renderer::setupUniformBuffers() {
     VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
 
-    m_cameraUBO                    = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
+    m_cameraUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
   }
 
   void Renderer::setupDescriptors() {
@@ -1162,7 +1176,8 @@ namespace dw {
 
     // SAMPLERS
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.resize(m_gbufferImages.size() + 2); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
+    finalBindings.
+        resize(m_gbufferImages.size() + 2); // one sampler per gbuffer image + one view eye/view dir UBO + one for light UBO
     finalBindings.front() = {
       0,
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -1486,6 +1501,15 @@ namespace dw {
 
     VkViewport finalViewport     = {0, 0, m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 0, 1};
     viewportStateInfo.pViewports = &finalViewport;
+
+    VkDynamicState                   viewportDynamic  = VK_DYNAMIC_STATE_VIEWPORT;
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
+      VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      &viewportDynamic
+    };
 
     rasterizerInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 
