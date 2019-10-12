@@ -51,11 +51,9 @@ namespace dw {
     Image(Image const&) = delete;
     Image& operator=(Image const&) = delete;
 
-    Image(Image&& o);
+    Image(Image&& o) noexcept;
 
     static DependentImage Load(LogicalDevice& device, std::string const& filename, uint32_t maxMipLevels = 100);
-
-    DependentImage createStaging();
 
     // Views
     NO_DISCARD ImageView createView(VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -91,9 +89,7 @@ namespace dw {
                                     VkComponentMapping const& mapping         = {}) const;
 
     operator VkImage() const;
-
-    //void init1D(VkFormat format, uint32_t width, bool );
-
+    
     void initImage(VkImageType       type,     // 1D, 2D, or 3D
                    VkImageViewType   intendedViewType,
                    VkFormat          format,      // format

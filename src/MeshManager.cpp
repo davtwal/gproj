@@ -17,6 +17,8 @@
 #include "Renderer.h"
 #include "Trace.h"
 #include <algorithm>
+#include <filesystem>
+namespace fs = std::filesystem;
 
 namespace dw {
   void MeshManager::clear() {
@@ -80,7 +82,8 @@ namespace dw {
     std::string warnString;
     std::string errString;
 
-    bool worked = LoadObj(&attributes, &shapes, &materials, &warnString, &errString, filename.c_str());
+    fs::path mtlPath = fs::current_path() / "data" / "materials";
+    bool worked = LoadObj(&attributes, &shapes, &materials, &warnString, &errString, filename.c_str(), mtlPath.generic_string().c_str());
 
     if (!errString.empty())
       Trace::Error << "Model Loading Error: " << errString << Trace::Stop;

@@ -22,6 +22,7 @@
 #include "Utils.h"
 #include "Mesh.h"
 #include "MyMath.h"
+#include <functional>
 
 namespace dw {
   class Object {
@@ -42,7 +43,7 @@ namespace dw {
     util::Ref<Mesh> m_mesh;
 
     // behavior
-    using BehaviorFn = void(*)(Object & o, float curTime, float dt);
+    using BehaviorFn = std::function<void(Object &, float, float)>;
 
     BehaviorFn m_behavior;
 

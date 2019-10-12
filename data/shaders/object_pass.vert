@@ -27,9 +27,12 @@ layout(location = 4) out vec2 outUV;
 layout(location = 5) out vec3 outColor;
 
 void main() {
-  outWorldPosition = obj.model * vec4(inPosition, 1.0);
-  outWorldNormal = inverse(transpose(obj.model)) * vec4(inNormal, 0);
-  outColor = inColor;
+  outWorldPosition  = obj.model * vec4(inPosition, 1.0);
+  outWorldNormal    = inverse(transpose(obj.model)) * vec4(inNormal, 0);
+  outTangent        = inTangent;
+  outBitangent      = inBitangent;
+  outUV             = inUV;
+  outColor          = inColor;
 
   gl_Position = cam.proj * cam.view * outWorldPosition;
 }

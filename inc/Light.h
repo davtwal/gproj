@@ -21,6 +21,7 @@ namespace dw {
     alignas(16) glm::vec3 pos;
     alignas(16) glm::vec3 dir;
     alignas(16) glm::vec3 color;
+    alignas(16) glm::vec3 atten;
     alignas(04) float radius;
     alignas(04) int type; // 0, 1, 2
   };
@@ -36,11 +37,12 @@ namespace dw {
     glm::vec3 m_position;   // world coordinates
     glm::vec3 m_direction;  // should be unit vector
     glm::vec3 m_color;      // should be 0..1
+    glm::vec3 m_attenuation;// x + yt + zt^2
     float m_localRadius;    // world coordinates
     Type m_type{ Type::Point };
 
     LightUBO getAsUBO() const {
-      return { m_position, m_direction, m_color, m_localRadius, (int)m_type };
+      return { m_position, m_direction, m_color, m_attenuation, m_localRadius, (int)m_type };
     }
     // todo: attentuation
   };

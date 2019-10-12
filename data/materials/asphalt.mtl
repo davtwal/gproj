@@ -1,0 +1,10 @@
+newmtl asphalt
+Ka 0 0 0
+Kd 1 1 1
+Ks 1 1 1
+illum 2
+map_Kd asphalt/TexturesCom_Asphalt11_2x2_512_albedo.tif
+map_Ps asphalt/TexturesCom_Asphalt11_2x2_512_ao.tif
+map_bump asphalt/TexturesCom_Asphalt11_2x2_512_height.tif
+map_Pr asphalt/TexturesCom_Asphalt11_2x2_512_roughness.tif
+norm asphalt/TexturesCom_Asphalt11_2x2_512_normal.tif

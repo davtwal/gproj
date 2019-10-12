@@ -22,14 +22,7 @@
 #include <array>
 
 namespace dw {
-  //void RenderStep::setupRenderPass(std::vector<Image> const& images) {
-  //  return setupRenderPass(std::vector<util::Ref<Image>>{images.begin(), images.end()});
-  //}
-  //
-  //void RenderStep::setupRenderPass(std::vector<DependentImage> const& images) {
-  //  return setupRenderPass(std::vector<util::Ref<Image>>{images.begin(), images.end()});
-  //}
-  //
+
   RenderStep::RenderStep(LogicalDevice& device)
     : m_device(device) {
   }
@@ -277,10 +270,10 @@ namespace dw {
   }
 
   void GeometryStep::setupShaders() {
-    m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>>(ShaderModule::Load(getOwningDevice(),
-                                                                                    "fromBuffer_transform_vert.spv"));
-    m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(ShaderModule::Load(getOwningDevice(),
-                                                                                        "triangle_frag.spv"));
+    m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>>(
+      ShaderModule::Load(getOwningDevice(), "object_pass_vert.spv"));
+    m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(
+      ShaderModule::Load(getOwningDevice(), "gbuffer_filler_frag.spv"));
   }
 
   void GeometryStep::setupPipelineLayout() {
@@ -521,10 +514,10 @@ namespace dw {
   }
 
   void FinalStep::setupShaders() {
-    m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>
-    >(ShaderModule::Load(getOwningDevice(), "fsq_vert.spv"));
-    m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(ShaderModule::Load(getOwningDevice(),
-                                                                                        "fsq_frag.spv"));
+    m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>>
+        (ShaderModule::Load(getOwningDevice(), "fsq_vert.spv"));
+    m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>
+        (ShaderModule::Load(getOwningDevice(), "lighting_frag.spv"));
   }
 
   void FinalStep::setupRenderPass(std::vector<util::Ref<Image>> const& images) {

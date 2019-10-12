@@ -16,11 +16,12 @@ struct Light {
   vec3 pos;
   vec3 dir;
   vec3 color;
+  vec3 atten;
   float radius;
   int type;
 };
 
-#define MAX_DYNAMIC_LIGHTS 2
+#define MAX_DYNAMIC_LIGHTS 128
 #define LIGHT_TYPE_POINT 0
 #define LIGHT_TYPE_SPOT 1
 #define LIGHT_TYPE_DIRECTIONAL 2
@@ -37,27 +38,47 @@ void main() {
     vec4 sampledPos = texture(inGBuffPosition, inUV);
     vec4 sampledColor = texture(inGBuffColor, inUV);
     vec4 sampledNormal = texture(inGBuffNormal, inUV);
-
+    
+    float inSpecExp = sampledColor.w;
     vec3 inPos = sampledPos.xyz;
     vec3 inColor = sampledColor.xyz;
+    
+    fragColor = vec4(inColor, 1.0);
+    return;
     
     vec3 N = normalize(sampledNormal.xyz);
     vec3 V = normalize(cam.eye - inPos);
     
     vec3 color = vec3(0, 0, 0);
     for(int i = 0; i < MAX_DYNAMIC_LIGHTS; ++i) {
-      // diffuse only for the moment
-      // as objects/materials do not have anything other than diffuse color atm
-      vec3 L = normalize(dynLights.at[i].pos - inPos);
+      vec3 addedColor = vec3(0, 0, 0);
+      vec3 toPoint = dynLights.at[i].pos - inPos;
+      float dist = length(toPoint);
+      
+      if(dist > dynLights.at[i].radius)
+        continue;
+      
+      vec3 L = normalize(toPoint);
+      
       float n_l = max(dot(N, L), 0);
       
-      color += inColor * n_l * dynLights.at[i].color;
+      addedColor += inColor * n_l * dynLights.at[i].color;
       
       // specular
       vec3 R = reflect(-L, N);
-      float r_v = pow(max(dot(R, V), 0), 100);
+      float r_v = pow(max(dot(R, V), 0), inSpecExp);
       
-      color += inColor * r_v * dynLights.at[i].color;
+      addedColor += inColor * r_v * dynLights.at[i].color;
+      
+      // attenuation
+      vec3 atten_func = dynLights.at[i].atten;
+      float attenuation_factor = 
+        atten_func.x + atten_func.y * dist + atten_func.z * dist * dist;
+      
+      if(attenuation_factor > 0)
+        addedColor *= 1 / attenuation_factor;
+      
+      color += addedColor;
     }
     fragColor = vec4(color.xyz, 1);
 }

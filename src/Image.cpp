@@ -48,7 +48,7 @@ namespace dw {
       m_mutable(isMutable) {
   }
 
-  Image::Image(Image&& o)
+  Image::Image(Image&& o) noexcept
     : m_image(o.m_image),
       m_format(o.m_format),
       m_type(o.m_type),

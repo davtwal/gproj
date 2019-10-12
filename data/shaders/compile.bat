@@ -7,7 +7,7 @@ FOR %%f IN (*.*) DO (
   IF /I NOT "!fext!"==".spv" (
     IF /I NOT "!fext!"==".bat" (
       ECHO Compiling %%f...
-      glslc %%f -o !fname!_!fext:~1!.spv
+      glslc %%f -o spv/!fname!_!fext:~1!.spv
     )
   )
 )

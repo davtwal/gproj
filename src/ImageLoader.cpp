@@ -70,7 +70,7 @@ namespace dw {
 
     stbi_uc* img = STBILoadedImageManager::Load(filename);
 
-    //ret.initImage()
+    //ret.initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D)
 
     return ret;
   }
