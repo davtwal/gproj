@@ -43,9 +43,6 @@ void main() {
     vec3 inPos = sampledPos.xyz;
     vec3 inColor = sampledColor.xyz;
     
-    fragColor = vec4(inColor, 1.0);
-    return;
-    
     vec3 N = normalize(sampledNormal.xyz);
     vec3 V = normalize(cam.eye - inPos);
     

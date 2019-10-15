@@ -242,18 +242,18 @@ namespace dw {
 
     for(uint32_t i = 0; i < MAX_DYNAMIC_LIGHTS; ++i) {
       Light l;
-      l.m_position = glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2));
-      l.m_direction = normalize(-l.m_position);
-      l.m_color = glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev));// / glm::vec3(i + 3);
-      l.m_attenuation = glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f);
-      l.m_localRadius = 20;
-      l.m_type = Light::Type::Point;
+      l.setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
+      l.setDirection(normalize(-l.getPosition()));
+      l.setColor(glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev)));// / glm::vec3(i + 3);
+      l.setAttenuation(glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f));
+      l.setLocalRadius(20);
+      l.setType(Light::Type::Point);
 
       m_lights.push_back(l);
     }
 
-    m_lights[0].m_attenuation = glm::vec3(1.f, 0.5f, 0.1f);
-    m_lights[1].m_attenuation = glm::vec3(1.f, 0.5f, 0.1f);
+    m_lights[0].setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
+    m_lights[1].setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
 
     for (uint32_t i = 2; i < m_lights.size(); ++i) {
       auto& light = m_lights[i];
@@ -265,7 +265,15 @@ namespace dw {
       };
     }
 
-    m_renderer->setDynamicLights({ m_lights.begin(), m_lights.end() });
+    m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
+
+    ShadowedLight globalLight;
+    globalLight.setPosition({ 5, 5, 5 })
+      .setDirection({ -1, -1, -1 });
+
+    m_renderer->setGlobalLights({
+      globalLight
+    });
 
     Renderer::SceneContainer scene;
     scene.reserve(m_scene.size());
@@ -337,8 +345,8 @@ namespace dw {
         obj->callBehavior(timeCount, dt);
       }
 
-      m_lights[0].m_position = { 2 * sqrt(2) * cos(3* timeCount), 2 * sqrt(2) * sin(3* timeCount), 2};
-      m_lights[1].m_position = { -2 * sqrt(2) * cos(3* timeCount), -2 * sqrt(2) * sin(3* timeCount), 2 };
+      m_lights[0].setPosition({ 2 * sqrt(2) * cos(3* timeCount), 2 * sqrt(2) * sin(3* timeCount), 2});
+      m_lights[1].setPosition({ -2 * sqrt(2) * cos(3* timeCount), -2 * sqrt(2) * sin(3* timeCount), 2 });
 
       std::mt19937 rand_dev(time(NULL));
       std::uniform_real_distribution<float> shift(-1.f, 1.f);
@@ -346,11 +354,11 @@ namespace dw {
       for (uint32_t i = 2; i < m_lights.size(); ++i) {
         auto& light = m_lights[i];
         auto& obj = m_scene[i + 4];
-        light.m_position += glm::vec3(shift(rand_dev) * dt, shift(rand_dev) * dt, shift(rand_dev) * dt);
-        light.m_position = glm::clamp(light.m_position, glm::vec3(-9.f, -9.f, 0.1f), glm::vec3(9.f));
-        light.m_color += glm::vec3(color(rand_dev) * dt, color(rand_dev) * dt, color(rand_dev) * dt);
-        light.m_color = glm::clamp(light.m_color, 0.f, 1.f);
-        obj->setPosition(light.m_position);
+        light.setPosition(light.getPosition() + glm::vec3(shift(rand_dev) * dt, shift(rand_dev) * dt, shift(rand_dev) * dt));
+        light.setPosition(glm::clamp(light.getPosition(), glm::vec3(-9.f, -9.f, 0.1f), glm::vec3(9.f)));
+        light.setColor(light.getColor() + glm::vec3(color(rand_dev) * dt, color(rand_dev) * dt, color(rand_dev) * dt));
+        light.setColor(glm::clamp(light.getColor(), 0.f, 1.f));
+        obj->setPosition(light.getPosition());
       }
 
       m_renderer->drawFrame();

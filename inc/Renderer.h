@@ -32,6 +32,7 @@
 namespace dw {
   //class Camera;
   class GeometryStep;
+  class ShadowMapStep;
   class FinalStep;
 
   class PhysicalDevice;
@@ -74,16 +75,28 @@ namespace dw {
 
     using SceneContainer = std::vector<util::Ref<Object>>;
     using LightContainer = std::vector<util::Ref<Light>>;
+    using GlobalLightContainer = std::vector<ShadowedLight>;
 
     void setScene(SceneContainer const& objects);
-    void setDynamicLights(LightContainer const& lights);
+    void setLocalLights(LightContainer const& lights);
+    void setGlobalLights(GlobalLightContainer lights);
+
     void setCamera(util::Ref<Camera> camera);
 
     void drawFrame();
 
     void shutdown();
 
+    struct ShadowMappedLight {
+      ShadowMappedLight(ShadowedLight const& light);
+
+      ShadowedLight m_light;
+      util::ptr<Framebuffer> m_depthBuffer;
+    };
+
   private:
+    static constexpr VkExtent3D SHADOW_DEPTH_MAP_EXTENT = { 1000, 1000, 1 };
+
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
     //// HELPER FUNCTIONS
@@ -145,18 +158,24 @@ namespace dw {
     VkSampler m_sampler{ nullptr };
     util::ptr<Buffer> m_modelUBO;
     util::ptr<Buffer> m_cameraUBO;
-    util::ptr<Buffer> m_lightsUBO;
+    util::ptr<Buffer> m_localLightsUBO;
+    util::ptr<Buffer> m_globalLightsUBO;
 
     // gbuffer/deferred pass
     util::ptr<GeometryStep> m_geometryStep;
     util::ptr<Framebuffer> m_gbuffer{ nullptr };
     VkSemaphore m_deferredSemaphore{ nullptr };
 
+    // shadow map pass
+    util::ptr<ShadowMapStep> m_shadowMapStep;
+    VkSemaphore m_shadowSemaphore{ nullptr };
+
     // final fsq pass
     util::ptr<FinalStep> m_finalStep;
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };
+    std::vector<ShadowMappedLight> m_globalLights;
     LightContainer m_lights;
     SceneContainer m_objList;
     size_t m_modelUBOdynamicAlignment {0};

@@ -57,12 +57,13 @@ namespace dw {
     virtual void setupShaders() = 0;
     virtual void setupPipeline(VkExtent2D extent) = 0;
     virtual void setupDescriptors() = 0;
-    virtual void setupPipelineLayout() = 0;
+    virtual void setupPipelineLayout(VkPipelineLayout layout = nullptr);
 
     // fb = output framebuffer from renderpass
     //virtual void writeCmdBuff(Framebuffer& fb, VkRect2D renderArea = {});
-    RenderPass& getRenderPass();
-    GraphicsPipeline& getPipeline();
+    RenderPass& getRenderPass() const;
+    GraphicsPipeline& getPipeline() const;
+    VkPipelineLayout getLayout() const;
 
   protected:
     friend class Renderer;
@@ -93,7 +94,6 @@ namespace dw {
     void setupPipeline(VkExtent2D extent) override;
     void setupDescriptors() override;
     void setupShaders() override;
-    void setupPipelineLayout() override;
 
     // fb = output framebuffer from renderpass
     void writeCmdBuff(Framebuffer&                    fb,
@@ -103,13 +103,43 @@ namespace dw {
 
     void updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO) const;
 
-    NO_DISCARD CommandBuffer& getCommandBuffer();
+    NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
   private:
     util::ptr<IShader>       m_vertexShader;
     util::ptr<IShader>       m_fragmentShader;
     util::Ref<CommandBuffer> m_cmdBuff;
     VkDescriptorSet          m_descriptorSet{nullptr};
+  };
+
+  class ShadowMapStep : public RenderStep {
+    friend class Renderer;
+  public:
+    MOVE_CONSTRUCT_ONLY(ShadowMapStep);
+
+    ShadowMapStep(LogicalDevice& device, CommandPool& pool);
+    ~ShadowMapStep() override = default;
+
+    void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipeline(VkExtent2D extent) override;
+    void setupDescriptors() override;
+    void setupPipelineLayout(VkPipelineLayout layout = nullptr) override;
+    void setupShaders() override;
+
+    void writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
+                      Renderer::SceneContainer const& scene,
+                      uint32_t alignment,
+                      VkRect2D renderArea = {}) const;
+
+    void updateDescriptorSets(Buffer& modelUBO, Buffer& lightsUBO);
+
+    NO_DISCARD CommandBuffer& getCommandBuffer() const;
+
+  private:
+    util::ptr<IShader>       m_vertexShader;
+    util::ptr<IShader>       m_fragmentShader;
+    util::Ref<CommandBuffer> m_cmdBuff;
+    VkDescriptorSet          m_descriptorSet{ nullptr };
   };
 
   class FinalStep : public RenderStep {
@@ -124,7 +154,6 @@ namespace dw {
     void setupPipeline(VkExtent2D extent) override;
     void setupDescriptors() override;
     void setupShaders() override;
-    void setupPipelineLayout() override;
 
     void writeCmdBuff(std::vector<Framebuffer> const& fbs, VkRect2D renderArea = {});
     void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,

@@ -139,6 +139,10 @@ static void transitionImageLayout(dw::CommandBuffer&  cmdBuff,
 }
 
 namespace dw {
+  Renderer::ShadowMappedLight::ShadowMappedLight(ShadowedLight const& light)
+    : m_light(light) {}
+
+
   Camera Renderer::s_defaultCamera;
 
   /////////////////////////////////////////////////////////////////////////////
@@ -169,6 +173,9 @@ namespace dw {
     if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create deferred rendering semaphore");
 
+    if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_shadowSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create shadow map rendering semaphore");
+
     //setupCommandBuffers();
     //setupDepthTestResources();
     //setupGBufferImages();
@@ -189,7 +196,11 @@ namespace dw {
     vkDeviceWaitIdle(*m_device);
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
+    m_deferredSemaphore = nullptr;
+    m_shadowSemaphore = nullptr;
 
+    m_globalLights.clear();
     m_objList.clear();
 
     if (m_modelUBOdata)
@@ -201,10 +212,12 @@ namespace dw {
 
     m_gbuffer.reset();
 
-    m_lightsUBO.reset();
+    m_globalLightsUBO.reset();
+    m_localLightsUBO.reset();
     m_modelUBO.reset();
     m_cameraUBO.reset();
 
+    m_shadowMapStep.reset();
     m_geometryStep.reset();
     m_finalStep.reset();
 
@@ -264,6 +277,7 @@ namespace dw {
 
     auto&           graphicsQueue   = m_graphicsQueue->get();
     VkCommandBuffer deferredCmdBuff = m_geometryStep->getCommandBuffer();//m_deferredCmdBuff->get();
+    VkCommandBuffer shadowCmdBuff   = m_shadowMapStep->getCommandBuffer();
     VkCommandBuffer presentCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);//m_commandBuffers[nextImageIndex].get();
 
     updateUniformBuffers(nextImageIndex);
@@ -283,7 +297,15 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-    submitInfo.pWaitSemaphores   = &m_deferredSemaphore;
+    if (!m_globalLights.empty()) {
+      submitInfo.pWaitSemaphores = &m_deferredSemaphore;
+      submitInfo.pSignalSemaphores = &m_shadowSemaphore;
+      submitInfo.pCommandBuffers = &shadowCmdBuff;
+
+      vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+    }
+
+    submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
     submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
     submitInfo.pCommandBuffers   = &presentCmdBuff;
 
@@ -355,6 +377,8 @@ namespace dw {
   }
 
   void Renderer::updateUniformBuffers(uint32_t imageIndex) {
+    // NOTE: Global lights are NOT dynamic
+
     CameraUniform cam = {
       m_camera.get().getView(),
       m_camera.get().getProj(),
@@ -376,11 +400,11 @@ namespace dw {
     memcpy(data, m_modelUBOdata, m_modelUBO->getSize());
     m_modelUBO->unMap();
 
-    data                   = m_lightsUBO->map();
+    data                   = m_localLightsUBO->map();
     LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
     for (size_t i     = 0; i < m_lights.size(); ++i)
       lightUBOdata[i] = m_lights[i].get().getAsUBO();
-    m_lightsUBO->unMap();
+    m_localLightsUBO->unMap();
 
     // Flush to make changes visible to the host
     // we dont do this cus coherent on my machine
@@ -402,16 +426,89 @@ namespace dw {
     m_camera = camera;
   }
 
-  void Renderer::setDynamicLights(LightContainer const& lights) {
+  void Renderer::setLocalLights(LightContainer const& lights) {
     m_lights = lights;
-    m_lightsUBO.reset();
+    m_localLightsUBO.reset();
 
     VkDeviceSize lightUniformSize = sizeof(LightUBO);
-    m_lightsUBO                   = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+    m_localLightsUBO                   = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
                                                                                  lightUniformSize * lights.size()));
 
-    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), *m_cameraUBO, *m_lightsUBO, m_sampler);
+    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), *m_cameraUBO, *m_localLightsUBO, m_sampler);
     m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers());
+  }
+
+  void Renderer::setGlobalLights(GlobalLightContainer lights) {
+    size_t uboSize = sizeof(ShadowedUBO) * lights.size();
+    m_globalLightsUBO.reset();
+    m_globalLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, uboSize, true));
+
+    // Stage memory
+    {
+      // NOTE: Global lights are NOT dynamic, hence they are updated here.
+      Buffer staging = Buffer::CreateStaging(*m_device, uboSize);
+      auto data = reinterpret_cast<ShadowedUBO*>(staging.map());
+      for (size_t i = 0; i < lights.size(); ++i)
+        data[i] = lights[i].getAsShadowUBO();
+      staging.unMap();
+
+      CommandBuffer& cmdBuff = m_transferCmdPool->allocateCommandBuffer();
+      cmdBuff.start(true);
+
+      VkBufferCopy copy = { 0, 0, uboSize };
+      vkCmdCopyBuffer(cmdBuff, staging, *m_globalLightsUBO, 1, &copy);
+
+      cmdBuff.end();
+      m_transferQueue->get().submitOne(cmdBuff);
+      m_transferQueue->get().waitIdle();
+
+      m_transferCmdPool->freeCommandBuffer(cmdBuff);
+    }
+
+    m_globalLights.clear();
+    m_globalLights.reserve(lights.size());
+
+    // TODO: instead of remaking depth buffers from scratch, instead reuse them and only allocate new ones
+    // TODO: as needed
+
+    for(auto& light : lights) {
+      util::ptr<Framebuffer> depthBuff = util::make_ptr<Framebuffer>(*m_device, SHADOW_DEPTH_MAP_EXTENT);
+
+      depthBuff->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        SHADOW_DEPTH_MAP_EXTENT,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
+
+      depthBuff->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+        SHADOW_DEPTH_MAP_EXTENT,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
+
+      depthBuff->finalize(m_shadowMapStep->getRenderPass());
+
+      m_globalLights.emplace_back(light).m_depthBuffer = depthBuff;
+    }
+
+    if (m_modelUBO) {
+      m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
+      m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
+    }
   }
 
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
@@ -424,6 +521,9 @@ namespace dw {
 
     m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO);
     m_geometryStep->writeCmdBuff(*m_gbuffer, m_objList, m_modelUBOdynamicAlignment);
+
+    m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
+    m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
@@ -677,6 +777,14 @@ namespace dw {
     m_geometryStep->setupRenderPass({ m_gbuffer->getImages().begin(), m_gbuffer->getImages().end() });
     m_geometryStep->setupPipelineLayout();
     m_geometryStep->setupPipeline(m_swapchain->getImageSize());
+
+    m_shadowMapStep = util::make_ptr<ShadowMapStep>(*m_device, *m_commandPool);
+
+    m_shadowMapStep->setupShaders();
+    m_shadowMapStep->setupDescriptors();
+    m_shadowMapStep->setupRenderPass({}); // no images on purpose
+    m_shadowMapStep->setupPipelineLayout();
+    m_shadowMapStep->setupPipeline({ SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height });
 
     m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_commandPool, m_swapchain->getNumImages());
 
