@@ -83,7 +83,7 @@ namespace dw {
 
   glm::mat4 const& ShadowedLight::getProj() {
     if(m_isProjDirty) {
-      m_proj = glm::perspective(glm::radians(45.f), 1.f, 0.5f, 10.f);
+      m_proj = glm::perspective(glm::radians(45.f), 1.f, 0.5f, 50.f);
 
       m_isProjDirty = false;
     }

@@ -61,11 +61,10 @@ void alignedFree(void* data) {
 #endif
 }
 
-static void transitionImageLayout(dw::CommandBuffer&  cmdBuff,
-                                  dw::Image const&    image,
-                                  VkImageLayout       oldLayout,
-                                  VkImageLayout       newLayout)
-{
+static void transitionImageLayout(dw::CommandBuffer& cmdBuff,
+                                  dw::Image const&   image,
+                                  VkImageLayout      oldLayout,
+                                  VkImageLayout      newLayout) {
   VkImageMemoryBarrier barrier = {
     VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
     nullptr,
@@ -98,27 +97,27 @@ static void transitionImageLayout(dw::CommandBuffer&  cmdBuff,
   }
 
   if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && (
-    newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)) {
+        newLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL || newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR)) {
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
 
-    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
   }
   else if (oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-    ) {
+  ) {
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-    sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    sourceStage      = VK_PIPELINE_STAGE_TRANSFER_BIT;
     destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
   }
   else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
     barrier.srcAccessMask = 0;
     barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
-      VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+                            VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 
-    sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    sourceStage      = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
     destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
   }
 
@@ -127,20 +126,21 @@ static void transitionImageLayout(dw::CommandBuffer&  cmdBuff,
   }
 
   vkCmdPipelineBarrier(cmdBuff,
-    sourceStage,
-    destinationStage,
-    0,
-    0,
-    nullptr,
-    0,
-    nullptr,
-    1,
-    &barrier);
+                       sourceStage,
+                       destinationStage,
+                       0,
+                       0,
+                       nullptr,
+                       0,
+                       nullptr,
+                       1,
+                       &barrier);
 }
 
 namespace dw {
   Renderer::ShadowMappedLight::ShadowMappedLight(ShadowedLight const& light)
-    : m_light(light) {}
+    : m_light(light) {
+  }
 
 
   Camera Renderer::s_defaultCamera;
@@ -164,17 +164,23 @@ namespace dw {
   }
 
   void Renderer::initSpecific() {
-    VkSemaphoreCreateInfo deferredSemaphoreCreateInfo = {
+    VkSemaphoreCreateInfo semaphoreCreateInfo = {
       VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
       nullptr,
       0
     };
 
-    if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create deferred rendering semaphore");
 
-    if (vkCreateSemaphore(*m_device, &deferredSemaphoreCreateInfo, nullptr, &m_shadowSemaphore) != VK_SUCCESS)
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_shadowSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create shadow map rendering semaphore");
+
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_globalLightSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create global lighting rendering semaphore");
+
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_localLitSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create local lighting semaphore");
 
     //setupCommandBuffers();
     //setupDepthTestResources();
@@ -197,8 +203,12 @@ namespace dw {
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_globalLightSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_localLitSemaphore, nullptr);
     m_deferredSemaphore = nullptr;
-    m_shadowSemaphore = nullptr;
+    m_shadowSemaphore   = nullptr;
+    m_globalLightSemaphore = nullptr;
+    m_localLitSemaphore = nullptr;
 
     m_globalLights.clear();
     m_objList.clear();
@@ -211,14 +221,16 @@ namespace dw {
     vkDestroySampler(*m_device, m_sampler, nullptr);
 
     m_gbuffer.reset();
+    m_globalLitFrameBuffer.reset();
 
     m_globalLightsUBO.reset();
     m_localLightsUBO.reset();
     m_modelUBO.reset();
     m_cameraUBO.reset();
 
-    m_shadowMapStep.reset();
     m_geometryStep.reset();
+    m_shadowMapStep.reset();
+    m_globalLightStep.reset();
     m_finalStep.reset();
 
     m_transferCmdPool.reset();
@@ -275,10 +287,11 @@ namespace dw {
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
     Image const& nextImage      = m_swapchain->getNextImage();
 
-    auto&           graphicsQueue   = m_graphicsQueue->get();
-    VkCommandBuffer deferredCmdBuff = m_geometryStep->getCommandBuffer();//m_deferredCmdBuff->get();
-    VkCommandBuffer shadowCmdBuff   = m_shadowMapStep->getCommandBuffer();
-    VkCommandBuffer presentCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);//m_commandBuffers[nextImageIndex].get();
+    auto&           graphicsQueue      = m_graphicsQueue->get();
+    VkCommandBuffer deferredCmdBuff    = m_geometryStep->getCommandBuffer();
+    VkCommandBuffer shadowCmdBuff      = m_shadowMapStep->getCommandBuffer();
+    VkCommandBuffer globalLightCmdBuff = m_globalLightStep->getCommandBuffer();
+    VkCommandBuffer localLightCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);
 
     updateUniformBuffers(nextImageIndex);
 
@@ -297,19 +310,64 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-    if (!m_globalLights.empty()) {
-      submitInfo.pWaitSemaphores = &m_deferredSemaphore;
-      submitInfo.pSignalSemaphores = &m_shadowSemaphore;
-      submitInfo.pCommandBuffers = &shadowCmdBuff;
-
-      vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
-    }
-
-    submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
-    submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
-    submitInfo.pCommandBuffers   = &presentCmdBuff;
+    submitInfo.pWaitSemaphores   = &m_deferredSemaphore;
+    submitInfo.pSignalSemaphores = &m_shadowSemaphore;
+    submitInfo.pCommandBuffers   = &shadowCmdBuff;
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
+    submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
+    submitInfo.pCommandBuffers   = &globalLightCmdBuff;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
+    submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
+    submitInfo.pCommandBuffers   = &localLightCmdBuff;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    //// TODO: make this not happen every loop
+    //CommandBuffer& copyImg = m_commandPool->allocateCommandBuffer();
+
+    //copyImg.start(true);
+
+    //VkImageSubresourceLayers layer = {
+    //  VK_IMAGE_ASPECT_COLOR_BIT,
+    //  0,
+    //  0,
+    //  1
+    //};
+
+    //VkOffset3D boundMax = {
+    //  m_swapchain->getImageSize().width,
+    //  m_swapchain->getImageSize().height,
+    //  1
+    //};
+
+    //VkImageBlit imageBlit = {
+    //  layer,
+    //  {{0, 0, 0}, boundMax},
+    //  layer,
+    //  {{0, 0, 0}, boundMax}
+    //};
+
+    //// NOTE: This CANNOT be used for multisampled images.
+    //vkCmdBlitImage(copyImg, m_globalLitFrameBuffer->getImages().front(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    //    nextImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);
+
+    //copyImg.end();
+    //VkCommandBuffer copyImgBuff = copyImg;
+
+    //submitInfo.pWaitSemaphores    = &m_localLitSemaphore;
+    //submitInfo.pSignalSemaphores  = &m_swapchain->getImageRenderReadySemaphore();
+    //submitInfo.pCommandBuffers    = &copyImgBuff;
+    //
+    //vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+    //graphicsQueue.waitIdle();
+
+    //m_commandPool->freeCommandBuffer(copyImg);
 
     //// deferred pass
     /// TODO: Something is wrong with the submit functions and semaphores.
@@ -326,6 +384,8 @@ namespace dw {
     //                        {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
     //                        {m_swapchain->getImageRenderReadySemaphore()});
     //graphicsQueue.waitIdle();
+
+
 
     m_swapchain->present();
     graphicsQueue.waitIdle();
@@ -431,10 +491,10 @@ namespace dw {
     m_localLightsUBO.reset();
 
     VkDeviceSize lightUniformSize = sizeof(LightUBO);
-    m_localLightsUBO                   = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+    m_localLightsUBO              = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
                                                                                  lightUniformSize * lights.size()));
 
-    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), *m_cameraUBO, *m_localLightsUBO, m_sampler);
+    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), m_globalLitFrameBuffer->getImageViews().front(), *m_cameraUBO, *m_localLightsUBO, m_sampler);
     m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers());
   }
 
@@ -447,15 +507,15 @@ namespace dw {
     {
       // NOTE: Global lights are NOT dynamic, hence they are updated here.
       Buffer staging = Buffer::CreateStaging(*m_device, uboSize);
-      auto data = reinterpret_cast<ShadowedUBO*>(staging.map());
+      auto   data    = reinterpret_cast<ShadowedUBO*>(staging.map());
       for (size_t i = 0; i < lights.size(); ++i)
-        data[i] = lights[i].getAsShadowUBO();
+        data[i]     = lights[i].getAsShadowUBO();
       staging.unMap();
 
       CommandBuffer& cmdBuff = m_transferCmdPool->allocateCommandBuffer();
       cmdBuff.start(true);
 
-      VkBufferCopy copy = { 0, 0, uboSize };
+      VkBufferCopy copy = {0, 0, uboSize};
       vkCmdCopyBuffer(cmdBuff, staging, *m_globalLightsUBO, 1, &copy);
 
       cmdBuff.end();
@@ -471,34 +531,34 @@ namespace dw {
     // TODO: instead of remaking depth buffers from scratch, instead reuse them and only allocate new ones
     // TODO: as needed
 
-    for(auto& light : lights) {
+    for (auto& light : lights) {
       util::ptr<Framebuffer> depthBuff = util::make_ptr<Framebuffer>(*m_device, SHADOW_DEPTH_MAP_EXTENT);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_IMAGE_VIEW_TYPE_2D,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
-        SHADOW_DEPTH_MAP_EXTENT,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        1,
-        1,
-        false,
-        false,
-        false,
-        false);
+                          VK_IMAGE_TYPE_2D,
+                          VK_IMAGE_VIEW_TYPE_2D,
+                          VK_FORMAT_R32G32B32A32_SFLOAT,
+                          SHADOW_DEPTH_MAP_EXTENT,
+                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                          1,
+                          1,
+                          false,
+                          false,
+                          false,
+                          false);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_IMAGE_VIEW_TYPE_2D,
-        VK_FORMAT_D24_UNORM_S8_UINT,
-        SHADOW_DEPTH_MAP_EXTENT,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        1,
-        1,
-        false,
-        false,
-        false,
-        false);
+                          VK_IMAGE_TYPE_2D,
+                          VK_IMAGE_VIEW_TYPE_2D,
+                          VK_FORMAT_D24_UNORM_S8_UINT,
+                          SHADOW_DEPTH_MAP_EXTENT,
+                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                          1,
+                          1,
+                          false,
+                          false,
+                          false,
+                          false);
 
       depthBuff->finalize(m_shadowMapStep->getRenderPass());
 
@@ -509,6 +569,13 @@ namespace dw {
       m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
       m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
     }
+
+    m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
+                                            m_globalLights,
+                                            *m_cameraUBO,
+                                            *m_globalLightsUBO,
+                                            m_sampler);
+    m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
   }
 
   void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
@@ -703,7 +770,6 @@ namespace dw {
     m_transferCmdPool = util::make_ptr<CommandPool>(*m_device, m_transferQueue->get().getFamily());
   }
 
-
   void Renderer::setupSamplers() {
     VkSamplerCreateInfo createInfo = {
       VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -737,36 +803,66 @@ namespace dw {
   }
 
   void Renderer::setupFrameBufferImages() {
-    VkExtent3D gbuffExtent = { m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1 };
+    VkExtent3D gbuffExtent = {m_swapchain->getImageSize().width, m_swapchain->getImageSize().height, 1};
 
     m_gbuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
 
     for (uint32_t i = 0; i < RenderStep::NUM_EXPECTED_GBUFFER_IMAGES; ++i)
       m_gbuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_IMAGE_VIEW_TYPE_2D,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
-        gbuffExtent,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-        1,
-        1,
-        false,
-        false,
-        false,
-        false);
+                          VK_IMAGE_TYPE_2D,
+                          VK_IMAGE_VIEW_TYPE_2D,
+                          VK_FORMAT_R32G32B32A32_SFLOAT,
+                          gbuffExtent,
+                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                          1,
+                          1,
+                          false,
+                          false,
+                          false,
+                          false);
 
     m_gbuffer->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
+                        VK_IMAGE_TYPE_2D,
+                        VK_IMAGE_VIEW_TYPE_2D,
+                        VK_FORMAT_D32_SFLOAT,
+                        gbuffExtent,
+                        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                        1,
+                        1,
+                        false,
+                        false,
+                        false,
+                        false);
+
+    m_globalLitFrameBuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
+
+    m_globalLitFrameBuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+                                     VK_IMAGE_TYPE_2D,
+                                     VK_IMAGE_VIEW_TYPE_2D,
+                                     VK_FORMAT_R8G8B8A8_UNORM,
+                                     gbuffExtent,
+                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                     1,
+                                     1,
+                                     false,
+                                     false,
+                                     false,
+                                     false);
+
+    /*m_localLitFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
+
+    m_localLitFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
       VK_IMAGE_TYPE_2D,
       VK_IMAGE_VIEW_TYPE_2D,
-      VK_FORMAT_D32_SFLOAT,
+      VK_FORMAT_R8G8B8A8_UNORM,
       gbuffExtent,
-      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
       1,
       1,
       false,
       false,
       false,
-      false);
+      false);*/
   }
 
   void Renderer::setupRenderSteps() {
@@ -774,7 +870,7 @@ namespace dw {
 
     m_geometryStep->setupShaders();
     m_geometryStep->setupDescriptors();
-    m_geometryStep->setupRenderPass({ m_gbuffer->getImages().begin(), m_gbuffer->getImages().end() });
+    m_geometryStep->setupRenderPass({m_gbuffer->getImages().begin(), m_gbuffer->getImages().end()});
     m_geometryStep->setupPipelineLayout();
     m_geometryStep->setupPipeline(m_swapchain->getImageSize());
 
@@ -784,7 +880,18 @@ namespace dw {
     m_shadowMapStep->setupDescriptors();
     m_shadowMapStep->setupRenderPass({}); // no images on purpose
     m_shadowMapStep->setupPipelineLayout();
-    m_shadowMapStep->setupPipeline({ SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height });
+    m_shadowMapStep->setupPipeline({SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height});
+
+    m_globalLightStep = util::make_ptr<GlobalLightStep>(*m_device, *m_commandPool);
+
+    m_globalLightStep->setupShaders();
+    m_globalLightStep->setupDescriptors();
+    m_globalLightStep->setupRenderPass({
+                                         m_globalLitFrameBuffer->getImages().begin(),
+                                         m_globalLitFrameBuffer->getImages().end()
+                                       });
+    m_globalLightStep->setupPipelineLayout();
+    m_globalLightStep->setupPipeline(m_globalLitFrameBuffer->getExtent());
 
     m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_commandPool, m_swapchain->getNumImages());
 
@@ -794,9 +901,11 @@ namespace dw {
     m_finalStep->setupPipelineLayout();
     m_finalStep->setupPipeline(m_swapchain->getImageSize());
   }
-  
-  void Renderer::setupFrameBuffers() {
+
+  void Renderer::setupFrameBuffers() const {
     m_gbuffer->finalize(m_geometryStep->getRenderPass());
+    m_globalLitFrameBuffer->finalize(m_globalLightStep->getRenderPass());
+    //m_localLitFramebuffer->finalize(m_finalStep->getRenderPass());
 
     // this is preferred when we are only using a color attachment on the output
     // framebuffers, e.g., when you are just rendering a FSQ to do the final lighting pass
@@ -809,9 +918,9 @@ namespace dw {
 
     for (size_t i = 0; i < m_swapchain->getNumImages(); ++i) {
       framebuffers.emplace_back(*m_device,
-        m_finalStep->getRenderPass(),
-        std::vector<VkImageView>{m_swapchain->getViews()[i]},
-        VkExtent3D{ m_surface->getWidth(), m_surface->getHeight(), 1 });
+                                m_finalStep->getRenderPass(),
+                                std::vector<VkImageView>{m_swapchain->getViews()[i]},
+                                VkExtent3D{m_surface->getWidth(), m_surface->getHeight(), 1});
     }
 
     m_swapchain->setFramebuffers(std::move(framebuffers));
@@ -835,7 +944,10 @@ namespace dw {
     graphicsBuff.start(true);
 
     const Image& depthImage = dynamic_cast<const Image&>(m_gbuffer->getImages().back());
-    transitionImageLayout(graphicsBuff, depthImage, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
+    transitionImageLayout(graphicsBuff,
+                          depthImage,
+                          VK_IMAGE_LAYOUT_UNDEFINED,
+                          VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     graphicsBuff.end();
     m_graphicsQueue->get().submitOne(graphicsBuff);

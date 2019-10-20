@@ -1,21 +1,9 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-struct ShadowLight {
-  mat4 view;
-  mat4 proj;
-  vec3 pos;
-  vec3 dir;
-  vec3 color;
-  vec3 atten;
-  float radius;
-  int type;
-};
+#include "lighting.glsl"
 
 #define MAX_GLOBAL_LIGHTS 1
-#define LIGHT_TYPE_POINT 0
-#define LIGHT_TYPE_SPOT 1
-#define LIGHT_TYPE_DIRECTIONAL 2
 
 layout(binding = 0) uniform ShadowLights {
   ShadowLight at[MAX_GLOBAL_LIGHTS];

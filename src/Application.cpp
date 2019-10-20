@@ -269,7 +269,10 @@ namespace dw {
 
     ShadowedLight globalLight;
     globalLight.setPosition({ 5, 5, 5 })
-      .setDirection({ -1, -1, -1 });
+      .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
+      .setColor({0.5f, 0.5f, 0.5f});
+
+
 
     m_renderer->setGlobalLights({
       globalLight

@@ -33,6 +33,7 @@ namespace dw {
   //class Camera;
   class GeometryStep;
   class ShadowMapStep;
+  class GlobalLightStep;
   class FinalStep;
 
   class PhysicalDevice;
@@ -114,7 +115,7 @@ namespace dw {
     void setupUniformBuffers();
     void setupFrameBufferImages();
     void setupRenderSteps();
-    void setupFrameBuffers();
+    void setupFrameBuffers() const;
     void transitionRenderImages() const;
 
     // specific to the current scene
@@ -170,8 +171,15 @@ namespace dw {
     util::ptr<ShadowMapStep> m_shadowMapStep;
     VkSemaphore m_shadowSemaphore{ nullptr };
 
+    // global lighting pass
+    util::ptr<GlobalLightStep> m_globalLightStep;
+    util::ptr<Framebuffer> m_globalLitFrameBuffer;
+    VkSemaphore m_globalLightSemaphore{ nullptr };
+
     // final fsq pass
     util::ptr<FinalStep> m_finalStep;
+    //util::ptr<Framebuffer> m_localLitFramebuffer;
+    VkSemaphore m_localLitSemaphore;
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };
