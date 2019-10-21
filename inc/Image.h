@@ -106,6 +106,9 @@ namespace dw {
     NO_DISCARD VkFormat getFormat() const;
     NO_DISCARD bool isMutable() const;
 
+    NO_DISCARD VkExtent2D getSize() const;
+    NO_DISCARD VkExtent3D getExtent() const;
+
     NO_DISCARD
     VkAttachmentDescription getAttachmentDesc(VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
                                               VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -118,6 +121,7 @@ namespace dw {
 
     NO_DISCARD virtual LogicalDevice& getDevice() const = 0;
 
+    VkExtent3D      m_extent;
     VkImage         m_image{nullptr};
     VkFormat        m_format;
     VkImageViewType m_type;

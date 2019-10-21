@@ -185,21 +185,21 @@ namespace dw {
     // Ground plane
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(0)))
       ->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ 20, 20, 20 });
-      o.setPosition({ 0, 0, -0.5f });
+      o.setScale({ 50, 50, 50 });
+      o.setPosition({ 0, 0, 0 });
     };
 
     // Random objects
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(3)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 2, 2, 2 });
-      o.setPosition({ 0, 1.f, 1.f });
+      o.setPosition({ 0, 1.f, 1.5f });
       o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0, 0, 1}) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(4)))
       ->m_behavior = [](Object& o, float time, float dt) {
-      o.setPosition({ 0, -1.f, 0 });
+      o.setPosition({ 0, -1.f, .5f });
       o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
@@ -260,7 +260,6 @@ namespace dw {
       m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
         ->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ .1f, .1f, .1f });
-        //o.setPosition(light.m_position);
         o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
       };
     }

@@ -78,6 +78,7 @@ namespace dw {
     VkDescriptorSetLayout m_descSetLayout{ nullptr };
     VkDescriptorPool      m_descriptorPool{ nullptr };
 
+  // TODO: make this able to also be a compute pipeline
     util::ptr<GraphicsPipeline> m_pipeline;
     util::ptr<RenderPass>       m_pass;
   };
@@ -149,6 +150,40 @@ namespace dw {
     VkDescriptorSet          m_descriptorSet{ nullptr };
   };
 
+  class BlurStep : public RenderStep {
+    friend class Renderer;
+  public:
+    MOVE_CONSTRUCT_ONLY(BlurStep);
+
+    static constexpr uint32_t KERNEL_SIZE = 7;
+
+    BlurStep(LogicalDevice& device, CommandPool& pool);
+    ~BlurStep() override;
+
+    // ironically there are no render passes here and this function is useless
+    void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipelineLayout(VkPipelineLayout layout = nullptr) override;
+    void setupPipeline(VkExtent2D extent) override;
+    void setupDescriptors() override;
+    void setupShaders() override;
+
+    void writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
+      DependentImage& intermediaryImg,
+      ImageView& intermediaryView) const;
+
+    NO_DISCARD CommandBuffer& getCommandBuffer() const;
+
+  private:
+    void updateDescriptorSets(ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler = nullptr) const;
+    util::ptr<IShader>       m_blur_x;
+    util::ptr<IShader>       m_blur_y;
+    util::Ref<CommandBuffer> m_cmdBuff;
+    VkPipeline m_compute_x{ nullptr };
+    VkPipeline m_compute_y{ nullptr };
+    VkDescriptorSet          m_descriptorSet_x{ nullptr };
+    VkDescriptorSet          m_descriptorSet_y{ nullptr };
+  };
+
   class GlobalLightStep : public RenderStep {
     friend class Renderer;
   public:
@@ -194,7 +229,7 @@ namespace dw {
     void setupDescriptors() override;
     void setupShaders() override;
 
-    void writeCmdBuff(std::vector<Framebuffer> const& fbs, VkRect2D renderArea = {});
+    void writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea = {});
     void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
                               ImageView const&              previousImage,
                               Buffer&                       cameraUBO,

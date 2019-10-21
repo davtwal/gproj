@@ -170,18 +170,9 @@ namespace dw {
                                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                                    VK_ACCESS_MEMORY_WRITE_BIT,
                                    VK_ACCESS_SHADER_READ_BIT,
-                                   VK_DEPENDENCY_BY_REGION_BIT
+                                   0
       });
 
-    m_pass->addSubpassDependency({
-      VK_SUBPASS_EXTERNAL,
-      0,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_ACCESS_MEMORY_READ_BIT,
-      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      VK_DEPENDENCY_BY_REGION_BIT
-      });
 
     m_pass->addSubpassDependency({
                                    0,
@@ -232,7 +223,7 @@ namespace dw {
       );
   }
 
-  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, VkRect2D renderArea) {
+  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea) {
     const auto count = m_imageCount;
 
     if (renderArea.extent.width == 0)
@@ -254,7 +245,28 @@ namespace dw {
         clearValues.data()
       };
 
+      VkImageMemoryBarrier barrier = {
+        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        nullptr,
+        VK_ACCESS_MEMORY_WRITE_BIT,
+        VK_ACCESS_MEMORY_READ_BIT,
+        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        VK_QUEUE_FAMILY_IGNORED,
+        VK_QUEUE_FAMILY_IGNORED,
+        previousImage,
+        {
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          0,
+          1,
+          0,
+          1
+        }
+      };
+
       commandBuffer.start(false);
+      vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
+        1, &barrier);
       vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
       vkCmdBindDescriptorSets(commandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,

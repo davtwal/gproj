@@ -83,12 +83,28 @@ namespace dw {
 
   glm::mat4 const& ShadowedLight::getProj() {
     if(m_isProjDirty) {
-      m_proj = glm::perspective(glm::radians(45.f), 1.f, 0.5f, 50.f);
+      m_proj = glm::perspective(m_fov, m_aspect, m_nearDist, m_farDist);
 
       m_isProjDirty = false;
     }
 
     return m_proj;
+  }
+
+  float ShadowedLight::getAspect() const {
+    return m_aspect;
+  }
+
+  float ShadowedLight::getFOV() const {
+    return m_fov;
+  }
+
+  float ShadowedLight::getFar() const {
+    return m_farDist;
+  }
+
+  float ShadowedLight::getNear() const {
+    return m_nearDist;
   }
 
   // setters
@@ -104,5 +120,27 @@ namespace dw {
     return *this;
   }
 
+  ShadowedLight& ShadowedLight::setAspect(float aspect) {
+    m_aspect = aspect;
+    m_isProjDirty = true;
+    return *this;
+  }
 
+  ShadowedLight& ShadowedLight::setFOV(float rad) {
+    m_fov = rad;
+    m_isProjDirty = true;
+    return *this;
+  }
+
+  ShadowedLight& ShadowedLight::setFar(float far) {
+    m_farDist = far;
+    m_isProjDirty = true;
+    return *this;
+  }
+
+  ShadowedLight& ShadowedLight::setNear(float near) {
+    m_nearDist = near;
+    m_isProjDirty = true;
+    return *this;
+  }
 }

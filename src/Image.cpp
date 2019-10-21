@@ -42,14 +42,16 @@ namespace dw {
   }
 
   Image::Image(VkImage i, VkFormat format, VkImageViewType type, bool isMutable)
-    : m_image(i),
+    : m_extent({0, 0, 0}),
+      m_image(i),
       m_format(format),
       m_type(type),
       m_mutable(isMutable) {
   }
 
   Image::Image(Image&& o) noexcept
-    : m_image(o.m_image),
+    : m_extent(o.m_extent),
+      m_image(o.m_image),
       m_format(o.m_format),
       m_type(o.m_type),
       m_mutable(o.m_mutable) {
@@ -65,6 +67,14 @@ namespace dw {
 
   bool Image::isMutable() const {
     return m_mutable;
+  }
+
+  VkExtent3D Image::getExtent() const {
+    return m_extent;
+  }
+
+  VkExtent2D Image::getSize() const {
+    return { m_extent.width, m_extent.height };
   }
 
   VkAttachmentDescription Image::getAttachmentDesc(VkAttachmentLoadOp loadOp,
@@ -209,6 +219,7 @@ namespace dw {
     m_format = format;
     m_mutable = isMutable;
     m_type = intendedViewType;
+    m_extent = extent;
   }
 
   // CREATE VIEWS

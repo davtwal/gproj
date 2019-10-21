@@ -6,6 +6,8 @@ layout(binding = 0) uniform CameraUBO {
   mat4 proj;
   vec3 eye;
   vec3 viewDir;
+  float farDist;
+  float nearDist;
 } cam;
 
 layout(binding = 1) uniform ObjectUBO {

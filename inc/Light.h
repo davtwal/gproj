@@ -37,6 +37,8 @@ namespace dw {
     alignas(16) glm::vec3 dir;
     alignas(16) glm::vec3 color;
     alignas(16) glm::vec3 atten;
+    alignas(04) float nearDist;
+    alignas(04) float farDist;
     alignas(04) float radius;
     alignas(04) int type; // 0, 1, 2
   };
@@ -84,17 +86,41 @@ namespace dw {
     Light& setDirection(glm::vec3 const& dir) override;
 
     // TODO: set FOV, aspect, near, far for projection matrix
+    ShadowedLight& setFOV(float rad);
+    ShadowedLight& setAspect(float aspect);
+    ShadowedLight& setNear(float near);
+    ShadowedLight& setFar(float far);
+
+    NO_DISCARD float getFOV() const;
+    NO_DISCARD float getAspect() const;
+    NO_DISCARD float getNear() const;
+    NO_DISCARD float getFar() const;
 
     glm::mat4 const& getView();
     glm::mat4 const& getProj();
 
     ShadowedUBO getAsShadowUBO() {
-      return { getView(), getProj(), m_position, m_direction, m_color, m_attenuation, m_localRadius, (int)m_type };
+      return {
+        getView(),
+        getProj(),
+        m_position,
+        m_direction,
+        m_color,
+        m_attenuation,
+        m_nearDist,
+        m_farDist,
+        m_localRadius,
+        (int)m_type
+      };
     }
 
   private:
     glm::mat4 m_view {1};
     glm::mat4 m_proj {1};
+    float m_fov{ glm::radians(45.f) };
+    float m_aspect{ 1 };
+    float m_nearDist{ 0.5f };
+    float m_farDist{ 50.f };
     bool m_isViewDirty{ true };
     bool m_isProjDirty{ true };
   };

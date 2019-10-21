@@ -1,0 +1,63 @@
+#version 450
+// Shadow map blur compute shader
+
+layout(constant_id = 0) const int KERNEL_SIZE = 7;
+layout(constant_id = 1) const int KERNEL_W = 3;
+
+layout(local_size_y = 128) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D inputImage;
+layout(binding = 1, rgba32f) uniform writeonly image2D outputImage;
+
+layout(push_constant) uniform Weights{
+  float weights[KERNEL_SIZE];
+} push;
+
+// kernel size = 7, w = 3
+shared vec4 sharedData[128 + KERNEL_SIZE];
+
+void main() {
+  vec2 size = imageSize(inputImage);
+  
+  uint i = gl_LocalInvocationID.y;
+  ivec2 loadPos = ivec2(gl_GlobalInvocationID.xy);
+  
+  sharedData[i] = imageLoad(inputImage, ivec2(loadPos.x, max(0, loadPos.y - KERNEL_W)));
+  
+  if(gl_LocalInvocationID.y < 2 * KERNEL_W)
+    sharedData[i + 128] = imageLoad(inputImage, ivec2(loadPos.x, min(loadPos.y + 128 - KERNEL_W, size.y - 1)));
+  
+  //////////////////////
+  barrier();
+  //////////////////////
+  
+  vec4 store = vec4(0.0);
+  for(uint j = 0; j < KERNEL_SIZE; ++j)
+    store += push.weights[j] * sharedData[i + j];
+  
+  //// as this is the final kernel pass, we now compute the variance, skewness, and kurtosis for Hamburger 4MSM
+  //// variance
+  //float avgMult = 1.0 / KERNEL_SIZE;
+  //for(uint j = 0; j < KERNEL_SIZE; ++j) {
+  //  float val = sharedData[i + j] - store.x;
+  //  store.y += val * val * avgMult;
+  //}
+  //
+  //float std_dev = sqrt(store.y);
+  //
+  ////
+  //// skewness g = sum[i=1,N]((xi - median)^3 / N) / std_dev^3
+  //// can also adjust for sample size by multiplying by [sqrt(N(N-1)) / (N-2)]
+  //// kurtosis = sum[i=1,N]((xi - median)^4 / N)  / std_dev^4
+  //// as kurtosis for the standard normal distribution is 3, may have to divide by 3 here
+  //for(uint j = 0; j < KERNEL_SIZE; ++j) {
+  //  float v = sharedData[i + j] - store.x;
+  //  store.z += v * v * v * avgMult;
+  //  store.w += store.z * v; // ;)
+  //}
+  //float std_dev_cube = store.y * std_dev;
+  //store.z /= std_dev_cube;
+  //store.w /= std_dev_cube * std_dev;
+  
+  imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), store);
+}

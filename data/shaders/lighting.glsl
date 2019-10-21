@@ -14,6 +14,8 @@ struct ShadowLight {
   vec3 dir;
   vec3 color;
   vec3 atten;
+  float nearDist;
+  float farDist;
   float radius;
   int type;
 };

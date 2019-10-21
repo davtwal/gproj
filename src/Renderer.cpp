@@ -170,10 +170,14 @@ namespace dw {
       0
     };
 
+    // TODO:: make better
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_deferredSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create deferred rendering semaphore");
 
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_shadowSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create shadow map rendering semaphore");
+
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_blurSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create shadow map rendering semaphore");
 
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_globalLightSemaphore) != VK_SUCCESS)
@@ -182,20 +186,12 @@ namespace dw {
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_localLitSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create local lighting semaphore");
 
-    //setupCommandBuffers();
-    //setupDepthTestResources();
-    //setupGBufferImages();
     setupSamplers();
     setupUniformBuffers();
     setupFrameBufferImages();
     setupRenderSteps();
     setupFrameBuffers();
     transitionRenderImages();
-    //setupDescriptors();
-    //setupShaders();
-
-    //setupPipeline();
-
   }
 
   void Renderer::shutdown() {
@@ -203,12 +199,14 @@ namespace dw {
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_blurSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_globalLightSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_localLitSemaphore, nullptr);
-    m_deferredSemaphore = nullptr;
-    m_shadowSemaphore   = nullptr;
-    m_globalLightSemaphore = nullptr;
-    m_localLitSemaphore = nullptr;
+    m_deferredSemaphore     = nullptr;
+    m_shadowSemaphore       = nullptr;
+    m_blurSemaphore         = nullptr;
+    m_globalLightSemaphore  = nullptr;
+    m_localLitSemaphore     = nullptr;
 
     m_globalLights.clear();
     m_objList.clear();
@@ -222,6 +220,8 @@ namespace dw {
 
     m_gbuffer.reset();
     m_globalLitFrameBuffer.reset();
+    m_blurIntermediateView.reset();
+    m_blurIntermediate.reset();
 
     m_globalLightsUBO.reset();
     m_localLightsUBO.reset();
@@ -230,6 +230,7 @@ namespace dw {
 
     m_geometryStep.reset();
     m_shadowMapStep.reset();
+    m_blurStep.reset();
     m_globalLightStep.reset();
     m_finalStep.reset();
 
@@ -290,6 +291,7 @@ namespace dw {
     auto&           graphicsQueue      = m_graphicsQueue->get();
     VkCommandBuffer deferredCmdBuff    = m_geometryStep->getCommandBuffer();
     VkCommandBuffer shadowCmdBuff      = m_shadowMapStep->getCommandBuffer();
+    VkCommandBuffer blurCmdBuff        = m_blurStep->getCommandBuffer();
     VkCommandBuffer globalLightCmdBuff = m_globalLightStep->getCommandBuffer();
     VkCommandBuffer localLightCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);
 
@@ -317,6 +319,13 @@ namespace dw {
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
     submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
+    submitInfo.pSignalSemaphores = &m_blurSemaphore;
+    submitInfo.pCommandBuffers   = &blurCmdBuff;
+
+    // Note: This is assuming that the graphics queue supports compute!
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    submitInfo.pWaitSemaphores   = &m_blurSemaphore;
     submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
     submitInfo.pCommandBuffers   = &globalLightCmdBuff;
 
@@ -328,66 +337,8 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-    //// TODO: make this not happen every loop
-    //CommandBuffer& copyImg = m_commandPool->allocateCommandBuffer();
-
-    //copyImg.start(true);
-
-    //VkImageSubresourceLayers layer = {
-    //  VK_IMAGE_ASPECT_COLOR_BIT,
-    //  0,
-    //  0,
-    //  1
-    //};
-
-    //VkOffset3D boundMax = {
-    //  m_swapchain->getImageSize().width,
-    //  m_swapchain->getImageSize().height,
-    //  1
-    //};
-
-    //VkImageBlit imageBlit = {
-    //  layer,
-    //  {{0, 0, 0}, boundMax},
-    //  layer,
-    //  {{0, 0, 0}, boundMax}
-    //};
-
-    //// NOTE: This CANNOT be used for multisampled images.
-    //vkCmdBlitImage(copyImg, m_globalLitFrameBuffer->getImages().front(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-    //    nextImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &imageBlit, VK_FILTER_NEAREST);
-
-    //copyImg.end();
-    //VkCommandBuffer copyImgBuff = copyImg;
-
-    //submitInfo.pWaitSemaphores    = &m_localLitSemaphore;
-    //submitInfo.pSignalSemaphores  = &m_swapchain->getImageRenderReadySemaphore();
-    //submitInfo.pCommandBuffers    = &copyImgBuff;
-    //
-    //vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
-    //graphicsQueue.waitIdle();
-
-    //m_commandPool->freeCommandBuffer(copyImg);
-
-    //// deferred pass
-    /// TODO: Something is wrong with the submit functions and semaphores.
-    //graphicsQueue.submitOne(*m_deferredCmdBuff, 
-    //                        {m_swapchain->getNextImageSemaphore()},
-    //                        {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-    //                        {m_deferredSemaphore});
-    //graphicsQueue.waitIdle();
-    //
-    //// fsq pass
-    //
-    //graphicsQueue.submitOne(m_commandBuffers[nextImageIndex],
-    //                        {m_deferredSemaphore},
-    //                        {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT},
-    //                        {m_swapchain->getImageRenderReadySemaphore()});
-    //graphicsQueue.waitIdle();
-
-
-
     m_swapchain->present();
+    // todo: not wait
     graphicsQueue.waitIdle();
   }
 
@@ -443,7 +394,9 @@ namespace dw {
       m_camera.get().getView(),
       m_camera.get().getProj(),
       m_camera.get().getEyePos(),
-      m_camera.get().getViewDir()
+      m_camera.get().getViewDir(),
+      m_camera.get().getFarDist(),
+      m_camera.get().getNearDist()
     };
 
     void* data = m_cameraUBO->map();
@@ -495,7 +448,7 @@ namespace dw {
                                                                                  lightUniformSize * lights.size()));
 
     m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), m_globalLitFrameBuffer->getImageViews().front(), *m_cameraUBO, *m_localLightsUBO, m_sampler);
-    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers());
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front());
   }
 
   void Renderer::setGlobalLights(GlobalLightContainer lights) {
@@ -539,7 +492,7 @@ namespace dw {
                           VK_IMAGE_VIEW_TYPE_2D,
                           VK_FORMAT_R32G32B32A32_SFLOAT,
                           SHADOW_DEPTH_MAP_EXTENT,
-                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
                           1,
                           1,
                           false,
@@ -570,11 +523,14 @@ namespace dw {
       m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
     }
 
+    m_blurStep->writeCmdBuff(m_globalLights, *m_blurIntermediate, *m_blurIntermediateView);
+
     m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
                                             m_globalLights,
                                             *m_cameraUBO,
                                             *m_globalLightsUBO,
                                             m_sampler);
+
     m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
   }
 
@@ -849,6 +805,15 @@ namespace dw {
                                      false,
                                      false);
 
+    MemoryAllocator allocator(m_device->getOwningPhysical());
+    m_blurIntermediate = util::make_ptr<DependentImage>(*m_device);
+    m_blurIntermediate->initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
+      SHADOW_DEPTH_MAP_EXTENT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1, 1, false, false, false, false);
+
+    m_blurIntermediate->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    m_blurIntermediateView = util::make_ptr<ImageView>(m_blurIntermediate->createView());
+
     /*m_localLitFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
 
     m_localLitFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
@@ -882,14 +847,19 @@ namespace dw {
     m_shadowMapStep->setupPipelineLayout();
     m_shadowMapStep->setupPipeline({SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height});
 
+    // Note: Assuming that command pool can do compute!
+    m_blurStep = util::make_ptr<BlurStep>(*m_device, *m_commandPool);
+
+    m_blurStep->setupShaders();
+    m_blurStep->setupDescriptors();
+    m_blurStep->setupPipelineLayout();
+    m_blurStep->setupPipeline({});
+
     m_globalLightStep = util::make_ptr<GlobalLightStep>(*m_device, *m_commandPool);
 
     m_globalLightStep->setupShaders();
     m_globalLightStep->setupDescriptors();
-    m_globalLightStep->setupRenderPass({
-                                         m_globalLitFrameBuffer->getImages().begin(),
-                                         m_globalLitFrameBuffer->getImages().end()
-                                       });
+    m_globalLightStep->setupRenderPass({m_globalLitFrameBuffer->getImages()[0]});
     m_globalLightStep->setupPipelineLayout();
     m_globalLightStep->setupPipeline(m_globalLitFrameBuffer->getExtent());
 

@@ -1,0 +1,43 @@
+#version 450
+// Shadow map blur compute shader
+
+layout(constant_id = 0) const int KERNEL_SIZE = 7;
+layout(constant_id = 1) const int KERNEL_W = 3;
+
+layout(local_size_x = 128) in;
+
+layout(binding = 0, rgba32f) uniform readonly image2D inputImage;
+layout(binding = 1, rgba32f) uniform writeonly image2D outputImage;
+
+layout(push_constant) uniform Weights{
+  float weights[KERNEL_SIZE];
+} push;
+
+// kernel size = 7, w = 3
+shared vec4 sharedData[128 + KERNEL_SIZE];
+
+void main() {
+  vec2 size = imageSize(inputImage);
+  
+  uint i = gl_LocalInvocationID.x;
+  ivec2 loadPos = ivec2(gl_GlobalInvocationID.xy);
+  
+  sharedData[i] = imageLoad(inputImage, ivec2(max(0, loadPos.x - KERNEL_W), loadPos.y));
+  
+  if(gl_LocalInvocationID.x < 2 * KERNEL_W)
+    sharedData[i + 128] = imageLoad(inputImage, ivec2(
+      min(loadPos.x + 128 - KERNEL_W, size.x - 1), loadPos.y
+    ));
+  
+  //////////////////////
+  barrier();
+  //////////////////////
+  
+  vec4 store = vec4(0.0);
+  for(uint j = 0; j < KERNEL_SIZE; ++j)
+    store += push.weights[j] * sharedData[i + j];
+  
+  // only compute median here as this is the first pass
+  
+  imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), store);
+}

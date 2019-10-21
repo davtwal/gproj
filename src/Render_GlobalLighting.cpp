@@ -156,23 +156,13 @@ namespace dw {
                                  });
 
     m_pass->addSubpassDependency({
-      VK_SUBPASS_EXTERNAL,
-      0,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_ACCESS_MEMORY_READ_BIT,
-      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      VK_DEPENDENCY_BY_REGION_BIT
-    });
-
-    m_pass->addSubpassDependency({
                                    0,
                                    VK_SUBPASS_EXTERNAL,
                                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                                    VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_ACCESS_MEMORY_READ_BIT,
-                                   VK_DEPENDENCY_BY_REGION_BIT
+                                   0
                                  });
 
     m_pass->finishRenderPass();

@@ -33,6 +33,7 @@ namespace dw {
   //class Camera;
   class GeometryStep;
   class ShadowMapStep;
+  class BlurStep;
   class GlobalLightStep;
   class FinalStep;
 
@@ -61,6 +62,8 @@ namespace dw {
     alignas(16) glm::mat4 proj;
     alignas(16) glm::vec3 eyePos;
     alignas(16) glm::vec3 viewVec;
+    alignas(04) float farDist;
+    alignas(04) float nearDist;
   };
 
   class Renderer {
@@ -96,7 +99,7 @@ namespace dw {
     };
 
   private:
-    static constexpr VkExtent3D SHADOW_DEPTH_MAP_EXTENT = { 1000, 1000, 1 };
+    static constexpr VkExtent3D SHADOW_DEPTH_MAP_EXTENT = { 1024, 1024, 1 };
 
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
@@ -171,6 +174,12 @@ namespace dw {
     util::ptr<ShadowMapStep> m_shadowMapStep;
     VkSemaphore m_shadowSemaphore{ nullptr };
 
+    // blur pass
+    util::ptr<BlurStep> m_blurStep{ nullptr };
+    util::ptr<DependentImage> m_blurIntermediate{ nullptr };
+    util::ptr<ImageView> m_blurIntermediateView{ nullptr };
+    VkSemaphore m_blurSemaphore{ nullptr };
+
     // global lighting pass
     util::ptr<GlobalLightStep> m_globalLightStep;
     util::ptr<Framebuffer> m_globalLitFrameBuffer;
@@ -179,7 +188,7 @@ namespace dw {
     // final fsq pass
     util::ptr<FinalStep> m_finalStep;
     //util::ptr<Framebuffer> m_localLitFramebuffer;
-    VkSemaphore m_localLitSemaphore;
+    VkSemaphore m_localLitSemaphore{ nullptr };
 
     // Scene variables
     util::Ref<Camera> m_camera { s_defaultCamera };
