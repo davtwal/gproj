@@ -5,9 +5,14 @@ layout(location = 0) in vec4 inWorldPosition;
 
 layout(location = 0) out vec4 outDepth;
 
+layout(push_constant) uniform Depth {
+  layout(offset = 4) float near;
+  layout(offset = 8) float far;
+} depths;
+
 void main() {
   float depth = gl_FragCoord.z / gl_FragCoord.w;
-  //depth = (depth - 0.1) / 49.9;
+  depth = (depth - depths.near) / (depths.far - depths.near);
   
   // we want to store the four moments needed for Hamburger 4MSM
   float z1 = depth;

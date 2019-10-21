@@ -318,14 +318,14 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
+    //submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
+    //submitInfo.pSignalSemaphores = &m_blurSemaphore;
+    //submitInfo.pCommandBuffers   = &blurCmdBuff;
+    //
+    //// Note: This is assuming that the graphics queue supports compute!
+    //vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
     submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
-    submitInfo.pSignalSemaphores = &m_blurSemaphore;
-    submitInfo.pCommandBuffers   = &blurCmdBuff;
-
-    // Note: This is assuming that the graphics queue supports compute!
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
-
-    submitInfo.pWaitSemaphores   = &m_blurSemaphore;
     submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
     submitInfo.pCommandBuffers   = &globalLightCmdBuff;
 
@@ -733,7 +733,7 @@ namespace dw {
       0,
       VK_FILTER_NEAREST,
       VK_FILTER_NEAREST,
-      VK_SAMPLER_MIPMAP_MODE_LINEAR,
+      VK_SAMPLER_MIPMAP_MODE_NEAREST,
       VK_SAMPLER_ADDRESS_MODE_REPEAT,
       VK_SAMPLER_ADDRESS_MODE_REPEAT,
       VK_SAMPLER_ADDRESS_MODE_REPEAT,

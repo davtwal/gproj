@@ -40,19 +40,26 @@ namespace dw {
 
   void ShadowMapStep::setupPipelineLayout(VkPipelineLayout layout) {
     if (!layout) {
-      VkPushConstantRange push_constant_range = {
-        VK_SHADER_STAGE_VERTEX_BIT,
-        0,
-        sizeof(int)
-      };
+      std::array<VkPushConstantRange, 2> push_constant_ranges = {{
+        {
+          VK_SHADER_STAGE_VERTEX_BIT,
+          0,
+          sizeof(int)
+        },
+        {
+          VK_SHADER_STAGE_FRAGMENT_BIT,
+          sizeof(int),
+          sizeof(float) * 2
+      }}};
+
       VkPipelineLayoutCreateInfo pipeLayoutInfo = {
         VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         nullptr,
         0,
         1,
         &m_descSetLayout,
-        1,
-        &push_constant_range
+        2,
+        push_constant_ranges.data()
       };
 
       vkCreatePipelineLayout(getOwningDevice(), &pipeLayoutInfo, nullptr, &m_layout);
@@ -287,7 +294,9 @@ namespace dw {
           clearValues.data()
         };
 
+        float depths[2] = { light.m_light.getNear(), light.m_light.getFar() };
         vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(int), &i);
+        vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(int), sizeof(float) * 2, depths);
         // TODO: have the rendering of the scene be a secondary command buffer?
         renderScene(cmdBuff, beginInfo, scene, alignment, m_layout, m_descriptorSet);
       }
