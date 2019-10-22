@@ -3,8 +3,6 @@
 
 #include "lighting.glsl"
 
-#define MAX_GLOBAL_LIGHTS 1
-
 layout(binding = 0) uniform ShadowLights {
   ShadowLight at[MAX_GLOBAL_LIGHTS];
 } lights;

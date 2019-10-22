@@ -193,7 +193,7 @@ namespace dw {
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(3)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 2, 2, 2 });
-      o.setPosition({ 0, 1.f, 1.5f });
+      o.setPosition({ 0, 1.f, 2.f });
       o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0, 0, 1}) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
@@ -264,25 +264,31 @@ namespace dw {
       };
     }
 
-    m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
-
-    ShadowedLight globalLight;
-    globalLight.setPosition({ 5, 5, 5 })
-      .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-      .setColor({0.5f, 0.5f, 0.5f});
-
-
-
-    m_renderer->setGlobalLights({
-      globalLight
-    });
-
     Renderer::SceneContainer scene;
     scene.reserve(m_scene.size());
     for (auto& obj : m_scene) {
       scene.push_back(*obj);
     }
     m_renderer->setScene(scene);
+
+    m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
+
+
+
+    ShadowedLight globalLight;
+    globalLight.setPosition({ 5, 5, 5 })
+      .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
+      .setColor({0.5f, 0.5f, 0.5f});
+
+    ShadowedLight globalLight2;
+    globalLight2.setPosition({ -5, -5, 5 })
+      .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
+      .setColor({ 0.5f, 0.5f, 0.5f });
+
+    m_renderer->setGlobalLights({
+      globalLight,
+      globalLight2
+    });
 
     m_startTime = ClockType::now();
 

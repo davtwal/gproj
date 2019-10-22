@@ -24,7 +24,7 @@ struct ShadowLight {
 #define LIGHT_TYPE_SPOT 1
 #define LIGHT_TYPE_DIRECTIONAL 2
 
-#define MAX_GLOBAL_LIGHTS 1
+#define MAX_GLOBAL_LIGHTS 2
 #define MAX_DYNAMIC_LOCAL_LIGHTS 128
 
 vec3 ComputeLighting(Light light, vec3 objColor, vec3 point, vec3 N, vec3 V, float specExp) {

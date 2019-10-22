@@ -13,7 +13,6 @@ layout(push_constant) uniform Weights{
   float weights[KERNEL_SIZE];
 } push;
 
-// kernel size = 7, w = 3
 shared vec4 sharedData[128 + KERNEL_SIZE];
 
 void main() {
@@ -36,8 +35,6 @@ void main() {
   vec4 store = vec4(0.0);
   for(uint j = 0; j < KERNEL_SIZE; ++j)
     store += push.weights[j] * sharedData[i + j];
-  
-  // only compute median here as this is the first pass
   
   imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), store);
 }

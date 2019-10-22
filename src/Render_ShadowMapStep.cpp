@@ -153,11 +153,11 @@ namespace dw {
 
     VkPipelineColorBlendAttachmentState colorAttachmentInfo = {
       VK_FALSE, // This is disabled because transparency is not currently allowed during the geometry pass.
-      VK_BLEND_FACTOR_SRC_ALPHA,
-      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      VK_BLEND_FACTOR_ONE,
+      VK_BLEND_FACTOR_ZERO,
       VK_BLEND_OP_ADD,
-      VK_BLEND_FACTOR_SRC_ALPHA,
-      VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+      VK_BLEND_FACTOR_ONE,
+      VK_BLEND_FACTOR_ZERO,
       VK_BLEND_OP_ADD,
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
     };
@@ -268,10 +268,10 @@ namespace dw {
 
       cmdBuff.start(false);
 
-      vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
 
       // for each shadow mapped light
       for (uint32_t i = 0; i < lights.size(); ++i) {
+        vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
         auto& light = lights.at(i);
         assert(light.m_depthBuffer);
 

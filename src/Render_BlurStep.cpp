@@ -28,14 +28,12 @@ namespace dw {
       m_cmdBuff(o.m_cmdBuff),
       m_compute_x(o.m_compute_x),
       m_compute_y(o.m_compute_y),
-      m_descriptorSet_x(o.m_descriptorSet_x),
-      m_descriptorSet_y(o.m_descriptorSet_y) {
+      m_descriptorSets(std::move(o.m_descriptorSets)) {
     o.m_blur_x.reset();
     o.m_blur_y.reset();
     o.m_compute_x = nullptr;
     o.m_compute_y = nullptr;
-    o.m_descriptorSet_x = nullptr;
-    o.m_descriptorSet_y = nullptr;
+    o.m_descriptorSets.clear();
   }
 
   BlurStep::~BlurStep() {
@@ -146,7 +144,7 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> poolSizes = {
       {
         VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-        4
+        4 * GlobalLightStep::MAX_GLOBAL_LIGHTS
       }
     };
 
@@ -154,7 +152,7 @@ namespace dw {
       VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
       nullptr,
       0,
-      2,
+      2 * GlobalLightStep::MAX_GLOBAL_LIGHTS,
       static_cast<uint32_t>(poolSizes.size()),
       poolSizes.data()
     };
@@ -162,30 +160,13 @@ namespace dw {
     if (vkCreateDescriptorPool(getOwningDevice(), &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
       m_descriptorPool)
       throw std::runtime_error("Could not create descriptor pool");
-
-    VkDescriptorSetLayout layouts[2] = { m_descSetLayout, m_descSetLayout };
-    VkDescriptorSetAllocateInfo descSetAllocInfo = {
-      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-      nullptr,
-      m_descriptorPool,
-      2,
-      layouts
-    };
-
-    // note: because m_descriptorSet_y comes right after m_descriptorSet_x, then the allocation for 2
-    // puts the second into _y
-    VkResult result;
-    if ((result = vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSet_x)) != VK_SUCCESS)
-      throw std::runtime_error(std::string("Could not allocate descriptor sets: ") + std::to_string(result));
-
-    assert(m_descriptorSet_y);
   }
 
   CommandBuffer& BlurStep::getCommandBuffer() const {
     return m_cmdBuff;
   }
 
-  void BlurStep::updateDescriptorSets(ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler) const {
+  void BlurStep::updateDescriptorSets(DescriptorSetCont const& set, ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler) const {
     std::vector<VkWriteDescriptorSet> writes;
     writes.reserve(4);
 
@@ -210,7 +191,7 @@ namespace dw {
     VkWriteDescriptorSet write = {
       VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
       nullptr,
-      m_descriptorSet_x,
+      set.x,
       0,
       0,
       1,
@@ -226,7 +207,7 @@ namespace dw {
     write.pImageInfo = &intermediateInfo;
     writes.push_back(write);
 
-    write.dstSet = m_descriptorSet_y;
+    write.dstSet = set.y;
     write.dstBinding = 0;
     writes.push_back(write);
 
@@ -237,10 +218,26 @@ namespace dw {
     vkUpdateDescriptorSets(getOwningDevice(), writes.size(), writes.data(), 0, nullptr);
   }
 
-  void BlurStep::writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights, DependentImage& intermediateImg, ImageView& intermediaryView) const {
-    auto& cmdBuff = m_cmdBuff.get();
+  void BlurStep::writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights, DependentImage& intermediateImg, ImageView& intermediaryView) {
+    assert(lights.size() <= GlobalLightStep::MAX_GLOBAL_LIGHTS);
 
-    cmdBuff.start(false);
+    m_descriptorSets.clear();
+    m_descriptorSets.resize(lights.size());
+
+    std::vector<VkDescriptorSetLayout> layouts = { 2* lights.size(), m_descSetLayout };
+    VkDescriptorSetAllocateInfo descSetAllocInfo = {
+      VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+      nullptr,
+      m_descriptorPool,
+      2 * lights.size(),
+      layouts.data()
+    };
+
+    // note: because m_descriptorSet_y comes right after m_descriptorSet_x, then the allocation for 2
+    // puts the second into _y
+    // and also all of these descriptors are nice and packed :)
+    if (vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSets.front().x) != VK_SUCCESS)
+      throw std::runtime_error(std::string("Could not allocate descriptor sets: "));
 
     std::array<float, KERNEL_SIZE> weights {{0}};
 
@@ -257,8 +254,6 @@ namespace dw {
     for(auto& w : weights) {
       w /= weightSum;
     }
-
-    // TODO: weights as a UBO (might) be more efficient?
 
     VkImageMemoryBarrier barrier = {
       VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
@@ -283,6 +278,9 @@ namespace dw {
 
     barriers[0].image = intermediateImg;
 
+    auto& cmdBuff = m_cmdBuff.get();
+    cmdBuff.start(false);
+
     vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
       0, nullptr, 0, nullptr, 1, &barriers[0]);
     // ey broski, you were in the middle of making another compute pipeline to do the Y blur :>
@@ -290,14 +288,16 @@ namespace dw {
     barriers[1].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     const auto size = intermediateImg.getSize();
-    for (auto& light : lights) {
+    for(size_t i = 0; i < lights.size(); ++i){
+      auto& light = lights.at(i);
       auto& view = light.m_depthBuffer->getImageViews().front();
       auto& image = light.m_depthBuffer->getImages().front();
-      updateDescriptorSets(view, intermediaryView, view);
+      auto& descriptors = m_descriptorSets.at(i);
+      updateDescriptorSets(descriptors, view, intermediaryView, view);
       barriers[1].image = image;
 
       vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_x);
-      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &m_descriptorSet_x, 0, nullptr);
+      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &descriptors.x, 0, nullptr);
       vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
         0, nullptr, 0, nullptr, 1, &barriers[1]);
       vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)* KERNEL_SIZE, weights.data());
@@ -308,7 +308,7 @@ namespace dw {
         0, 0, nullptr, 0, nullptr, static_cast<uint32_t>(barriers.size()), barriers.data());
 
       vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_y);
-      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &m_descriptorSet_y, 0, nullptr);
+      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &descriptors.y, 0, nullptr);
       vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)* KERNEL_SIZE, weights.data());
       vkCmdDispatch(cmdBuff, size.width, (size.height / 128) + size.height % 128, 1);
 

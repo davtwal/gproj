@@ -35,29 +35,5 @@ void main() {
   for(uint j = 0; j < KERNEL_SIZE; ++j)
     store += push.weights[j] * sharedData[i + j];
   
-  //// as this is the final kernel pass, we now compute the variance, skewness, and kurtosis for Hamburger 4MSM
-  //// variance
-  //float avgMult = 1.0 / KERNEL_SIZE;
-  //for(uint j = 0; j < KERNEL_SIZE; ++j) {
-  //  float val = sharedData[i + j] - store.x;
-  //  store.y += val * val * avgMult;
-  //}
-  //
-  //float std_dev = sqrt(store.y);
-  //
-  ////
-  //// skewness g = sum[i=1,N]((xi - median)^3 / N) / std_dev^3
-  //// can also adjust for sample size by multiplying by [sqrt(N(N-1)) / (N-2)]
-  //// kurtosis = sum[i=1,N]((xi - median)^4 / N)  / std_dev^4
-  //// as kurtosis for the standard normal distribution is 3, may have to divide by 3 here
-  //for(uint j = 0; j < KERNEL_SIZE; ++j) {
-  //  float v = sharedData[i + j] - store.x;
-  //  store.z += v * v * v * avgMult;
-  //  store.w += store.z * v; // ;)
-  //}
-  //float std_dev_cube = store.y * std_dev;
-  //store.z /= std_dev_cube;
-  //store.w /= std_dev_cube * std_dev;
-  
   imageStore(outputImage, ivec2(gl_GlobalInvocationID.xy), store);
 }

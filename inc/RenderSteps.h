@@ -169,25 +169,33 @@ namespace dw {
 
     void writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
       DependentImage& intermediaryImg,
-      ImageView& intermediaryView) const;
+      ImageView& intermediaryView);
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
   private:
-    void updateDescriptorSets(ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler = nullptr) const;
+    struct DescriptorSetCont {
+      VkDescriptorSet x{ nullptr };
+      VkDescriptorSet y{ nullptr };
+    };
+
+    void updateDescriptorSets(DescriptorSetCont const& set, ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler = nullptr) const;
     util::ptr<IShader>       m_blur_x;
     util::ptr<IShader>       m_blur_y;
     util::Ref<CommandBuffer> m_cmdBuff;
     VkPipeline m_compute_x{ nullptr };
     VkPipeline m_compute_y{ nullptr };
-    VkDescriptorSet          m_descriptorSet_x{ nullptr };
-    VkDescriptorSet          m_descriptorSet_y{ nullptr };
+
+    std::vector<DescriptorSetCont> m_descriptorSets;
+
+    //VkDescriptorSet          m_descriptorSet_x{ nullptr };
+    //VkDescriptorSet          m_descriptorSet_y{ nullptr };
   };
 
   class GlobalLightStep : public RenderStep {
     friend class Renderer;
   public:
-    static constexpr uint32_t MAX_GLOBAL_LIGHTS = 1;
+    static constexpr uint32_t MAX_GLOBAL_LIGHTS = 2;
 
     MOVE_CONSTRUCT_ONLY(GlobalLightStep);
 

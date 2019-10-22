@@ -44,66 +44,102 @@ vec3 CramersRule(vec4 b, float z) {
   );
 }
 
-//vec3 CholeskyDecomp(vec4 b, float z) {
-//  
-//}
+vec3 CholeskyDecomp(vec4 bv, float z) {
+  mat3 m = mat3(   1, bv.x, bv.y,
+                bv.x, bv.y, bv.z,
+                bv.y, bv.z, bv.w);
+  
+  float a = sqrt(m[0][0]);
+  float b = m[0][1] / a;
+  float c = m[0][2] / a;
+  float d = sqrt(m[1][1] - b * b);
+  float e = (m[1][2] - b * c) / d;
+  float f = sqrt(m[2][2] - c * c - e * e);
+  
+  vec3 ch;
+  ch[0] = 1 / a;
+  ch[1] = (z - b * ch[0]) / d;
+  ch[2] = (z * z - c * ch[0] - e * e);
+  
+  vec3 cv;
+  cv[2] =  ch[2] / f;
+  cv[1] = (ch[1] - e * cv[2]) / d;
+  cv[0] = (ch[0] - b * cv[1] - c * cv[2]) / a;
+  
+  return cv;
+}
 
-float getG(vec4 moments, float fragDepth, float halfDist) {
+float getG(vec4 moments, float fragDepth) {
   float bias = 0.00003;
-  float depthBias = 0;
-  vec3 z = vec3(0.0);
-  z[0] = fragDepth - depthBias;
-  vec4 b = moments * (1 - bias) + bias * vec4(halfDist, halfDist, halfDist, halfDist);
+  float zf = fragDepth;
+  vec4 b = moments * (1 - bias) + bias * vec4(0.5, 0.5, 0.5, 0.5);
   
-  vec3 c = CramersRule(b, z[0]);
+  vec3 c = CholeskyDecomp(b, zf);
   
-  mat3 bmat = mat3(1, b.x, b.y, b.x, b.y, b.z, b.y, b.z, b.w);
+  // Check to make sure c is a valid solution
+  //mat3 bmat = mat3(1, b.x, b.y, b.x, b.y, b.z, b.y, b.z, b.w);
+  //vec3 mult = bmat * c;
   
-  vec3 A = vec3(1, b.x, b.y);
-  vec3 B = b.xyz;
-  vec3 C = b.yzw;
-  vec3 Z = vec3(1, z.x, z.x *z.x);
-  
-  float det = det3(A,B,C);
-  //if(abs(det) < 0.0001)
-  //  return 1.0;
-  
-  //if(isnan(c.x) || isinf(c.x))
-  //  return 1.0;
-  //
-  vec3 mult = bmat * c;
-  
-  //if(abs(mult.x - 1) < 0.01)
+  //if(abs(mult.x - 1) > 0.001)
   //  return 2.0;
-  
-  //if(abs(mult.y - z[0]) < 0.01)
+  //
+  //if(abs(mult.y - zf) > 0.001)
   //  return 3.0;
   
-  //if(abs(mult.z - z[0] * z[0]) < 0.01)
+  // NOTE: this is sometimes true, mainly if in true shadow.
+  //if(abs(mult.z - zf * zf) > 0.001)
   //  return 4.0;
-  //
-  //return 0.0;
   
+  // /// /// Quadratic Formula Step
   // now: c0 + z * c1 + z^2 * c2 = 0
-  float disc = c[1] * c[1] - 4 * c[2] * c[0];  
-  float p = -c[1] / c[2];
-  float q = 1 / (2 * c[2]);
-  disc = sqrt(disc);
-  z[1] = (p - disc) * q;
-  z[2] = (p + disc) * q;
+  // c[2] = a, c[1] = b, c[0] = c
+  float disc = c[1] * c[1] - 4 * c[2] * c[0];
   
-  if(z[0] - z[1] < 0)
-    return 0;
+  //if(disc < 0)
+  //  return 5.0; // error
+  
+  disc = sqrt(disc);
+  
+  //if(abs(c[2]) < 0.001)
+  //  return 8.0;
+  
+  float z2 = (-c[1] - disc) / (2 * c[2]);
+  float z3 = (-c[1] + disc) / (2 * c[2]);
+  
+  //if(isnan(z2) || isinf(z2))
+  //  return 7.0;
+  //
+  //if(isnan(z3) || isinf(z3))
+  //  return 7.0;
   
   float G = 0;
-  if(z[0] - z[2] < 0) {
-    G = (z[0]*z[2] - b[0]*(z[0] + z[2]) + b[1]) / ((z[2]-z[1])*(z[0]-z[2]));
+  
+  // /// /// Final Formulation of G
+  if(zf < z2) {    
+    G = 0;
+  }
+  else if(zf < z3) {
+    //return 0.5;
+    
+    float numer = zf * z3 - b.x * (zf + z3) + b.y;
+    float denom = (z3 - z2) * (zf - z2);
+    
+    //if(abs(denom) < 0.001)
+    //  return 6.0; // error
+    
+    G = numer / denom;
   } 
   else {
-    G = 1 - (z[1]*z[2] - b[0]*(z[1] + z[2]) + b[1]) / ((z[0]-z[1])*(z[0]-z[2]));
+    float numer = z2 * z3 - b.x * (z2 + z3) + b.y;
+    float denom = (zf - z2) * (zf - z3);
+    
+    //if(abs(denom) < 0.001)
+    //  return 6.0; // error
+    
+    G = 1 - (numer / denom);
   }
   
-  return 1 - clamp(G, 0.0, 1.0);
+  return G;//clamp(G, 0.0, 1.0);
 }
 
 void main() {
@@ -138,41 +174,42 @@ void main() {
     
     if(shadowCoord.w > 0 && shadowIndex.x >= 0 && shadowIndex.y >= 0 && shadowIndex.x <= 1 && shadowIndex.y <= 1) {
       vec4 lightDepth = texture(shadowMap[i], shadowIndex);
-      float halfDist = 0.5 * (lights.at[i].nearDist + lights.at[i].farDist);
-      float G = getG(lightDepth, pixelDepth, halfDist);
       
-      //if(abs(lightDepth.r * lightDepth.r - lightDepth.g) > 0.001)
-      //  color += vec3(1, 1, 1);
-      //
+      float G = getG(lightDepth, pixelDepth);
+      
       //switch(int(G)) {
-      //case 0:
-      //  color += vec3(1, 0, 0);
+      //case 2: // (B * c).x != 1 ; c is not a valid solution
+      //  color += vec3(0, 0, 1); // blue
+      //  break;
+      //  
+      //case 3: // (B * c).y != zf ; c is not a valid solution
+      //  color += vec3(1, 0, 0); // red
+      //  break;
+      //  
+      //case 4: // (B * c).z != zf^2 ; c is not a valid solution
+      //  color += vec3(1, 0, 1); // purple
+      //  break;
+      //  
+      //case 5: // discriminant was negative
+      //  color += vec3(0, 1, 1); // cyan
       //  break;
       //
-      //case 1: // Cramers rule determinant is 0
-      //  color += vec3(0, 0, 1);
+      //case 6: // a denominator while computing G was 0
+      //  color += vec3(1, 1, 1); // white
       //  break;
-      //
-      //case 2: // [Bc].x == 1
+      //  
+      //case 7: // a number was nan or inf
+      //  color += vec3(1, 1, 0); // yellow
+      //  break;
+      //  
+      //case 8: // c[2] was 0
       //  color += vec3(0, 1, 0);
       //  break;
       //  
-      //case 3: // [Bc].y == zf
-      //  color += vec3(0, 1, 1);
-      //  break;
-      //  
-      //case 4: // [Bc].z == zf^2
-      //  color += vec3(1, 1, 0);
-      //  break;
-      //  
-      ////default:
-      ////  color += vec3(1, 1, 1);
-      //}
-      
-      //float G = 1;
-      //if(pixelDepth - lightDepth.r < 0.01)
-      
-      color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);
+      //default: // no known error
+        //color += vec3(0, 1, 0);
+      if(G < 1)
+        color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);     
     }
   }
   
