@@ -155,8 +155,6 @@ namespace dw {
   public:
     MOVE_CONSTRUCT_ONLY(BlurStep);
 
-    static constexpr uint32_t KERNEL_SIZE = 7;
-
     BlurStep(LogicalDevice& device, CommandPool& pool);
     ~BlurStep() override;
 

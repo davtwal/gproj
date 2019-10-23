@@ -16,6 +16,8 @@
 #include <array>
 
 namespace dw {
+  static constexpr uint32_t KERNEL_SIZE = 61;
+
   BlurStep::BlurStep(LogicalDevice& device, CommandPool& pool)
     : RenderStep(device),
       m_cmdBuff(pool.allocateCommandBuffer())
@@ -85,6 +87,19 @@ namespace dw {
   }
 
   void BlurStep::setupPipeline(VkExtent2D extent) {
+    VkSpecializationMapEntry mapEntries[2] = {
+      {0, 0, sizeof(int)},
+      {1, sizeof(int), sizeof(int)}
+    };
+
+    int data[2] = { KERNEL_SIZE, KERNEL_SIZE / 2 };
+    VkSpecializationInfo specInfo = {
+      2,
+      mapEntries,
+      sizeof(int) * 2,
+      data
+    };
+
     VkComputePipelineCreateInfo createInfo = {
       VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
       nullptr,
@@ -96,7 +111,7 @@ namespace dw {
         VK_SHADER_STAGE_COMPUTE_BIT,
         m_blur_x->getCreateInfo().module,
         "main",
-        nullptr
+        &specInfo
       },
       m_layout,
       nullptr,

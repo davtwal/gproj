@@ -76,6 +76,32 @@ float getG(vec4 moments, float fragDepth) {
   
   vec3 c = CholeskyDecomp(b, zf);
   
+  float disc = c[1] * c[1] - 4 * c[2] * c[0];
+  
+  disc = sqrt(disc);
+  
+  float z2 = (-c[1] - disc) / (2 * c[2]);
+  float z3 = (-c[1] + disc) / (2 * c[2]);
+  
+  float G = 0;
+  
+  // /// /// Final Formulation of G
+  if(zf < z2) {    
+    G = 0;
+  }
+  else if(zf < z3) {    
+    float numer = zf * z3 - b.x * (zf + z3) + b.y;
+    float denom = (z3 - z2) * (zf - z2);
+    
+    G = numer / denom;
+  } 
+  else {
+    float numer = z2 * z3 - b.x * (z2 + z3) + b.y;
+    float denom = (zf - z2) * (zf - z3);
+    
+    G = 1 - (numer / denom);
+  }
+  
   // Check to make sure c is a valid solution
   //mat3 bmat = mat3(1, b.x, b.y, b.x, b.y, b.z, b.y, b.z, b.w);
   //vec3 mult = bmat * c;
@@ -93,53 +119,19 @@ float getG(vec4 moments, float fragDepth) {
   // /// /// Quadratic Formula Step
   // now: c0 + z * c1 + z^2 * c2 = 0
   // c[2] = a, c[1] = b, c[0] = c
-  float disc = c[1] * c[1] - 4 * c[2] * c[0];
   
   //if(disc < 0)
   //  return 5.0; // error
   
-  disc = sqrt(disc);
-  
   //if(abs(c[2]) < 0.001)
   //  return 8.0;
-  
-  float z2 = (-c[1] - disc) / (2 * c[2]);
-  float z3 = (-c[1] + disc) / (2 * c[2]);
   
   //if(isnan(z2) || isinf(z2))
   //  return 7.0;
   //
   //if(isnan(z3) || isinf(z3))
   //  return 7.0;
-  
-  float G = 0;
-  
-  // /// /// Final Formulation of G
-  if(zf < z2) {    
-    G = 0;
-  }
-  else if(zf < z3) {
-    //return 0.5;
-    
-    float numer = zf * z3 - b.x * (zf + z3) + b.y;
-    float denom = (z3 - z2) * (zf - z2);
-    
-    //if(abs(denom) < 0.001)
-    //  return 6.0; // error
-    
-    G = numer / denom;
-  } 
-  else {
-    float numer = z2 * z3 - b.x * (z2 + z3) + b.y;
-    float denom = (zf - z2) * (zf - z3);
-    
-    //if(abs(denom) < 0.001)
-    //  return 6.0; // error
-    
-    G = 1 - (numer / denom);
-  }
-  
-  return G;//clamp(G, 0.0, 1.0);
+  return G;
 }
 
 void main() {
@@ -169,11 +161,11 @@ void main() {
     vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
      
     vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;
-    float pixelDepth = shadowCoord.z;
-    pixelDepth = (pixelDepth - lights.at[i].nearDist) / (lights.at[i].farDist - lights.at[i].nearDist);
     
     if(shadowCoord.w > 0 && shadowIndex.x >= 0 && shadowIndex.y >= 0 && shadowIndex.x <= 1 && shadowIndex.y <= 1) {
       vec4 lightDepth = texture(shadowMap[i], shadowIndex);
+      float pixelDepth = shadowCoord.z;
+      pixelDepth = (pixelDepth - lights.at[i].nearDist) / (lights.at[i].farDist - lights.at[i].nearDist);
       
       float G = getG(lightDepth, pixelDepth);
       
@@ -205,9 +197,7 @@ void main() {
       //case 8: // c[2] was 0
       //  color += vec3(0, 1, 0);
       //  break;
-      //  
-      //default: // no known error
-        //color += vec3(0, 1, 0);
+      //}
       if(G < 1)
         color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);     
     }

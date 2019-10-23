@@ -207,7 +207,7 @@ namespace dw {
     m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
       ->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .5f, .5f, .5f });
-      o.setPosition({ 0, 0, .5f * cos(time) });
+      o.setPosition({ 1, 1, 2 + 0.f * cos(time) });
       o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
@@ -273,17 +273,15 @@ namespace dw {
 
     m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
 
-
-
     ShadowedLight globalLight;
     globalLight.setPosition({ 5, 5, 5 })
       .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-      .setColor({0.5f, 0.5f, 0.5f});
+      .setColor({1.0f, 1.0f, 1.0f});
 
     ShadowedLight globalLight2;
     globalLight2.setPosition({ -5, -5, 5 })
       .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
-      .setColor({ 0.5f, 0.5f, 0.5f });
+      .setColor({ 0.f, 0.0f, 0.0f });
 
     m_renderer->setGlobalLights({
       globalLight,
