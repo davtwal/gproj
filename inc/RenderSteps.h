@@ -211,6 +211,7 @@ namespace dw {
                               std::vector<Renderer::ShadowMappedLight> const& lights,
                               Buffer& cameraUBO,
                               Buffer& lightsUBO,
+                              Buffer& shaderControlUBO,
                               VkSampler sampler) const;
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
@@ -236,7 +237,7 @@ namespace dw {
     void setupShaders() override;
 
     void writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea = {},
-      bool renderImGui = false);
+      uint32_t image = ~0u);
     void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
                               ImageView const&              previousImage,
                               Buffer&                       cameraUBO,

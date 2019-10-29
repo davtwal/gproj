@@ -249,7 +249,7 @@ namespace dw {
       );
   }
 
-  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea, bool renderImGui) {
+  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea, uint32_t image) {
     const auto count = m_imageCount;
 
     if (renderArea.extent.width == 0)
@@ -258,12 +258,8 @@ namespace dw {
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = { {0, 0, 0, 0} };
 
-#ifdef DW_USE_IMGUI
-    if(renderImGui)
-      ImGui::Render();
-#endif
 
-    for (size_t i = 0; i < count; ++i) {
+    auto writeCmdBuff = [&, this](uint32_t i, bool renderImGui) {
       auto& commandBuffer = m_cmdBuffs[i].get();
 
       if (commandBuffer.canBeReset())
@@ -322,6 +318,15 @@ namespace dw {
       vkCmdEndRenderPass(commandBuffer);
 
       commandBuffer.end();
+    };
+    if (image == ~0u)
+      for (size_t i = 0; i < count; ++i)
+        writeCmdBuff(i, false);
+    else {
+#ifdef DW_USE_IMGUI
+      ImGui::Render();
+#endif
+      writeCmdBuff(image, true);
     }
   }
 

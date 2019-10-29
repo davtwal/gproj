@@ -283,22 +283,22 @@ namespace dw {
       scene.push_back(*obj);
     }
     m_renderer->setScene(scene);
-
+    m_renderer->setShaderControl(&m_shaderControl);
     m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
 
     ShadowedLight globalLight;
     globalLight.setPosition({ 5, 5, 5 })
       .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-      .setColor({1.0f, 1.0f, 1.0f});
+      .setColor({0.5f, 0.5f, 0.5f});
 
     ShadowedLight globalLight2;
     globalLight2.setPosition({ -5, -5, 5 })
       .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
-      .setColor({ 0.f, 0.0f, 0.0f });
+      .setColor({ 0.5f, 0.5f, 0.5f });
 
     m_renderer->setGlobalLights({
       globalLight,
-      //globalLight2
+      globalLight2
     });
 
     m_startTime = ClockType::now();
@@ -320,7 +320,11 @@ namespace dw {
       ImGui_ImplGlfw_NewFrame();
       ImGui_ImplVulkan_NewFrame();
       ImGui::NewFrame();
-      ImGui::ShowDemoWindow();
+
+      ImGui::Begin("Shader Control");
+        ImGui::DragFloat("Moment Bias", &m_shaderControl.global_momentBias, 0.00000005f, 0, .0001, "%.8f");
+        ImGui::DragFloat("Depth Bias", &m_shaderControl.global_depthBias, 0.0001f, 0.1f, 0.1f, "%.4f");
+      ImGui::End();
 #endif
       GLFWControl::Poll();
       // input check'

@@ -44,37 +44,31 @@ namespace dw {
 
   void GlobalLightStep::setupShaders() {
     m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>>(
-      ShaderModule::Load(getOwningDevice(),
-      "fsq_vert.spv"
-    ));
+                                                                 ShaderModule::Load(getOwningDevice(),
+                                                                                    "fsq_vert.spv"
+                                                                                   ));
     m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(
-      ShaderModule::Load(getOwningDevice(),
-      "global_lighting_frag.spv"
-    ));
+                                                                     ShaderModule::Load(getOwningDevice(),
+                                                                                        "global_lighting_frag.spv"
+                                                                                       ));
   }
 
   void GlobalLightStep::setupDescriptors() {
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
     finalBindings.
-        resize(NUM_EXPECTED_GBUFFER_IMAGES + 2 + 1); // one sampler per gbuffer image + one camera + lighting ubo + 
+        resize(NUM_EXPECTED_GBUFFER_IMAGES + 3 + 1); // one sampler per gbuffer image + one camera + lighting ubo + shader control ubo + shadow map array
 
-    finalBindings[0] = {
-      0,
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      1,
-      VK_SHADER_STAGE_FRAGMENT_BIT,
-      nullptr
-    };
+    for (uint32_t i = 0; i < 3; ++i) {
+      finalBindings[i] = {
+        i,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        1,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        nullptr
+      };
+    }
 
-    finalBindings[1] = {
-      1,
-      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      1,
-      VK_SHADER_STAGE_FRAGMENT_BIT,
-      nullptr
-    };
-
-    for (uint32_t i = 2; i < NUM_EXPECTED_GBUFFER_IMAGES + 2 + 1; ++i) {
+    for (uint32_t i = 3; i < NUM_EXPECTED_GBUFFER_IMAGES + 3 + 1; ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -101,7 +95,7 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> poolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        2
+        3
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -210,6 +204,7 @@ namespace dw {
                                              std::vector<Renderer::ShadowMappedLight> const& lights,
                                              Buffer&                                         cameraUBO,
                                              Buffer&                                         lightsUBO,
+                                             Buffer&                                         shaderControlUBO,
                                              VkSampler                                       sampler) const {
     std::vector<VkWriteDescriptorSet>  descriptorWrites;
     std::vector<VkDescriptorImageInfo> imageInfos;
@@ -255,12 +250,26 @@ namespace dw {
                                  nullptr
                                });
 
+    // shader control
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 2,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &shaderControlUBO.getDescriptorInfo(),
+                                 nullptr
+      });
+
     for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES; ++i) {
       descriptorWrites.push_back({
                                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                    nullptr,
                                    m_descriptorSet,
-                                   i + 2,
+                                   i + 3,
                                    0,
                                    1,
                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -274,7 +283,7 @@ namespace dw {
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  nullptr,
                                  m_descriptorSet,
-                                 5,
+                                 6,
                                  0,
                                  static_cast<uint32_t>(lights.size()),
                                  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -282,6 +291,8 @@ namespace dw {
                                  nullptr,
                                  nullptr
                                });
+
+
 
     vkUpdateDescriptorSets(getOwningDevice(),
                            static_cast<uint32_t>(descriptorWrites.size()),
@@ -310,10 +321,14 @@ namespace dw {
 
     cmdBuff.start(false);
     vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
-    vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS,
-      m_layout, 0,
-      1, &m_descriptorSet,
-      0, nullptr);
+    vkCmdBindDescriptorSets(cmdBuff,
+                            VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            m_layout,
+                            0,
+                            1,
+                            &m_descriptorSet,
+                            0,
+                            nullptr);
 
     vkCmdBeginRenderPass(cmdBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
     vkCmdDraw(cmdBuff, 4, 1, 0, 0);

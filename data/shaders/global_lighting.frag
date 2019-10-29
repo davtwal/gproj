@@ -16,22 +16,25 @@ layout(binding = 1) uniform ShadowLights {
   ShadowLight at[MAX_GLOBAL_LIGHTS];
 } lights;
 
-layout(binding = 2) uniform sampler2D inGBuffPosition;
-layout(binding = 3) uniform sampler2D inGBuffNormal;
-layout(binding = 4) uniform sampler2D inGBuffColor;
-layout(binding = 5) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
+// shader control
+layout(binding = 2) uniform ShaderControl {
+  float momentBias;
+  float depthBias;
+} control;
+
+layout(binding = 3) uniform sampler2D inGBuffPosition;
+layout(binding = 4) uniform sampler2D inGBuffNormal;
+layout(binding = 5) uniform sampler2D inGBuffColor;
+layout(binding = 6) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
 
 layout(location = 0) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
 
-float getG(vec4 moments, float fragmentDepth) {
-  float momentBias = 0.000002;
-  float depthBias = 0.001;
+float getG(vec4 moments, float fragmentDepth) {  
+  vec4 b = moments * (1 - control.momentBias) + control.momentBias * vec4(0.5f, 0.5f, 0.5f, 0.5f);
   
-  vec4 b = moments * (1 - momentBias) + momentBias * vec4(0.5f, 0.5f, 0.5f, 0.5f);
-  
-  vec3 z = vec3(fragmentDepth - depthBias, 0, 0);
+  vec3 z = vec3(fragmentDepth - control.depthBias, 0, 0);
   
   float L32D22 = -b[0] * b[1] + b[2];
   float D22 = -b[0] * b[0] + b[1];

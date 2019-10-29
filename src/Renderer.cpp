@@ -236,6 +236,9 @@ namespace dw {
     m_localLightsUBO.reset();
     m_modelUBO.reset();
     m_cameraUBO.reset();
+    m_shaderControlBuffer.reset();
+
+    m_shaderControl = nullptr;
 
     m_geometryStep.reset();
     m_shadowMapStep.reset();
@@ -421,7 +424,7 @@ namespace dw {
 
 #ifdef DW_USE_IMGUI
     // this updates the second subpass that is defined for imgui rendering
-    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front(), {}, true);
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front(), {}, nextImageIndex);
 #endif
 
     submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
@@ -512,6 +515,12 @@ namespace dw {
       lightUBOdata[i] = m_lights[i].get().getAsUBO();
     m_localLightsUBO->unMap();
 
+    // shader control:
+    assert(m_shaderControl);
+    data = m_shaderControlBuffer->map();
+    *reinterpret_cast<ShaderControl*>(data) = *m_shaderControl;
+    m_shaderControlBuffer->unMap();
+
     // Flush to make changes visible to the host
     // we dont do this cus coherent on my machine
     //VkMappedMemoryRange memoryRange = vks::initializers::mappedMemoryRange();
@@ -527,6 +536,10 @@ namespace dw {
   //////////////////////////////// SCENE SETUP ////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
+
+  void Renderer::setShaderControl(ShaderControl* control) {
+    m_shaderControl = std::move(control);
+  }
 
   void Renderer::setCamera(util::Ref<Camera> camera) {
     m_camera = camera;
@@ -622,6 +635,7 @@ namespace dw {
                                             m_globalLights,
                                             *m_cameraUBO,
                                             *m_globalLightsUBO,
+                                            *m_shaderControlBuffer,
                                             m_sampler);
 
     m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
@@ -851,6 +865,7 @@ namespace dw {
     VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
 
     m_cameraUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
+    m_shaderControlBuffer = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(ShaderControl)));
   }
 
   void Renderer::setupFrameBufferImages() {

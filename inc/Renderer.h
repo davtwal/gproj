@@ -99,6 +99,14 @@ namespace dw {
       util::ptr<Framebuffer> m_depthBuffer;
     };
 
+    // contains control
+    struct ShaderControl {
+      alignas(04) float global_momentBias {0.00000005f};
+      alignas(04) float global_depthBias  {0.0004f};
+    };
+
+    void setShaderControl(ShaderControl* control);
+    
   private:
     static constexpr VkExtent3D SHADOW_DEPTH_MAP_EXTENT = { 1024, 1024, 1 };
 
@@ -140,6 +148,9 @@ namespace dw {
     VkDescriptorPool m_imguiDescriptorPool{ nullptr };
 #endif
 
+    // shader control
+    ShaderControl* m_shaderControl{ nullptr };
+    util::ptr<Buffer> m_shaderControlBuffer{ nullptr };
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
     //// GENERAL VARIABLES

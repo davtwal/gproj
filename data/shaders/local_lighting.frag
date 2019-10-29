@@ -40,9 +40,9 @@ void main() {
   vec3 V = normalize(cam.eye - inPos);
   
   vec3 color = vec3(0, 0, 0);
-  //for(int i = 0; i < MAX_DYNAMIC_LOCAL_LIGHTS; ++i) {
-  //  color += ComputeLighting(dynLights.at[i], inColor, inPos, N, V, inSpecExp);
-  //}
+  for(int i = 0; i < MAX_DYNAMIC_LOCAL_LIGHTS; ++i) {
+    color += ComputeLighting(dynLights.at[i], inColor, inPos, N, V, inSpecExp);
+  }
   
   fragColor = vec4(color.xyz, 1) + previousColor;
   //fragColor /= fragColor.a;
