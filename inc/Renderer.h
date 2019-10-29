@@ -24,8 +24,9 @@
 #include "Object.h"
 #include "Camera.h"
 #include "Light.h"
-
 #include "MeshManager.h"
+
+#include "ImGui.h"
 
 #include <unordered_map>
 
@@ -130,8 +131,15 @@ namespace dw {
 
     // shutdown helpers
     void shutdownScene();
-
     void recreateSwapChain();
+
+#ifdef DW_USE_IMGUI
+    // imgui
+    void setupImGui();
+    void shutdownImGui();
+    VkDescriptorPool m_imguiDescriptorPool{ nullptr };
+#endif
+
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
     //// GENERAL VARIABLES

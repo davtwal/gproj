@@ -42,7 +42,8 @@ file(GLOB SRC_CPP src/*.cpp)
 file(GLOB HEADERS inc/*.h)
 file(GLOB INLINE inc/*.inl)
 file(GLOB_RECURSE GLM_HEADERS ${GLM_DIRECTORY}/*.hpp)
-file(GLOB DEPENDENCY_FILES ${DEP_BASE_DIR}/inc/*.h ${DEP_BASE_DIR}/src/*.cc)
+file(GLOB DEPENDENCY_FILES_H ${DEP_BASE_DIR}/inc/*.h)
+file(GLOB DEPENDENCY_FILES_CPP ${DEP_BASE_DIR}/src/*.c*)
 
 message("|| Gathering GLM")
 add_subdirectory(${GLM_DIRECTORY})
@@ -84,7 +85,7 @@ endif()
 
 # Create targets
 message("|| Creating executable")
-add_executable(${PROJ_NAME} ${SRC_CPP} ${HEADERS} ${GLM_HEADERS} ${DEPENDENCY_FILES} ${INLINE})
+add_executable(${PROJ_NAME} ${SRC_CPP} ${HEADERS} ${GLM_HEADERS} ${DEPENDENCY_FILES_H} ${DEPENDENCY_FILES_CPP} ${INLINE})
 
 if(MSVC)
   set(CompilerFlags
@@ -104,8 +105,9 @@ endif()
 message("|| Creating source groups (filters)")
 source_group("inl" FILES ${INLINE})
 source_group("inc" FILES ${HEADERS})
+source_group("dep" FILES ${DEPENDENCY_FILES_H})
 source_group("dep\\glm" FILES ${GLM_HEADERS})
-source_group("dep" FILES ${DEPENDENCY_FILES})
+source_group("dep\\src" FILES ${DEPENDENCY_FILES_CPP})
 source_group("src" FILES ${SRC_CPP})
 
 # Add include directories and link locations/libraries to the executable

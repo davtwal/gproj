@@ -42,6 +42,8 @@
 #include <chrono>
 #include <random>
 
+#include "ImGui.h"
+
 #define _USE_MATH_DEFINES
 #include <math.h>
 
@@ -160,10 +162,21 @@ namespace dw {
   int Application::initialize() {
     GLFWControl::Init();
     // open window
+
     m_window = new GLFWWindow(800, 800, "hey lol");
     m_inputHandler = new InputHandler(*m_window);
-
     m_window->setInputHandler(m_inputHandler);
+
+#ifdef DW_USE_IMGUI
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+
+    ImGui_ImplGlfw_InitForVulkan(m_window->getHandle(), true);
+#endif
+
 
     m_renderer = util::make_ptr<Renderer>();
 
@@ -285,7 +298,7 @@ namespace dw {
 
     m_renderer->setGlobalLights({
       globalLight,
-      globalLight2
+      //globalLight2
     });
 
     m_startTime = ClockType::now();
@@ -303,6 +316,12 @@ namespace dw {
     ClockType::time_point prevTime = ClockType::now();
     ClockType::time_point curTime = ClockType::now();
     while (!m_renderer->done()) {
+#ifdef DW_USE_IMGUI
+      ImGui_ImplGlfw_NewFrame();
+      ImGui_ImplVulkan_NewFrame();
+      ImGui::NewFrame();
+      ImGui::ShowDemoWindow();
+#endif
       GLFWControl::Poll();
       // input check'
       static constexpr float STEP_VALUE = 1.f;
@@ -375,6 +394,8 @@ namespace dw {
 
   int Application::shutdown() {
     m_scene.clear();
+
+    ImGui_ImplGlfw_Shutdown();
 
     m_meshManager.clear();
     m_renderer->shutdown();

@@ -30,14 +30,15 @@
 #include "MemoryAllocator.h"
 #include "Camera.h"
 #include "Image.h"
+#include "Light.h"
+#include "RenderSteps.h"
+
+#include "ImGui.h"
 
 #include <array>
 #include <cassert>
 #include <algorithm>
-#include <stdlib.h>
-#include "Light.h"
 
-#include "RenderSteps.h"
 
 // Wrapper functions for aligned memory allocation
 // There is currently no standard for this in C++ that works across all platforms and vendors, so we abstract this
@@ -192,10 +193,18 @@ namespace dw {
     setupRenderSteps();
     setupFrameBuffers();
     transitionRenderImages();
+
+#ifdef DW_USE_IMGUI
+    setupImGui();
+#endif
   }
 
   void Renderer::shutdown() {
     vkDeviceWaitIdle(*m_device);
+
+#ifdef DW_USE_IMGUI
+    shutdownImGui();
+#endif
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
@@ -268,6 +277,85 @@ namespace dw {
     m_control = nullptr;
   }
 
+  // IMGUI
+
+#ifdef DW_USE_IMGUI
+  void Renderer::setupImGui() {
+    const auto checkResultFn = [](VkResult err) {
+      if (err != VK_SUCCESS) {
+        Trace::Error << "ImGui VK Error: " << err << Trace::Stop;
+      }
+    };
+
+    VkDescriptorPoolSize poolSize = {
+      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+      1
+    };
+    VkDescriptorPoolCreateInfo poolCreateInfo = {
+      VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      1,
+      &poolSize
+    };
+
+    if (vkCreateDescriptorPool(*m_device, &poolCreateInfo, nullptr, &m_imguiDescriptorPool) != VK_SUCCESS)
+      throw std::runtime_error("Could not create ImGui descriptor pool");
+
+    ImGui_ImplVulkan_InitInfo initInfo = {
+      *m_control,
+      m_device->getOwningPhysical(),
+      *m_device,
+      m_graphicsQueue->get().getFamily(),
+      m_graphicsQueue->get(),
+      nullptr,
+      m_imguiDescriptorPool,
+      m_surface->getCapabilities().minImageCount + 1, // TODO make this easier / based on swapchain
+      m_swapchain->getNumImages(),
+      VK_SAMPLE_COUNT_1_BIT,
+      nullptr,
+      checkResultFn
+    };
+
+    // Need VkRenderPass
+    // Need descriptor pool - can allocate 1 combined image sampler
+    ImGui_ImplVulkan_Init(&initInfo, m_finalStep->getRenderPass());
+
+    // this should be a command buffer that is already started
+    CommandBuffer& cmdBuff = (m_commandPool->allocateCommandBuffer());
+    cmdBuff.start(true);
+
+    ImGui_ImplVulkan_CreateFontsTexture(cmdBuff);
+
+    cmdBuff.end();
+
+    VkCommandBuffer vkCmdBuff = cmdBuff;
+    VkSubmitInfo submitInfo = {
+      VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      nullptr,
+      0,
+      nullptr,
+      0,
+      1,
+      &vkCmdBuff,
+      0,
+      nullptr
+    };
+
+    vkQueueSubmit(m_graphicsQueue->get(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(m_graphicsQueue->get()); // TODO: not this
+  }
+
+  void Renderer::shutdownImGui() {
+    vkDestroyDescriptorPool(*m_device, m_imguiDescriptorPool, nullptr);
+
+    ImGui_ImplVulkan_DestroyFontUploadObjects();
+    ImGui_ImplVulkan_Shutdown();
+  }
+#endif
+
+
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -331,6 +419,11 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
+#ifdef DW_USE_IMGUI
+    // this updates the second subpass that is defined for imgui rendering
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front(), {}, true);
+#endif
+
     submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
     submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
     submitInfo.pCommandBuffers   = &localLightCmdBuff;
@@ -338,8 +431,8 @@ namespace dw {
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
     m_swapchain->present();
-    // todo: not wait
-    graphicsQueue.waitIdle();
+    graphicsQueue.waitIdle(); // todo: not wait
+
   }
 
   void Renderer::uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const {

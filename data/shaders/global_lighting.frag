@@ -24,114 +24,51 @@ layout(binding = 5) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
 layout(location = 0) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
-float det3(vec3 a, vec3 b, vec3 c) 
-{
-  return a.x*(b.y*c.z-b.z*c.y) + a.y*(b.z*c.x-b.x*c.z) + a.z*(b.x*c.y-b.y*c.x); 
-}
 
-vec3 CramersRule(vec4 b, float z) {
-  vec3 A = vec3(1, b.x, b.y);
-  vec3 B = b.xyz;
-  vec3 C = b.yzw;
-  vec3 Z = vec3(1, z, z *z);
+float getG(vec4 moments, float fragmentDepth) {
+  float momentBias = 0.000002;
+  float depthBias = 0.001;
   
-  float det = det3(A,B,C);
-  float d = 1 / det3(A,B,C);
-  return vec3(
-    det3(Z,B,C) * d,
-    det3(A,Z,C) * d,
-    det3(A,B,Z) * d
-  );
-}
-
-vec3 CholeskyDecomp(vec4 bv, float z) {
-  mat3 m = mat3(   1, bv.x, bv.y,
-                bv.x, bv.y, bv.z,
-                bv.y, bv.z, bv.w);
+  vec4 b = moments * (1 - momentBias) + momentBias * vec4(0.5f, 0.5f, 0.5f, 0.5f);
   
-  float a = sqrt(m[0][0]);
-  float b = m[0][1] / a;
-  float c = m[0][2] / a;
-  float d = sqrt(m[1][1] - b * b);
-  float e = (m[1][2] - b * c) / d;
-  float f = sqrt(m[2][2] - c * c - e * e);
+  vec3 z = vec3(fragmentDepth - depthBias, 0, 0);
   
-  vec3 ch;
-  ch[0] = 1 / a;
-  ch[1] = (z - b * ch[0]) / d;
-  ch[2] = (z * z - c * ch[0] - e * e);
+  float L32D22 = -b[0] * b[1] + b[2];
+  float D22 = -b[0] * b[0] + b[1];
+  float SquaredDepthVariance = -b[1] * b[1] + b[3];
+  float D33D22 = dot( vec2(SquaredDepthVariance, -L32D22), vec2(D22, L32D22) );
+  float InvD22 = 1.0 / D22;
+  float L32 = L32D22 * InvD22;
   
-  vec3 cv;
-  cv[2] =  ch[2] / f;
-  cv[1] = (ch[1] - e * cv[2]) / d;
-  cv[0] = (ch[0] - b * cv[1] - c * cv[2]) / a;
+  vec3 c = vec3(1.0f, z[0], z[0] * z[0]);
   
-  return cv;
-}
-
-float getG(vec4 moments, float fragDepth) {
-  float bias = 0.00003;
-  float zf = fragDepth;
-  vec4 b = moments * (1 - bias) + bias * vec4(0.5, 0.5, 0.5, 0.5);
+  c[1] -= b.x;
+  c[2] -= b.y + L32 * c[1];
   
-  vec3 c = CholeskyDecomp(b, zf);
+  c[1] *= InvD22;
+  c[2] *= D22 / D33D22;
   
-  float disc = c[1] * c[1] - 4 * c[2] * c[0];
+  c[1] -= L32 * c[2];
+  c[0] -= dot(c.yz, b.xy);
   
-  disc = sqrt(disc);
+  float p = c[1] / c[2];
+  float q = c[0] / c[2];
+  float D = ( (p * p) / 4.0f ) - q;
+  float r = sqrt(D);
   
-  float z2 = (-c[1] - disc) / (2 * c[2]);
-  float z3 = (-c[1] + disc) / (2 * c[2]);
+  z[1] = -(p / 2.0f) - r;
+  z[2] = -(p / 2.0f) + r;
   
-  float G = 0;
-  
-  // /// /// Final Formulation of G
-  if(zf < z2) {    
-    G = 0;
-  }
-  else if(zf < z3) {    
-    float numer = zf * z3 - b.x * (zf + z3) + b.y;
-    float denom = (z3 - z2) * (zf - z2);
-    
-    G = numer / denom;
-  } 
-  else {
-    float numer = z2 * z3 - b.x * (z2 + z3) + b.y;
-    float denom = (zf - z2) * (zf - z3);
-    
-    G = 1 - (numer / denom);
-  }
-  
-  // Check to make sure c is a valid solution
-  //mat3 bmat = mat3(1, b.x, b.y, b.x, b.y, b.z, b.y, b.z, b.w);
-  //vec3 mult = bmat * c;
-  
-  //if(abs(mult.x - 1) > 0.001)
-  //  return 2.0;
-  //
-  //if(abs(mult.y - zf) > 0.001)
-  //  return 3.0;
-  
-  // NOTE: this is sometimes true, mainly if in true shadow.
-  //if(abs(mult.z - zf * zf) > 0.001)
-  //  return 4.0;
-  
-  // /// /// Quadratic Formula Step
-  // now: c0 + z * c1 + z^2 * c2 = 0
-  // c[2] = a, c[1] = b, c[0] = c
-  
-  //if(disc < 0)
-  //  return 5.0; // error
-  
-  //if(abs(c[2]) < 0.001)
-  //  return 8.0;
-  
-  //if(isnan(z2) || isinf(z2))
-  //  return 7.0;
-  //
-  //if(isnan(z3) || isinf(z3))
-  //  return 7.0;
-  return G;
+  vec4 switchVec = (z[2] < z[0])
+    ? vec4(z[1], z[0], 1.0f, 1.0f)
+    : (z[1] < z[0])
+      ? vec4(z[0], z[1], 0.0f, 1.0f)
+      : vec4(0.f, 0.f, 0.f, 0.f);
+      
+  float quotient = (switchVec[0] * z[2] - b[0] * (switchVec[0] + z[2]) + b[1])
+                 / ((z[2] - switchVec[1]) * (z[0] - z[1]));
+                 
+  return clamp(switchVec[2] + switchVec[3] * quotient, 0.0f, 1.0f);
 }
 
 void main() {
@@ -169,35 +106,22 @@ void main() {
       
       float G = getG(lightDepth, pixelDepth);
       
-      //switch(int(G)) {
-      //case 2: // (B * c).x != 1 ; c is not a valid solution
-      //  color += vec3(0, 0, 1); // blue
-      //  break;
-      //  
-      //case 3: // (B * c).y != zf ; c is not a valid solution
-      //  color += vec3(1, 0, 0); // red
-      //  break;
-      //  
-      //case 4: // (B * c).z != zf^2 ; c is not a valid solution
-      //  color += vec3(1, 0, 1); // purple
-      //  break;
-      //  
-      //case 5: // discriminant was negative
-      //  color += vec3(0, 1, 1); // cyan
-      //  break;
-      //
-      //case 6: // a denominator while computing G was 0
-      //  color += vec3(1, 1, 1); // white
-      //  break;
-      //  
-      //case 7: // a number was nan or inf
-      //  color += vec3(1, 1, 0); // yellow
-      //  break;
-      //  
-      //case 8: // c[2] was 0
-      //  color += vec3(0, 1, 0);
-      //  break;
-      //}
+      /*switch(int(G)) {
+      case 1: // zf <= z2 *lit
+        color += vec3(1, 0, 1); break;
+        
+      case 2: // z2 < zf <= z3
+        color += vec3(0, 1, 0); break;
+      
+      case 3: // z3 < zf *shadowed
+        color += vec3(0, 0, 1); break;
+      
+      case 4: // c[2] ~= 0
+        color += vec3(1, 0, 0); break;
+        
+      case 5:
+        color += vec3(1, 1, 1); break;
+      }*/
       if(G < 1)
         color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);     
     }

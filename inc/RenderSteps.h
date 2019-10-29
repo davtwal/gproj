@@ -235,7 +235,8 @@ namespace dw {
     void setupDescriptors() override;
     void setupShaders() override;
 
-    void writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea = {});
+    void writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea = {},
+      bool renderImGui = false);
     void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
                               ImageView const&              previousImage,
                               Buffer&                       cameraUBO,

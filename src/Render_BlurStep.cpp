@@ -16,7 +16,7 @@
 #include <array>
 
 namespace dw {
-  static constexpr uint32_t KERNEL_SIZE = 61;
+  static constexpr uint32_t KERNEL_SIZE = 15;
 
   BlurStep::BlurStep(LogicalDevice& device, CommandPool& pool)
     : RenderStep(device),

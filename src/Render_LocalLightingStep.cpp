@@ -21,6 +21,8 @@
 #include <stdexcept>
 #include <array>
 
+#include "ImGui.h"
+
 namespace dw {
   FinalStep::FinalStep(LogicalDevice& device, CommandPool& pool, uint32_t numSwapchainImages)
     : RenderStep(device),
@@ -173,7 +175,30 @@ namespace dw {
                                    0
       });
 
+#ifdef DW_USE_IMGUI
+    m_pass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
+    m_pass->finishSubpass();
 
+    m_pass->addSubpassDependency({
+        0,
+        1,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
+        VK_DEPENDENCY_BY_REGION_BIT
+      });
+
+    m_pass->addSubpassDependency({
+      1,
+      VK_SUBPASS_EXTERNAL,
+      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+      VK_ACCESS_MEMORY_READ_BIT,
+      VK_DEPENDENCY_BY_REGION_BIT
+    });
+#else
     m_pass->addSubpassDependency({
                                    0,
                                    VK_SUBPASS_EXTERNAL,
@@ -183,6 +208,7 @@ namespace dw {
                                    VK_ACCESS_MEMORY_READ_BIT,
                                    VK_DEPENDENCY_BY_REGION_BIT
       });
+#endif
 
     m_pass->finishRenderPass();
   }
@@ -223,7 +249,7 @@ namespace dw {
       );
   }
 
-  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea) {
+  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea, bool renderImGui) {
     const auto count = m_imageCount;
 
     if (renderArea.extent.width == 0)
@@ -232,8 +258,16 @@ namespace dw {
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = { {0, 0, 0, 0} };
 
+#ifdef DW_USE_IMGUI
+    if(renderImGui)
+      ImGui::Render();
+#endif
+
     for (size_t i = 0; i < count; ++i) {
       auto& commandBuffer = m_cmdBuffs[i].get();
+
+      if (commandBuffer.canBeReset())
+        commandBuffer.reset();
 
       VkRenderPassBeginInfo beginInfo = {
         VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -278,7 +312,15 @@ namespace dw {
         nullptr);
       vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
       vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+
+#ifdef DW_USE_IMGUI
+      vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+      if (renderImGui) {
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+      }
+#endif
       vkCmdEndRenderPass(commandBuffer);
+
       commandBuffer.end();
     }
   }
