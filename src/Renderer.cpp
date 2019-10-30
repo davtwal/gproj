@@ -211,11 +211,11 @@ namespace dw {
     vkDestroySemaphore(*m_device, m_blurSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_globalLightSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_localLitSemaphore, nullptr);
-    m_deferredSemaphore     = nullptr;
-    m_shadowSemaphore       = nullptr;
-    m_blurSemaphore         = nullptr;
-    m_globalLightSemaphore  = nullptr;
-    m_localLitSemaphore     = nullptr;
+    m_deferredSemaphore    = nullptr;
+    m_shadowSemaphore      = nullptr;
+    m_blurSemaphore        = nullptr;
+    m_globalLightSemaphore = nullptr;
+    m_localLitSemaphore    = nullptr;
 
     m_globalLights.clear();
     m_objList.clear();
@@ -246,8 +246,9 @@ namespace dw {
     m_globalLightStep.reset();
     m_finalStep.reset();
 
+    m_graphicsCmdPool.reset();
     m_transferCmdPool.reset();
-    m_commandPool.reset();
+    m_computeCmdPool.reset();
 
     delete m_presentQueue;
     m_presentQueue = nullptr;
@@ -260,6 +261,9 @@ namespace dw {
 
     delete m_transferQueue;
     m_transferQueue = nullptr;
+
+    delete m_computeQueue;
+    m_computeQueue = nullptr;
 
     delete m_device;
     m_device = nullptr;
@@ -326,31 +330,31 @@ namespace dw {
     ImGui_ImplVulkan_Init(&initInfo, m_finalStep->getRenderPass());
 
     // this should be a command buffer that is already started
-    CommandBuffer& cmdBuff = (m_commandPool->allocateCommandBuffer());
+    CommandBuffer& cmdBuff = (m_graphicsCmdPool->allocateCommandBuffer());
     cmdBuff.start(true);
 
     ImGui_ImplVulkan_CreateFontsTexture(cmdBuff);
 
     cmdBuff.end();
 
-    VkCommandBuffer vkCmdBuff = cmdBuff;
-    VkSubmitInfo submitInfo = {
+    VkCommandBuffer vkCmdBuff  = cmdBuff;
+    VkSubmitInfo    submitInfo = {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
       nullptr,
       0,
       nullptr,
-      0,
+      nullptr,
       1,
       &vkCmdBuff,
       0,
       nullptr
     };
 
-    vkQueueSubmit(m_graphicsQueue->get(), 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueSubmit(m_graphicsQueue->get(), 1, &submitInfo, nullptr);
     vkQueueWaitIdle(m_graphicsQueue->get()); // TODO: not this
   }
 
-  void Renderer::shutdownImGui() {
+  void Renderer::shutdownImGui() const {
     vkDestroyDescriptorPool(*m_device, m_imguiDescriptorPool, nullptr);
 
     ImGui_ImplVulkan_DestroyFontUploadObjects();
@@ -380,6 +384,7 @@ namespace dw {
     Image const& nextImage      = m_swapchain->getNextImage();
 
     auto&           graphicsQueue      = m_graphicsQueue->get();
+    auto&           computeQueue       = m_computeQueue->get();
     VkCommandBuffer deferredCmdBuff    = m_geometryStep->getCommandBuffer();
     VkCommandBuffer shadowCmdBuff      = m_shadowMapStep->getCommandBuffer();
     VkCommandBuffer blurCmdBuff        = m_blurStep->getCommandBuffer();
@@ -414,7 +419,7 @@ namespace dw {
     submitInfo.pCommandBuffers   = &blurCmdBuff;
     
     // Note: This is assuming that the graphics queue supports compute!
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+    vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr);
 
     submitInfo.pWaitSemaphores   = &m_blurSemaphore;
     submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
@@ -424,7 +429,10 @@ namespace dw {
 
 #ifdef DW_USE_IMGUI
     // this updates the second subpass that is defined for imgui rendering
-    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front(), {}, nextImageIndex);
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(),
+                              m_globalLitFrameBuffer->getImages().front(),
+                              {},
+                              nextImageIndex);
 #endif
 
     submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
@@ -517,7 +525,7 @@ namespace dw {
 
     // shader control:
     assert(m_shaderControl);
-    data = m_shaderControlBuffer->map();
+    data                                    = m_shaderControlBuffer->map();
     *reinterpret_cast<ShaderControl*>(data) = *m_shaderControl;
     m_shaderControlBuffer->unMap();
 
@@ -553,7 +561,11 @@ namespace dw {
     m_localLightsUBO              = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
                                                                                  lightUniformSize * lights.size()));
 
-    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(), m_globalLitFrameBuffer->getImageViews().front(), *m_cameraUBO, *m_localLightsUBO, m_sampler);
+    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(),
+                                      m_globalLitFrameBuffer->getImageViews().front(),
+                                      *m_cameraUBO,
+                                      *m_localLightsUBO,
+                                      m_sampler);
     m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front());
   }
 
@@ -796,12 +808,16 @@ namespace dw {
 
     uint32_t graphicsFamily = physical.pickQueueFamily(VK_QUEUE_GRAPHICS_BIT);
     uint32_t transferFamily = physical.pickQueueFamily(VK_QUEUE_TRANSFER_BIT);
+    uint32_t computeFamily  = physical.pickQueueFamily(VK_QUEUE_COMPUTE_BIT);
 
     LogicalDevice::QueueList queueList;
     queueList.push_back(std::make_pair(graphicsFamily, std::vector<float>({1})));
 
     if (graphicsFamily != transferFamily)
       queueList.push_back(std::make_pair(transferFamily, std::vector<float>({1})));
+
+    if (computeFamily != graphicsFamily && computeFamily != transferFamily)
+      queueList.push_back(std::make_pair(computeFamily, std::vector<float>({1})));
 
     m_device = new LogicalDevice(physical, deviceLayers, deviceExtensions, queueList, features, features, false);
 
@@ -811,6 +827,10 @@ namespace dw {
 
     m_transferQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_TRANSFER_BIT));
     assert(m_transferQueue && m_transferQueue->get().isValid()); // graphics queues implicitly allow transfer
+
+    m_computeQueue = new util::Ref<Queue>(m_device->getBestQueue(VK_QUEUE_COMPUTE_BIT));
+    if (!m_computeQueue->get().isValid())
+      throw std::runtime_error("no compute queue available");
   }
 
   /////////////////////////////////////////////////////////////////////////////
@@ -831,8 +851,9 @@ namespace dw {
   }
 
   void Renderer::setupCommandPools() {
-    m_commandPool     = util::make_ptr<CommandPool>(*m_device, m_graphicsQueue->get().getFamily());
+    m_graphicsCmdPool = util::make_ptr<CommandPool>(*m_device, m_graphicsQueue->get().getFamily());
     m_transferCmdPool = util::make_ptr<CommandPool>(*m_device, m_transferQueue->get().getFamily());
+    m_computeCmdPool  = util::make_ptr<CommandPool>(*m_device, m_computeQueue->get().getFamily());
   }
 
   void Renderer::setupSamplers() {
@@ -864,7 +885,7 @@ namespace dw {
   void Renderer::setupUniformBuffers() {
     VkDeviceSize cameraUniformSize = sizeof(CameraUniform);
 
-    m_cameraUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
+    m_cameraUBO           = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
     m_shaderControlBuffer = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(ShaderControl)));
   }
 
@@ -907,7 +928,8 @@ namespace dw {
                                      VK_IMAGE_VIEW_TYPE_2D,
                                      VK_FORMAT_R8G8B8A8_UNORM,
                                      gbuffExtent,
-                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                                      1,
                                      1,
                                      false,
@@ -917,8 +939,17 @@ namespace dw {
 
     MemoryAllocator allocator(m_device->getOwningPhysical());
     m_blurIntermediate = util::make_ptr<DependentImage>(*m_device);
-    m_blurIntermediate->initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, VK_FORMAT_R32G32B32A32_SFLOAT,
-      SHADOW_DEPTH_MAP_EXTENT, VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT, 1, 1, false, false, false, false);
+    m_blurIntermediate->initImage(VK_IMAGE_TYPE_2D,
+                                  VK_IMAGE_VIEW_TYPE_2D,
+                                  VK_FORMAT_R32G32B32A32_SFLOAT,
+                                  SHADOW_DEPTH_MAP_EXTENT,
+                                  VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                                  1,
+                                  1,
+                                  false,
+                                  false,
+                                  false,
+                                  false);
 
     m_blurIntermediate->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
@@ -941,7 +972,7 @@ namespace dw {
   }
 
   void Renderer::setupRenderSteps() {
-    m_geometryStep = util::make_ptr<GeometryStep>(*m_device, *m_commandPool);
+    m_geometryStep = util::make_ptr<GeometryStep>(*m_device, *m_graphicsCmdPool);
 
     m_geometryStep->setupShaders();
     m_geometryStep->setupDescriptors();
@@ -949,7 +980,7 @@ namespace dw {
     m_geometryStep->setupPipelineLayout();
     m_geometryStep->setupPipeline(m_swapchain->getImageSize());
 
-    m_shadowMapStep = util::make_ptr<ShadowMapStep>(*m_device, *m_commandPool);
+    m_shadowMapStep = util::make_ptr<ShadowMapStep>(*m_device, *m_graphicsCmdPool);
 
     m_shadowMapStep->setupShaders();
     m_shadowMapStep->setupDescriptors();
@@ -958,14 +989,14 @@ namespace dw {
     m_shadowMapStep->setupPipeline({SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height});
 
     // Note: Assuming that command pool can do compute!
-    m_blurStep = util::make_ptr<BlurStep>(*m_device, *m_commandPool);
+    m_blurStep = util::make_ptr<BlurStep>(*m_device, *m_computeCmdPool);
 
     m_blurStep->setupShaders();
     m_blurStep->setupDescriptors();
     m_blurStep->setupPipelineLayout();
     m_blurStep->setupPipeline({});
 
-    m_globalLightStep = util::make_ptr<GlobalLightStep>(*m_device, *m_commandPool);
+    m_globalLightStep = util::make_ptr<GlobalLightStep>(*m_device, *m_graphicsCmdPool);
 
     m_globalLightStep->setupShaders();
     m_globalLightStep->setupDescriptors();
@@ -973,7 +1004,7 @@ namespace dw {
     m_globalLightStep->setupPipelineLayout();
     m_globalLightStep->setupPipeline(m_globalLitFrameBuffer->getExtent());
 
-    m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_commandPool, m_swapchain->getNumImages());
+    m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_graphicsCmdPool, m_swapchain->getNumImages());
 
     m_finalStep->setupShaders();
     m_finalStep->setupDescriptors();
@@ -1020,7 +1051,7 @@ namespace dw {
 
     m_transferCmdPool->freeCommandBuffer(transBuff);
 
-    CommandBuffer& graphicsBuff = m_commandPool->allocateCommandBuffer();
+    CommandBuffer& graphicsBuff = m_graphicsCmdPool->allocateCommandBuffer();
     graphicsBuff.start(true);
 
     const Image& depthImage = dynamic_cast<const Image&>(m_gbuffer->getImages().back());
@@ -1033,6 +1064,6 @@ namespace dw {
     m_graphicsQueue->get().submitOne(graphicsBuff);
     m_graphicsQueue->get().waitIdle();
 
-    m_commandPool->freeCommandBuffer(graphicsBuff);
+    m_graphicsCmdPool->freeCommandBuffer(graphicsBuff);
   }
 }

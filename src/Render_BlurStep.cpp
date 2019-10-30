@@ -328,7 +328,7 @@ namespace dw {
       vkCmdDispatch(cmdBuff, size.width, (size.height / 128) + size.height % 128, 1);
 
       barriers[1].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
         0, nullptr, 0, nullptr, 1, &barriers[1]);
       barriers[1].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;

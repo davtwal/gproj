@@ -31,17 +31,19 @@ layout(location = 0) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
 
-float getG(vec4 moments, float fragmentDepth) {  
+float getG(vec4 moments, float fragmentDepth) {
+  // Code comes from the supplementary paper for Hamburger 4MSM.
+  // Converted from HLSL to GLSL.
   vec4 b = moments * (1 - control.momentBias) + control.momentBias * vec4(0.5f, 0.5f, 0.5f, 0.5f);
-  
   vec3 z = vec3(fragmentDepth - control.depthBias, 0, 0);
   
+  // Magic Cholesky decomposition
   float L32D22 = -b[0] * b[1] + b[2];
-  float D22 = -b[0] * b[0] + b[1];
-  float SquaredDepthVariance = -b[1] * b[1] + b[3];
-  float D33D22 = dot( vec2(SquaredDepthVariance, -L32D22), vec2(D22, L32D22) );
+  float D22    = -b[0] * b[0] + b[1];
+  float SDV    = -b[1] * b[1] + b[3];
+  float D33D22 = dot( vec2(SDV, -L32D22), vec2(D22, L32D22) );
   float InvD22 = 1.0 / D22;
-  float L32 = L32D22 * InvD22;
+  float L32    = L32D22 * InvD22;
   
   vec3 c = vec3(1.0f, z[0], z[0] * z[0]);
   
@@ -54,6 +56,7 @@ float getG(vec4 moments, float fragmentDepth) {
   c[1] -= L32 * c[2];
   c[0] -= dot(c.yz, b.xy);
   
+  // Quadratic formula solving
   float p = c[1] / c[2];
   float q = c[0] / c[2];
   float D = ( (p * p) / 4.0f ) - q;
@@ -62,6 +65,7 @@ float getG(vec4 moments, float fragmentDepth) {
   z[1] = -(p / 2.0f) - r;
   z[2] = -(p / 2.0f) + r;
   
+  // Final calculation of G
   vec4 switchVec = (z[2] < z[0])
     ? vec4(z[1], z[0], 1.0f, 1.0f)
     : (z[1] < z[0])
@@ -109,22 +113,6 @@ void main() {
       
       float G = getG(lightDepth, pixelDepth);
       
-      /*switch(int(G)) {
-      case 1: // zf <= z2 *lit
-        color += vec3(1, 0, 1); break;
-        
-      case 2: // z2 < zf <= z3
-        color += vec3(0, 1, 0); break;
-      
-      case 3: // z3 < zf *shadowed
-        color += vec3(0, 0, 1); break;
-      
-      case 4: // c[2] ~= 0
-        color += vec3(1, 0, 0); break;
-        
-      case 5:
-        color += vec3(1, 1, 1); break;
-      }*/
       if(G < 1)
         color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);     
     }

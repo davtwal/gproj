@@ -144,7 +144,7 @@ namespace dw {
 #ifdef DW_USE_IMGUI
     // imgui
     void setupImGui();
-    void shutdownImGui();
+    void shutdownImGui() const;
     VkDescriptorPool m_imguiDescriptorPool{ nullptr };
 #endif
 
@@ -163,11 +163,13 @@ namespace dw {
 
     util::ptr<Surface> m_surface{ nullptr };
     util::ptr<Swapchain> m_swapchain{ nullptr };
-    util::ptr<CommandPool> m_commandPool{ nullptr };
+    util::ptr<CommandPool> m_graphicsCmdPool{ nullptr };
     util::ptr<CommandPool> m_transferCmdPool{ nullptr };
+    util::ptr<CommandPool> m_computeCmdPool{ nullptr };
     util::Ref<Queue>* m_graphicsQueue{ nullptr };
     util::Ref<Queue>* m_presentQueue{ nullptr };
     util::Ref<Queue>* m_transferQueue{ nullptr };
+    util::Ref<Queue>* m_computeQueue{ nullptr };
 
     //////////////////////////////////////////////////////
     //////////////////////////////////////////////////////
