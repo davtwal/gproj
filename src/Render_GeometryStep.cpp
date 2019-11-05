@@ -20,6 +20,7 @@
 
 #include <stdexcept>
 #include <array>
+#include "Trace.h"
 
 namespace dw {
   GeometryStep::GeometryStep(LogicalDevice& device, CommandPool& pool)
@@ -143,6 +144,10 @@ namespace dw {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
         1
+      },
+      {
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        MAX_MATERIALS * Material::MTL_MAP_COUNT
       }
     };
 
@@ -170,7 +175,23 @@ namespace dw {
       &m_descSetLayout
     };
 
-    if (vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSet) != VK_SUCCESS)
+    VkResult result = vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSet);
+    switch(result) {
+    case VK_ERROR_OUT_OF_POOL_MEMORY:
+      Trace::Error << "Out of pool memory" << Trace::Stop;
+      break;
+    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+      Trace::Error << "Out of device memory" << Trace::Stop;
+      break;
+    case VK_ERROR_FRAGMENTED_POOL:
+      Trace::Error << "Fragmented pool" << Trace::Stop;
+      break;
+    case VK_ERROR_OUT_OF_HOST_MEMORY:
+      Trace::Error << "Out of host memory" << Trace::Stop;
+
+    }
+
+    if (result != VK_SUCCESS)
       throw std::runtime_error("Could not allocate descriptor sets");
   }
 

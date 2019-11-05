@@ -12,7 +12,7 @@ layout(binding = 0) uniform CameraUBO {
 
 layout(binding = 1) uniform ObjectUBO {
   mat4 model;
-  //uint mtlIndex;
+  uint mtlIndex;
 } obj;
 
 layout(location = 0) in vec3 inPosition;

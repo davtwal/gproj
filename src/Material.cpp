@@ -69,8 +69,8 @@ namespace dw {
       auto& material = *iter.first->second;
       material.m_kd = glm::vec3(mtl.diffuse[0], mtl.diffuse[1], mtl.diffuse[2]);
       material.m_ks = glm::vec3(mtl.specular[0], mtl.specular[1], mtl.specular[2]);
-      material.m_metallic = mtl.metallic;
-      material.m_roughness = mtl.roughness;
+      material.m_metallic = 1 - mtl.metallic;   // TODO: not
+      material.m_roughness = 1 - mtl.roughness;
       material.m_id = m_curID++;
       // load textures
       assert(Material::MTL_MAP_COUNT == 4);

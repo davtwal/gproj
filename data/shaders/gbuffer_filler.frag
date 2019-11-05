@@ -31,7 +31,7 @@ layout(binding = 1) uniform ObjectUBO {
 
 layout(binding = 2) uniform MaterialsUBO {
   Material at[MAX_MATERIALS];
-  int count;
+  //int count;
 } mtls;
 
 layout(binding = 3) uniform sampler2D inMtlAlbedo[MAX_MATERIALS];
@@ -83,6 +83,6 @@ void main() {
   }
   
   outPos    = vec4(inWorldPosition.xyz, 1.0);
-  outNormal = vec4(normalize(inWorldNormal.xyz), metallic);
-  outColor  = vec4(color, roughness);
+  outNormal = vec4(normalize(inWorldNormal.xyz), 1.0);
+  outColor  = vec4(color, 100);
 }
