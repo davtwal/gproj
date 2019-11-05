@@ -231,6 +231,7 @@ namespace dw {
     m_blurIntermediateView.reset();
     m_blurIntermediate.reset();
 
+    m_materialsUBO.reset();
     m_globalLightsUBO.reset();
     m_localLightsUBO.reset();
     m_modelUBO.reset();
@@ -470,8 +471,10 @@ namespace dw {
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::uploadMaterials(MaterialManager::MtlMap& materials) const {
+  void Renderer::uploadMaterials(MaterialManager::MtlMap& materials) {
     std::unordered_map<MaterialManager::MtlMap::key_type, Material::StagingBuffs> stagingBuffers;
+
+    m_materials = &materials;
 
     for (auto& mtl : materials) {
       if (mtl.second->hasTexturesToLoad()) {
@@ -493,6 +496,17 @@ namespace dw {
     m_graphicsQueue->get().submitOne(moveBuff);
     m_graphicsQueue->get().waitIdle();
     m_graphicsCmdPool->freeCommandBuffer(moveBuff);
+
+    if (m_materialsUBO)
+      m_materialsUBO.reset();
+
+    m_materialsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, materials.size() * sizeof(Material::MaterialUBO)));
+
+    auto data = reinterpret_cast<Material::MaterialUBO*>(m_materialsUBO->map());
+    for(auto& mtl : materials) {
+      data[mtl.second->getID()] = mtl.second->getAsUBO();
+    }
+    m_materialsUBO->unMap();
   }
 
   void Renderer::updateUniformBuffers(uint32_t imageIndex) {
@@ -668,7 +682,7 @@ namespace dw {
 
     prepareDynamicUniformBuffers();
 
-    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO);
+    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_materials, m_sampler);
     m_geometryStep->writeCmdBuff(*m_gbuffer, m_objList, m_modelUBOdynamicAlignment);
 
     if (m_globalLightsUBO) {

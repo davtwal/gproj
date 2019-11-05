@@ -83,22 +83,41 @@ namespace dw {
   }
 
   void GeometryStep::setupDescriptors() {
-    std::vector<VkDescriptorSetLayoutBinding> layoutBindings = {
-      {
-        0,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        1,
-        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        nullptr
-      },
-      {
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        1,
-        VK_SHADER_STAGE_VERTEX_BIT,
-        nullptr
-      }
+    std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
+    layoutBindings.resize(3 + Material::MTL_MAP_COUNT);
+    layoutBindings[0] = {
+      0,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      1,
+      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+      nullptr
     };
+
+    layoutBindings[1] = {
+      1,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+      1,
+      VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+      nullptr
+    };
+
+    layoutBindings[2] = {
+      2,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      1,
+      VK_SHADER_STAGE_FRAGMENT_BIT,
+      nullptr
+    };
+
+    for (uint32_t i = 3; i < Material::MTL_MAP_COUNT + 3; ++i) {
+      layoutBindings[i] = {
+        i,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        MAX_MATERIALS,
+        VK_SHADER_STAGE_FRAGMENT_BIT,
+        nullptr
+      };
+    }
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -119,7 +138,7 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> poolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        1
+        2
       },
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -155,15 +174,29 @@ namespace dw {
       throw std::runtime_error("Could not allocate descriptor sets");
   }
 
-  void GeometryStep::updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO) const {
+  void GeometryStep::updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO, 
+      MaterialManager::MtlMap& materials,
+      VkSampler sampler) const {
     // Descriptor sets are automatically freed once the pool is freed.
     // They can be individually freed if the pool was created with
     // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
     VkDescriptorBufferInfo modelUBOinfo = modelUBO.getDescriptorInfo();
     modelUBOinfo.range = sizeof(ObjectUniform);
 
-    std::vector<VkWriteDescriptorSet> descriptorWrites = {
-      {
+    std::vector<VkDescriptorImageInfo> imageInfos;
+    std::vector<VkWriteDescriptorSet> descriptorWrites;
+    imageInfos.resize(MAX_MATERIALS * Material::MTL_MAP_COUNT);
+    descriptorWrites.reserve(MAX_MATERIALS * Material::MTL_MAP_COUNT + 3);
+
+    for(auto& mtl : materials) {
+      auto& views = mtl.second->getViews();
+
+      for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()] = VkDescriptorImageInfo{ sampler, views.empty() ? nullptr : views[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+      }
+    }
+
+    descriptorWrites.push_back({
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         nullptr,
         m_descriptorSet,
@@ -174,8 +207,9 @@ namespace dw {
         nullptr,
         &cameraUBO.getDescriptorInfo(),
         nullptr
-      },
-      {
+      });
+
+    descriptorWrites.push_back({
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
         nullptr,
         m_descriptorSet,
@@ -186,8 +220,35 @@ namespace dw {
         nullptr,
         &modelUBOinfo,
         nullptr
+      });
+
+    descriptorWrites.push_back({
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        m_descriptorSet,
+        2,
+        0,
+        1,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        nullptr,
+        &mtlUBO.getDescriptorInfo(),
+        nullptr
+      });
+
+      for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
+        descriptorWrites.push_back({
+          VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+          nullptr,
+          m_descriptorSet,
+          i + 3,
+          0,
+          MAX_MATERIALS,
+          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+          &imageInfos[i * MAX_MATERIALS],
+          nullptr,
+          nullptr
+        });
       }
-    };
 
     vkUpdateDescriptorSets(getOwningDevice(),
       static_cast<uint32_t>(descriptorWrites.size()),

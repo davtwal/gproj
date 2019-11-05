@@ -12,28 +12,32 @@ layout(binding = 0) uniform CameraUBO {
 
 #include "inc/defines.glsl"
 
-//struct Material {
-//  vec3 diffuseCoeff;
-//  vec3 specularCoeff;
-//  float metallicCoeff;  // if 0, ignore metallic sampler
-//  float roughnessCoeff; // if 0, ignore roughness sampler
-//  int hasNormalMap;
-//  int hasMetallicMap;
-//  int hasRoughnessMap;
-//  //bool hasAOMap;
-//};
+struct Material {
+  vec3 diffuseCoeff;
+  vec3 specularCoeff;
+  float metallicCoeff;  // if 0, ignore metallic sampler
+  float roughnessCoeff; // if 0, ignore roughness sampler
+  int hasAlbedoMap;
+  int hasNormalMap;
+  int hasMetallicMap;
+  int hasRoughnessMap;
+  //bool hasAOMap;
+};
 
 layout(binding = 1) uniform ObjectUBO {
   mat4 model;
-  //uint mtlIndex;
+  uint mtlIndex;
 } obj;
 
-//layout(binding = 2) uniform MaterialsUBO {
-//  Material at[MAX_MATERIALS];
-//  int count;
-//} mtls;
+layout(binding = 2) uniform MaterialsUBO {
+  Material at[MAX_MATERIALS];
+  int count;
+} mtls;
 
-//layout(binding = 3) uniform sampler2DArray inMtlMaps[MAX_MATERIALS];
+layout(binding = 3) uniform sampler2D inMtlAlbedo[MAX_MATERIALS];
+layout(binding = 4) uniform sampler2D inMtlNormal[MAX_MATERIALS];
+layout(binding = 5) uniform sampler2D inMtlMetallic[MAX_MATERIALS];
+layout(binding = 6) uniform sampler2D inMtlRoughness[MAX_MATERIALS];
 
 layout(location = 0) in vec4 inWorldPosition;
 layout(location = 1) in vec4 inWorldNormal;
@@ -55,23 +59,28 @@ void main() {
   
   // Each material is stored in a 3D texture with MTL_MAP_COUNT layers
   //vec3 albedoMap     = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 0));
-  //
-  //if(mtls.at[obj.mtlIndex].hasNormalMap == 1) {
-  //  vec3 normalMap = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 1));
-  //  // do normal mapping, output in 'normal'
-  //}
-  //
-  //if(mtls.at[obj.mtlIndex].hasMetallicMap == 1) {
-  //  float metallicMap  = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 2));
-  //  metallic = metallicMap * mtls.at[obj.mtlIndex].metallicCoeff;
-  //}
-  //
-  //if(mtls.at[obj.mtlIndex].hasRoughnessMap == 1) {
-  //  float roughnessMap = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 3));
-  //  roughness = roughnessMap * mtls.at[obj.mtlIndex].roughnessCoeff;
-  //}
-  //
-  //color = color * albedoMap * mtls.at[obj.mtlIndex].diffuseCoeff;
+  if(mtls.at[obj.mtlIndex].hasAlbedoMap == 1) {
+    vec3 albedoMap = texture(inMtlAlbedo[obj.mtlIndex], inUV).xyz;
+    color = color * albedoMap * mtls.at[obj.mtlIndex].diffuseCoeff;
+  }
+  
+  if(mtls.at[obj.mtlIndex].hasNormalMap == 1) {
+    //vec3 normalMap = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 1));
+    vec3 normalMap = texture(inMtlNormal[obj.mtlIndex], inUV).xyz;
+    // do normal mapping, output in 'normal'
+  }
+  
+  if(mtls.at[obj.mtlIndex].hasMetallicMap == 1) {
+    //float metallicMap  = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 2)).r;
+    float metallicMap = texture(inMtlMetallic[obj.mtlIndex], inUV).r;
+    metallic = metallicMap * mtls.at[obj.mtlIndex].metallicCoeff;
+  }
+  
+  if(mtls.at[obj.mtlIndex].hasRoughnessMap == 1) {
+    //float roughnessMap = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 3));
+    float roughnessMap = texture(inMtlRoughness[obj.mtlIndex], inUV).r;
+    roughness = roughnessMap * mtls.at[obj.mtlIndex].roughnessCoeff;
+  }
   
   outPos    = vec4(inWorldPosition.xyz, 1.0);
   outNormal = vec4(normalize(inWorldNormal.xyz), metallic);

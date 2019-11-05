@@ -78,8 +78,7 @@ namespace dw {
     NO_DISCARD bool done() const;
 
     void uploadMeshes(MeshManager::MeshMap& meshes) const;
-
-    void uploadMaterials(MaterialManager::MtlMap& materials) const;
+    void uploadMaterials(MaterialManager::MtlMap& materials);
 
     using SceneContainer = std::vector<util::Ref<Object>>;
     using LightContainer = std::vector<util::Ref<Light>>;
@@ -189,6 +188,8 @@ namespace dw {
     util::ptr<Buffer> m_localLightsUBO;   //!< Contains all local light info
     util::ptr<Buffer> m_globalLightsUBO;  //!< Contains all global (shadow mapped) light info
     util::ptr<Buffer> m_materialsUBO;     //!< Contains the coefficients for the materials
+    // TODO: not this this is hacky
+    MaterialManager::MtlMap* m_materials {nullptr};
 
     // gbuffer/deferred pass
     util::ptr<GeometryStep> m_geometryStep;

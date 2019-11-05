@@ -45,6 +45,7 @@ namespace dw {
   CREATE_DEVICE_DEPENDENT(RenderStep)
   public:
     static constexpr unsigned NUM_EXPECTED_GBUFFER_IMAGES = 3;
+    static constexpr unsigned MAX_MATERIALS               = 2;
 
     RenderStep(LogicalDevice& device);
 
@@ -109,7 +110,9 @@ namespace dw {
                       uint32_t                        alignment,
                       VkRect2D                        renderArea = {}) const;
 
-    void updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO) const;
+    void updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO,
+                              MaterialManager::MtlMap& materialMap,
+                              VkSampler sampler) const;
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
