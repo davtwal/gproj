@@ -45,6 +45,13 @@ namespace dw {
       mtl.m_kd = { 1, 1, 1 };
       mtl.m_ks = { 1, 1, 1 };
 
+      fs::path mtlPath = fs::current_path() / "data" / "materials";
+      mtl.m_raws.resize(Material::MTL_MAP_COUNT);
+      mtl.m_raws[0].Load((mtlPath / fs::path("default.png")).generic_string());
+      mtl.m_raws[1].Load((mtlPath / fs::path("default.png")).generic_string());
+      mtl.m_raws[2].Load((mtlPath / fs::path("default.png")).generic_string());
+      mtl.m_raws[3].Load((mtlPath / fs::path("default.png")).generic_string());
+
       ret = iter.first->second;
     }
 

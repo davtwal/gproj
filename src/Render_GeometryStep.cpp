@@ -192,7 +192,9 @@ namespace dw {
       auto& views = mtl.second->getViews();
 
       for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
-        imageInfos[i * MAX_MATERIALS + mtl.second->getID()] = VkDescriptorImageInfo{ sampler, views.empty() ? nullptr : views[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL };
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].sampler = sampler;
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageView = VkImageView(views[i]);
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       }
     }
 
