@@ -392,6 +392,8 @@ namespace dw {
 
     updateUniformBuffers(nextImageIndex);
 
+
+
     VkPipelineStageFlags semaphoreWaitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo         submitInfo        = {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -468,26 +470,29 @@ namespace dw {
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const {
-    std::vector<Mesh::StagingBuffs> stagingBuffers;
-    stagingBuffers.reserve(meshes.size());
-    for (auto& mesh : meshes) {
-      stagingBuffers.push_back(mesh.get().createAllBuffs(*m_device));
-      mesh.get().uploadStaging(stagingBuffers.back());
+  void Renderer::uploadMaterials(MaterialManager::MtlMap& materials) const {
+    std::unordered_map<MaterialManager::MtlMap::key_type, Material::StagingBuffs> stagingBuffers;
+
+    for (auto& mtl : materials) {
+      if (mtl.second->hasTexturesToLoad()) {
+        mtl.second->uploadStaging(
+          stagingBuffers.try_emplace(mtl.first, mtl.second->createAllBuffs(*m_device))
+            .first->second
+        );
+      }
     }
 
-    CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
+    CommandBuffer& moveBuff = m_graphicsCmdPool->allocateCommandBuffer();
 
     moveBuff.start(true);
-    for (size_t i = 0; i < meshes.size(); ++i) {
-      meshes[i].get().uploadCmds(moveBuff, stagingBuffers[i]);
+    for (auto& staging : stagingBuffers) {
+      materials.at(staging.first)->uploadCmds(moveBuff, staging.second);
     }
     moveBuff.end();
 
-    m_transferQueue->get().submitOne(moveBuff);
-    m_transferQueue->get().waitIdle();
-
-    m_transferCmdPool->freeCommandBuffer(moveBuff);
+    m_graphicsQueue->get().submitOne(moveBuff);
+    m_graphicsQueue->get().waitIdle();
+    m_graphicsCmdPool->freeCommandBuffer(moveBuff);
   }
 
   void Renderer::updateUniformBuffers(uint32_t imageIndex) {
@@ -509,7 +514,10 @@ namespace dw {
     assert(m_modelUBOdata);
 
     for (uint32_t i = 0; i < m_objList.size(); ++i) {
-      m_modelUBOdata[i].model = m_objList[i].get().getTransform();
+      auto objData = reinterpret_cast<ObjectUniform*>(reinterpret_cast<char*>(m_modelUBOdata) + i * m_modelUBOdynamicAlignment);
+
+      objData->model = m_objList[i].get().getTransform();
+      objData->mtlIndex = m_objList[i].get().m_mesh.get().getMaterial()->getID();
     }
 
     data = m_modelUBO->map();
@@ -674,12 +682,17 @@ namespace dw {
 
     m_modelUBOdynamicAlignment = sizeof(ObjectUniform);
     if (minUboAlignment > 0) {
-      m_modelUBOdynamicAlignment = (m_modelUBOdynamicAlignment + minUboAlignment - 1) & ~(minUboAlignment - 1);
+      m_modelUBOdynamicAlignment = (m_modelUBOdynamicAlignment + (minUboAlignment - 1)) & ~(minUboAlignment - 1);
     }
 
     size_t modelUBOsize = m_modelUBOdynamicAlignment * m_objList.size();
 
-    m_modelUBOdata = static_cast<ObjectUniform*>(alignedAlloc(modelUBOsize, m_modelUBOdynamicAlignment));
+    Trace::Warn << "Minimum UBO Align  : " << minUboAlignment << Trace::Stop;
+    Trace::Warn << "Size of Object UBO : " << sizeof(ObjectUniform) << Trace::Stop;
+    Trace::Warn << "Model UBO Alignment: " << m_modelUBOdynamicAlignment << Trace::Stop;
+    Trace::Warn << "(2^N) Alignment    : " << (m_modelUBOdynamicAlignment & -m_modelUBOdynamicAlignment) << Trace::Stop;
+
+    m_modelUBOdata = static_cast<ObjectUniform*>(alignedAlloc(modelUBOsize, m_modelUBOdynamicAlignment & -m_modelUBOdynamicAlignment));
     assert(m_modelUBOdata);
 
     size_t numImages = m_swapchain->getNumImages();

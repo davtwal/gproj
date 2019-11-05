@@ -25,6 +25,7 @@
 #include "Camera.h"
 #include "Light.h"
 #include "MeshManager.h"
+#include "Material.h"
 
 #include "ImGui.h"
 
@@ -56,6 +57,7 @@ namespace dw {
 
   struct ObjectUniform {
     alignas(16) glm::mat4 model;
+    alignas(04) int mtlIndex;
   };
 
   struct CameraUniform {
@@ -75,8 +77,9 @@ namespace dw {
 
     NO_DISCARD bool done() const;
 
-    void uploadMeshes(std::vector<util::Ref<Mesh>> const& meshes) const;
-    void uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const;
+    void uploadMeshes(MeshManager::MeshMap& meshes) const;
+
+    void uploadMaterials(MaterialManager::MtlMap& materials) const;
 
     using SceneContainer = std::vector<util::Ref<Object>>;
     using LightContainer = std::vector<util::Ref<Light>>;
@@ -180,11 +183,12 @@ namespace dw {
     // classes, e.g. manager or other.
 
     // global
-    VkSampler m_sampler{ nullptr };
-    util::ptr<Buffer> m_modelUBO;
-    util::ptr<Buffer> m_cameraUBO;
-    util::ptr<Buffer> m_localLightsUBO;
-    util::ptr<Buffer> m_globalLightsUBO;
+    VkSampler m_sampler{ nullptr };       //!< Sampler used for sampling the gbuffer
+    util::ptr<Buffer> m_modelUBO;         //!< Contains all model matrices for objects in scene
+    util::ptr<Buffer> m_cameraUBO;        //!< Contains rendering camera info
+    util::ptr<Buffer> m_localLightsUBO;   //!< Contains all local light info
+    util::ptr<Buffer> m_globalLightsUBO;  //!< Contains all global (shadow mapped) light info
+    util::ptr<Buffer> m_materialsUBO;     //!< Contains the coefficients for the materials
 
     // gbuffer/deferred pass
     util::ptr<GeometryStep> m_geometryStep;

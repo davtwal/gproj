@@ -148,6 +148,9 @@ namespace dw {
     }
   }
 
+  Application::Application()
+    : m_meshManager(m_mtlManager){}
+
   int Application::parseCommandArgs(int, char**) {
     return 0;
   }
@@ -187,9 +190,10 @@ namespace dw {
     m_meshManager.loadBasicMeshes();
 
     m_meshManager.load("data/objects/lamp.obj");
-    m_meshManager.load("data/objects/teapot.obj", true);
+    m_meshManager.load("data/objects/teapot.obj");
 
     m_meshManager.uploadMeshes(*m_renderer);
+    m_mtlManager.uploadMaterials(*m_renderer);
 
     // fill scene
     auto  currentTime = std::chrono::high_resolution_clock::now();
@@ -401,6 +405,7 @@ namespace dw {
 
     ImGui_ImplGlfw_Shutdown();
 
+    m_mtlManager.clear();
     m_meshManager.clear();
     m_renderer->shutdown();
 

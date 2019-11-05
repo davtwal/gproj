@@ -22,6 +22,7 @@
 #include "Renderer.h"
 #include "Camera.h"
 #include "MeshManager.h"
+#include "Material.h"
 
 #include <chrono>
 #include <memory>
@@ -29,6 +30,8 @@
 namespace dw {
   class Application {
   public:
+    Application();
+
     int parseCommandArgs(int argc, char** argv);
     int run();
 
@@ -50,9 +53,9 @@ namespace dw {
     InputHandler* m_inputHandler{ nullptr };
     GLFWWindow* m_window{ nullptr };
     Camera    m_camera;
+    MaterialManager m_mtlManager;
     MeshManager m_meshManager;
     Renderer::ShaderControl m_shaderControl {};
-    bool m_displayGBuffer{ false };
   };
 } // namespace dw
 #endif

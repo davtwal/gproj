@@ -23,6 +23,8 @@ namespace dw {
 
   class MeshManager {
   public:
+    MeshManager(MaterialManager& mtlLoader);
+
     using MeshKey = uint32_t;
     using MeshMap = std::unordered_map<MeshKey, Mesh>;
 
@@ -34,7 +36,7 @@ namespace dw {
      */
     void loadBasicMeshes();
 
-    MeshMap::reference addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices);
+    MeshMap::reference addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices, util::ptr<Material> mtl = nullptr);
     void uploadMeshes(Renderer& renderer);
 
     util::Ref<Mesh> getMesh(MeshKey key);
@@ -44,6 +46,7 @@ namespace dw {
     void clear();
 
   private:
+    util::Ref<MaterialManager> m_materialLoader;
     MeshMap m_loadedMeshes;
     MeshKey m_curKey{ 0 };
   };

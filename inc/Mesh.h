@@ -22,6 +22,7 @@
 #include "Utils.h"
 #include "Buffer.h"
 #include "Vertex.h"
+#include "Material.h"
 
 namespace dw {
   class Queue;
@@ -37,6 +38,10 @@ namespace dw {
 
     Mesh(Mesh const&)            = delete;
     Mesh& operator=(Mesh const&) = delete;
+
+    void setMaterial(util::ptr<Material> mtl);
+
+    NO_DISCARD util::ptr<Material> getMaterial() const;
 
     NO_DISCARD Buffer& getVertexBuffer();
     NO_DISCARD Buffer& getIndexBuffer();
@@ -101,6 +106,7 @@ namespace dw {
     std::vector<uint32_t> m_indices;
     util::ptr<Buffer> m_vertexBuff;
     util::ptr<Buffer> m_indexBuff;
+    util::ptr<Material> m_material;
   };
 }
 

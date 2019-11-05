@@ -162,7 +162,6 @@ namespace dw {
     VkDescriptorBufferInfo modelUBOinfo = modelUBO.getDescriptorInfo();
     modelUBOinfo.range = sizeof(ObjectUniform);
 
-
     std::vector<VkWriteDescriptorSet> descriptorWrites = {
       {
         VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,

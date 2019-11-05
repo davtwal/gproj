@@ -39,7 +39,6 @@ namespace dw {
     m_mouseCB = { callback };
   }
 
-
   void InputHandler::getMousePos(double& out_x, double& out_y) const {
     out_x = m_mouseX;
     out_y = m_mouseY;

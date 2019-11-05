@@ -124,7 +124,7 @@ namespace dw {
 
   void* Buffer::map() {
     void* ret = nullptr;
-    if (m_memory) {
+    if (m_memory && !m_isMapped) {
       if (vkMapMemory(m_device, m_memory, 0, m_memSize, 0, &ret) != VK_SUCCESS)
         return nullptr;
 
@@ -136,6 +136,7 @@ namespace dw {
   void Buffer::unMap() {
     if (m_isMapped) {
       vkUnmapMemory(m_device, m_memory);
+      m_isMapped = false;
     }
   }
 

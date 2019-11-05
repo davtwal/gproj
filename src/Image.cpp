@@ -193,6 +193,11 @@ namespace dw {
                     | (isCubemap ? VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT : 0)
                     | (is2DArray ? VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT : 0);
 
+    VkImageTiling tiling = isMappable ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
+
+    VkImageFormatProperties properties;
+    vkGetPhysicalDeviceImageFormatProperties(getDevice().getOwningPhysical(), format, type, tiling, usage, flags, &properties);
+
     VkImageCreateInfo createInfo = {
       VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       nullptr,
@@ -203,10 +208,10 @@ namespace dw {
       mipLevels,
       arrayLayers,
       VK_SAMPLE_COUNT_1_BIT,
-      isMappable ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL,
+      tiling,
       usage,
       VK_SHARING_MODE_EXCLUSIVE,
-      0,
+      VK_QUEUE_FAMILY_IGNORED,
       nullptr,
       VK_IMAGE_LAYOUT_UNDEFINED
     };
@@ -390,5 +395,23 @@ namespace dw {
       throw std::runtime_error("Could not bind device memory to image");
   }
 
+  void* DependentImage::map() {
+    void* data = nullptr;
+    if(m_memory && !m_isMapped) {
+      if (vkMapMemory(getDevice(), m_memory, 0, m_memSize, 0, &data) != VK_SUCCESS) {
+        throw std::runtime_error("could not map image memory");
+      }
+
+      m_isMapped = true;
+    }
+    return data;
+  }
+
+  void DependentImage::unMap() {
+    if(m_isMapped) {
+      vkUnmapMemory(m_device, m_memory);
+      m_isMapped = false;
+    }
+  }
 
 }

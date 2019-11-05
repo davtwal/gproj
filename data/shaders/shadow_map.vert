@@ -1,7 +1,8 @@
 #version 450
 #extension GL_ARB_separate_shader_objects : enable
 
-#include "lighting.glsl"
+#include "inc/defines.glsl"
+#include "inc/lighting.glsl"
 
 layout(binding = 0) uniform ShadowLights {
   ShadowLight at[MAX_GLOBAL_LIGHTS];

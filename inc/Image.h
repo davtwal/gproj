@@ -162,12 +162,15 @@ namespace dw {
     ~DependentImage() override;
 
     void back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags);
+    void* map();
+    void unMap();
 
   protected:
     NO_DISCARD LogicalDevice& getDevice() const override;
 
     VkDeviceMemory m_memory{ nullptr };
     VkDeviceSize m_memSize{ 0 };
+    bool m_isMapped{ false };
   };
 }
 

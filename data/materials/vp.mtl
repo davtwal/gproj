@@ -526,3 +526,14 @@ Ks 0.0735 0.0508 0.0321
 illum 2
 Ns 20.1600
 
+newmtl spaceBlanket
+Ka 0 0 0
+Kd 1 1 1
+Ks 1 1 1
+illum 2
+map_Kd SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_albedo.png
+map_Ps SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_ao.png
+map_bump SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_height.png
+map_Pr SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_roughness.png
+map_Pm SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_metallic.png
+norm SpaceBlanket/TexturesCom_Plastic_SpaceBlanketFolds_512_normal.png

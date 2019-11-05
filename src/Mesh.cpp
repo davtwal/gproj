@@ -31,9 +31,11 @@ namespace dw {
     : m_vertices(std::move(o.m_vertices)),
       m_indices(std::move(o.m_indices)),
       m_vertexBuff(std::move(o.m_vertexBuff)),
-      m_indexBuff(std::move(o.m_indexBuff)) {
+      m_indexBuff(std::move(o.m_indexBuff)),
+      m_material(std::move(o.m_material)) {
     o.m_vertexBuff = nullptr;
     o.m_indexBuff = nullptr;
+    o.m_material = nullptr;
   }
 
   Mesh::~Mesh() {
@@ -42,6 +44,17 @@ namespace dw {
 
     if (m_indexBuff)
       m_indexBuff.reset();
+
+    if (m_material)
+      m_material.reset();
+  }
+
+  void Mesh::setMaterial(util::ptr<Material> mtl) {
+    m_material = std::move(mtl);
+  }
+
+  util::ptr<Material> Mesh::getMaterial() const {
+    return m_material;
   }
 
   Buffer& Mesh::getIndexBuffer() {
@@ -57,6 +70,7 @@ namespace dw {
     m_indices = std::move(o.m_indices);
     m_vertexBuff = std::move(o.m_vertexBuff);
     m_indexBuff = std::move(o.m_indexBuff);
+    m_material = std::move(m_material);
     return *this;
   }
 

@@ -49,13 +49,23 @@ namespace std {
 }
 
 namespace dw {
+  MeshManager::MeshManager(MaterialManager& mtlLoader)
+    : m_materialLoader(mtlLoader){
+  }
+
   void MeshManager::clear() {
     m_loadedMeshes.clear();
     m_curKey = 0;
   }
 
-  MeshManager::MeshMap::reference MeshManager::addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices) {
-    return *m_loadedMeshes.try_emplace(m_curKey++, std::move(verts), std::move(indices)).first;
+  MeshManager::MeshMap::reference MeshManager::addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices, util::ptr<Material> mtl) {
+    // give it the default material if there is no material requested
+    if (mtl == nullptr)
+      mtl = m_materialLoader.get().getDefaultMtl();
+
+    auto iter = m_loadedMeshes.try_emplace(m_curKey++, std::move(verts), std::move(indices)).first;
+    iter->second.setMaterial(mtl);
+    return *iter;
   }
 
   util::Ref<Mesh> MeshManager::getMesh(MeshKey key) {
@@ -149,8 +159,12 @@ namespace dw {
     // If a face has 8/2 3/1 4/2 as its vi/ti, and another has 8/1 3/1 4/2, then we'll end up with
     // four total vertices: 8/1, 8/2, 3/1, 4/2.
     size_t duplicates_saved = 0;
+    util::ptr<Material> loadedMtl = nullptr;
     for (auto& shape : shapes) {
       auto& mesh = shape.mesh;
+      if (mesh.material_ids.front() > 0)
+        loadedMtl = m_materialLoader.get().getMtl(m_materialLoader.get().load(materials[mesh.material_ids.front()]));
+
       for (uint32_t i = 0; i < mesh.indices.size(); ++i) {
         auto& index = mesh.indices[i];
 
@@ -197,12 +211,16 @@ namespace dw {
     // for each triangle
     assert(indices.size() % 3 == 0);
     for (size_t i = 0; i < indices.size(); i += 3) {
+      if(flipWinding) {
+        std::swap(indices[i + 1], indices[i + 2]);
+      }
       auto& v0 = vertices[indices[i]];
       auto& v1 = vertices[indices[i + 1]];
       auto& v2 = vertices[indices[i + 2]];
 
       glm::vec3 deltaP0 = v1.pos - v0.pos;
       glm::vec3 deltaP1 = v2.pos - v0.pos;
+
 
       if (computeNormals) {
         glm::vec3 N = normalize(cross(deltaP0, deltaP1));
@@ -255,6 +273,6 @@ namespace dw {
       vert.pos *= biggestExtent;
     }
 
-    return addMesh(vertices, indices).first;
+    return addMesh(vertices, indices, loadedMtl).first;
   }
 }
