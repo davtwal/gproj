@@ -293,12 +293,12 @@ namespace dw {
     ShadowedLight globalLight;
     globalLight.setPosition({ 5, 5, 5 })
       .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-      .setColor({0.5f, 0.5f, 0.5f});
+      .setColor({1.f, 1.0f, 1.0f});
 
     ShadowedLight globalLight2;
     globalLight2.setPosition({ -5, -5, 5 })
       .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
-      .setColor({ 0.5f, 0.5f, 0.5f });
+      .setColor({ 1.5f, 1.0f, 0.0f });
 
     m_renderer->setGlobalLights({
       globalLight,
@@ -328,6 +328,8 @@ namespace dw {
       ImGui::Begin("Shader Control");
         ImGui::DragFloat("Moment Bias", &m_shaderControl.global_momentBias, 0.00000005f, 0, .0001, "%.8f");
         ImGui::DragFloat("Depth Bias", &m_shaderControl.global_depthBias, 0.0001f, 0.1f, 0.1f, "%.4f");
+        ImGui::DragFloat("Default Roughness", &m_shaderControl.geometry_defaultRoughness, 0.01, 0, 1);
+        ImGui::DragFloat("Default Metallic", &m_shaderControl.geometry_defaultMetallic, 0.01, 0, 1);
       ImGui::End();
 #endif
       GLFWControl::Poll();

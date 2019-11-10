@@ -16,11 +16,12 @@
 
 #include "Image.h"
 #include "Buffer.h"
-#include <unordered_map>
 #include "Utils.h"
 #include "MyMath.h"
 #include "tiny_obj_loader.h"
 
+#include <unordered_map>
+#include <array>
 //namespace tinyobj {
 //  typedef struct material_t material_t;
 //}
@@ -69,10 +70,10 @@ namespace dw {
 
     NO_DISCARD MaterialUBO getAsUBO() const {
       return { m_kd, m_ks, m_metallic, m_roughness,
-        !m_images.empty(),
-        !m_images.empty(),
-        !m_images.empty(),
-        !m_images.empty(),
+        m_useMap[0],
+        m_useMap[1],
+        m_useMap[2],
+        m_useMap[3],
       };
     }
 
@@ -105,6 +106,8 @@ namespace dw {
     glm::vec3 m_ks { 1 };
     float m_metallic{ 1 };
     float m_roughness{ 1 };
+
+    std::array<bool, MTL_MAP_COUNT> m_useMap{ true };
 
     uint32_t m_id{ 0 };
 

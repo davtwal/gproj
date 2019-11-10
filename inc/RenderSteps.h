@@ -111,6 +111,7 @@ namespace dw {
                       VkRect2D                        renderArea = {}) const;
 
     void updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO,
+                              Buffer& shaderControlUBO,
                               MaterialManager::MtlMap& materialMap,
                               VkSampler sampler) const;
 

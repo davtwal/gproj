@@ -30,10 +30,12 @@ layout(location = 4) out vec2 outUV;
 layout(location = 5) out vec3 outColor;
 
 void main() {
+  mat4 multNorm = inverse(transpose(obj.model));
+  
   outWorldPosition  = obj.model * vec4(inPosition, 1.0);
-  outWorldNormal    = inverse(transpose(obj.model)) * vec4(inNormal, 0);
-  outTangent        = inTangent;
-  outBitangent      = inBitangent;
+  outWorldNormal    = (multNorm * vec4(inNormal, 0));
+  outTangent        = (multNorm * vec4(inTangent, 0)).xyz;
+  outBitangent      = (multNorm * vec4(inBitangent, 0)).xyz;
   outUV             = inUV;
   outColor          = inColor;
 

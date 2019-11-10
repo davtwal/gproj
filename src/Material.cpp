@@ -18,6 +18,7 @@
 #include "Trace.h"
 #include "tiny_obj_loader.h"
 #include "stb_image.h"
+
 #include <algorithm>
 #include <filesystem>
 namespace fs = std::filesystem;
@@ -47,10 +48,15 @@ namespace dw {
 
       fs::path mtlPath = fs::current_path() / "data" / "materials";
       mtl.m_raws.resize(Material::MTL_MAP_COUNT);
-      mtl.m_raws[0].Load((mtlPath / fs::path("default.png")).generic_string());
-      mtl.m_raws[1].Load((mtlPath / fs::path("default.png")).generic_string());
-      mtl.m_raws[2].Load((mtlPath / fs::path("default.png")).generic_string());
-      mtl.m_raws[3].Load((mtlPath / fs::path("default.png")).generic_string());
+      mtl.m_raws[0].Load((mtlPath / fs::path("default_albedo.png")).generic_string());
+      mtl.m_raws[1].Load((mtlPath / fs::path("default_normal.png")).generic_string());
+      mtl.m_raws[2].Load((mtlPath / fs::path("default_black.png")).generic_string());
+      mtl.m_raws[3].Load((mtlPath / fs::path("default_black.png")).generic_string());
+
+      mtl.m_useMap[0] = true;
+      mtl.m_useMap[1] = false;
+      mtl.m_useMap[2] = false;
+      mtl.m_useMap[3] = false;
 
       ret = iter.first->second;
     }
@@ -78,16 +84,21 @@ namespace dw {
 
       fs::path mtlPath = fs::current_path() / "data" / "materials";
 
-      if(!mtl.diffuse_texname.empty())
+      material.m_useMap[0] = !mtl.diffuse_texname.empty();
+      material.m_useMap[1] = !mtl.normal_texname.empty();
+      material.m_useMap[2] = !mtl.metallic_texname.empty();
+      material.m_useMap[3] = !mtl.roughness_texname.empty();
+
+      if (material.m_useMap[0])
         material.m_raws[0].Load((mtlPath / fs::path(mtl.diffuse_texname)).generic_string());
 
-      if(!mtl.normal_texname.empty())
+      if (material.m_useMap[1])
         material.m_raws[1].Load((mtlPath / fs::path(mtl.normal_texname)).generic_string());
 
-      if(!mtl.metallic_texname.empty())
+      if(material.m_useMap[2])
         material.m_raws[2].Load((mtlPath / fs::path(mtl.metallic_texname)).generic_string());
 
-      if(!mtl.roughness_texname.empty())
+      if(material.m_useMap[3])
         material.m_raws[3].Load((mtlPath / fs::path(mtl.roughness_texname)).generic_string());
     }
 
@@ -101,7 +112,6 @@ namespace dw {
   MaterialManager::MtlMap const& MaterialManager::getMaterials() const {
     return m_loadedMtls;
   }
-
 
   // MTL
   namespace {

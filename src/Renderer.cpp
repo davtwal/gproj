@@ -682,7 +682,7 @@ namespace dw {
 
     prepareDynamicUniformBuffers();
 
-    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_materials, m_sampler);
+    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_shaderControlBuffer, *m_materials, m_sampler);
     m_geometryStep->writeCmdBuff(*m_gbuffer, m_objList, m_modelUBOdynamicAlignment);
 
     if (m_globalLightsUBO) {

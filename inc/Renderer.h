@@ -105,6 +105,8 @@ namespace dw {
     struct ShaderControl {
       alignas(04) float global_momentBias {0.00000005f};
       alignas(04) float global_depthBias  {0.0004f};
+      alignas(04) float geometry_defaultRoughness{ 0.16f };
+      alignas(04) float geometry_defaultMetallic { 0.08f };
     };
 
     void setShaderControl(ShaderControl* control);

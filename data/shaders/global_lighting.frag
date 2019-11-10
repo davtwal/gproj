@@ -21,6 +21,8 @@ layout(binding = 1) uniform ShadowLights {
 layout(binding = 2) uniform ShaderControl {
   float momentBias;
   float depthBias;
+  float defaultRoughness;
+  float defaultMetallic;
 } control;
 
 layout(binding = 3) uniform sampler2D inGBuffPosition;
@@ -84,40 +86,49 @@ void main() {
   vec4 sampledColor = texture(inGBuffColor, inUV);
   vec4 sampledNormal = texture(inGBuffNormal, inUV);
   
-  if(sampledNormal == vec4(0, 0, 0, 0)) {
-    fragColor = vec4(0, 0, 0, 0);
-    return;
-  }
-  
-  float inSpecExp = sampledColor.w;
+  float isObject    = sampledPos.w;
+  float inRoughness = sampledColor.w;
+  float inMetallic  = sampledNormal.w;
   vec3 inPos = sampledPos.xyz;
   vec3 inColor = sampledColor.xyz;
   
-  vec3 N = normalize(sampledNormal.xyz);
-  vec3 V = normalize(cam.eye - inPos);
-  
-  mat4 shadowBias = mat4( .5,  0,  0, 0,
-                           0, .5,  0, 0,
-                           0,  0,  1, 0,
-                          .5, .5,  0, 1);
-  
-  vec3 color = vec3(0, 0, 0);
-  for(int i = 0; i < MAX_GLOBAL_LIGHTS; ++i) {
-    vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
-     
-    vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;
+  if(int(isObject) == 1) {
+    vec3 N = normalize(sampledNormal.xyz);
+    vec3 V = normalize(cam.eye - inPos);
     
-    if(shadowCoord.w > 0 && shadowIndex.x >= 0 && shadowIndex.y >= 0 && shadowIndex.x <= 1 && shadowIndex.y <= 1) {
-      vec4 lightDepth = texture(shadowMap[i], shadowIndex);
-      float pixelDepth = shadowCoord.z;
-      pixelDepth = (pixelDepth - lights.at[i].nearDist) / (lights.at[i].farDist - lights.at[i].nearDist);
+    mat4 shadowBias = mat4( .5,  0,  0, 0,
+                            0, .5,  0, 0,
+                            0,  0,  1, 0,
+                            .5, .5,  0, 1);
+    
+    vec3 color = vec3(0, 0, 0);
+    for(int i = 0; i < MAX_GLOBAL_LIGHTS; ++i) {
+      vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
       
-      float G = getG(lightDepth, pixelDepth);
+      vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;
       
-      if(G < 1)
-        color += (1 - G) * ComputeShadowLighting(lights.at[i], inColor, inPos, N, V, inSpecExp);     
+      if(shadowCoord.w > 0 && shadowIndex.x >= 0 && shadowIndex.y >= 0 && shadowIndex.x <= 1 && shadowIndex.y <= 1) {
+        vec4 lightDepth = texture(shadowMap[i], shadowIndex);
+        float pixelDepth = shadowCoord.z;
+        pixelDepth = (pixelDepth - lights.at[i].nearDist) / (lights.at[i].farDist - lights.at[i].nearDist);
+        
+        float G = getG(lightDepth, pixelDepth);
+        
+        if(G < 1) {         
+          vec3 lightColor = lights.at[i].color;
+          vec3 lightPos   = lights.at[i].pos;
+          vec3 lightAtten = lights.at[i].atten;
+          float lightRad  = lights.at[i].radius * 100;
+          
+          vec3 pbrColor = computeDirectPBR(lightColor, lightPos, lightAtten, lightRad, inColor, inPos, N, V, inRoughness, inMetallic);
+          
+          color += (1 - G) * pbrColor;
+        }
+      }
     }
+    
+    fragColor = vec4(color, 1);
   }
-  
-  fragColor = vec4(color, 1);
+  else
+    fragColor = vec4(0, 0, 0, 1);
 }

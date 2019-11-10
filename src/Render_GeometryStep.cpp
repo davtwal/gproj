@@ -120,6 +120,8 @@ namespace dw {
       };
     }
 
+    layoutBindings.push_back({ static_cast<uint32_t>(layoutBindings.size()), VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr });
+
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
       nullptr,
@@ -139,7 +141,7 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> poolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        2
+        2 + 1 // + shader control
       },
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
@@ -196,6 +198,7 @@ namespace dw {
   }
 
   void GeometryStep::updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO, 
+      Buffer& shaderControlUBO,
       MaterialManager::MtlMap& materials,
       VkSampler sampler) const {
     // Descriptor sets are automatically freed once the pool is freed.
@@ -258,20 +261,33 @@ namespace dw {
         nullptr
       });
 
-      for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
-        descriptorWrites.push_back({
-          VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-          nullptr,
-          m_descriptorSet,
-          i + 3,
-          0,
-          MAX_MATERIALS,
-          VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-          &imageInfos[i * MAX_MATERIALS],
-          nullptr,
-          nullptr
-        });
-      }
+    for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
+      descriptorWrites.push_back({
+        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        m_descriptorSet,
+        i + 3,
+        0,
+        MAX_MATERIALS,
+        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        &imageInfos[i * MAX_MATERIALS],
+        nullptr,
+        nullptr
+      });
+    }
+
+    descriptorWrites.push_back({
+      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+        nullptr,
+        m_descriptorSet,
+        7,
+        0,
+        1,
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        nullptr,
+        &shaderControlUBO.getDescriptorInfo(),
+        nullptr
+      });
 
     vkUpdateDescriptorSets(getOwningDevice(),
       static_cast<uint32_t>(descriptorWrites.size()),
