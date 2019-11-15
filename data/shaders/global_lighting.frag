@@ -98,7 +98,7 @@ void main() {
                             .5, .5,  0, 1);
     
     vec3 color = vec3(0, 0, 0);
-    for(int i = 0; i < lights.count; ++i) {
+    for(int i = 0; i < lights.count && control.doGlobalLighting == 1; ++i) {
       vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
       
       vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;

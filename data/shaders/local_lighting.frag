@@ -49,7 +49,7 @@ void main() {
     //return;
     
     vec3 color = vec3(0, 0, 0);
-    for(int i = 0; i < dynLights.count; ++i) {
+    for(int i = 0; i < dynLights.count && control.doLocalLighting == 1; ++i) {
       vec3 lightColor = dynLights.at[i].color;
       vec3 lightPos   = dynLights.at[i].pos;
       vec3 lightAtten = dynLights.at[i].atten;

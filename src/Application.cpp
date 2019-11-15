@@ -393,6 +393,17 @@ namespace dw {
           m_renderer->setScene(m_secondScene);
         }
       ImGui::End();
+
+      static bool enableGlobalLight = true;
+      static bool enableShadowMapBlur = true;
+      ImGui::Begin("Render Step Control");
+        ImGui::Checkbox("Global Lighting", reinterpret_cast<bool*>(&m_shaderControl.global_doGlobalLighting));
+        ImGui::Checkbox("Local Lighting", reinterpret_cast<bool*>(&m_shaderControl.final_doLocalLighting));
+        if (ImGui::Checkbox("Blur Shadow Maps", &enableShadowMapBlur))
+          m_renderer->setShadowMapBlurEnabled(enableShadowMapBlur);
+        if (ImGui::Checkbox("Submit Global Lighting (warning: fucky)", &enableGlobalLight))
+          m_renderer->setGlobalLightingEnabled(enableGlobalLight);
+      ImGui::End();
 #endif
       GLFWControl::Poll();
       // input check'

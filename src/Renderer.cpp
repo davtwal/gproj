@@ -393,8 +393,6 @@ namespace dw {
 
     updateUniformBuffers(nextImageIndex);
 
-
-
     VkPipelineStageFlags semaphoreWaitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo         submitInfo        = {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -417,17 +415,24 @@ namespace dw {
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
     submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
-    submitInfo.pSignalSemaphores = &m_blurSemaphore;
-    submitInfo.pCommandBuffers   = &blurCmdBuff;
-    
-    // Note: This is assuming that the graphics queue supports compute!
-    vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr);
 
-    submitInfo.pWaitSemaphores   = &m_blurSemaphore;
-    submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
-    submitInfo.pCommandBuffers   = &globalLightCmdBuff;
+    if (m_blurEnabled) {
+      submitInfo.pSignalSemaphores = &m_blurSemaphore;
+      submitInfo.pCommandBuffers = &blurCmdBuff;
 
-    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+      vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr);
+
+      submitInfo.pWaitSemaphores = &m_blurSemaphore;
+    }
+
+    if (m_globalLightEnabled) {
+      submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
+      submitInfo.pCommandBuffers = &globalLightCmdBuff;
+
+      vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+      submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
+    }
 
 #ifdef DW_USE_IMGUI
     // this updates the second subpass that is defined for imgui rendering
@@ -437,7 +442,6 @@ namespace dw {
                               nextImageIndex);
 #endif
 
-    submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
     submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
     submitInfo.pCommandBuffers   = &localLightCmdBuff;
 

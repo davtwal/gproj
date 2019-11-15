@@ -20,6 +20,6 @@
     float defaultMetallic;      \
     float toneMapExposure;      \
     float toneMapExponent;      \
-    float padding0;             \
-    float padding1;             \
+    int   doLocalLighting;      \
+    int   doGlobalLighting;     \
   }

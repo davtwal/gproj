@@ -102,12 +102,19 @@ namespace dw {
       alignas(04) float geometry_defaultMetallic { 0.08f };
       alignas(04) float final_toneMapExposure{ 1.f };
       alignas(04) float final_toneMapExponent{ 1.f };
-      alignas(04) float padding{ 0 };
-      alignas(04) float padding2{ 0 };
+      alignas(04) int   final_doLocalLighting{ 1 };
+      alignas(04) int   global_doGlobalLighting{ 1 };
     };
 
     void setShaderControl(ShaderControl* control);
-    
+
+    // NOTE: You can currently only disable local lighting via the shader control, as the local
+    // lighting is done as a part of the final render pass rendering to the backbuffer.
+    // Turn the whole step off and you get nothing, you lose, good day sir.
+
+    void setShadowMapBlurEnabled(bool enabled = true) { m_blurEnabled = enabled; }
+    void setGlobalLightingEnabled(bool enabled = true) { m_globalLightEnabled = enabled; }
+
   private:
     static constexpr VkExtent3D SHADOW_DEPTH_MAP_EXTENT = { 1024, 1024, 1 };
 
@@ -190,6 +197,10 @@ namespace dw {
     // TODO: not this this is hacky
     MaterialManager::MtlMap* m_materials {nullptr};
 
+    bool m_blurEnabled{ true };
+    bool m_globalLightEnabled{ true };
+    // bool m_ambientLightEnabled{ true };
+    //
     // gbuffer/deferred pass
     util::ptr<GeometryStep> m_geometryStep;
     util::ptr<Framebuffer> m_gbuffer{ nullptr };
