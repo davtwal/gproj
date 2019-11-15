@@ -13,13 +13,15 @@ layout(binding = 0) uniform CameraUBO {
   float nearDist;
 } cam;
 
-layout(binding = 1) uniform sampler2D inGBuffPosition;
-layout(binding = 2) uniform sampler2D inGBuffNormal;
-layout(binding = 3) uniform sampler2D inGBuffColor;
+layout(binding = 1) SHADER_CONTROL_UNIFORM control;
 
-layout(binding = 4) uniform sampler2D previousImage;
+layout(binding = 2) uniform sampler2D inGBuffPosition;
+layout(binding = 3) uniform sampler2D inGBuffNormal;
+layout(binding = 4) uniform sampler2D inGBuffColor;
 
-layout(binding = 5) uniform DynamicLightUBO {
+layout(binding = 5) uniform sampler2D previousImage;
+
+layout(binding = 6) uniform DynamicLightUBO {
   Light at[MAX_DYNAMIC_LOCAL_LIGHTS];
 } dynLights;
 
@@ -57,10 +59,12 @@ void main() {
     }
     
     color += previousColor.xyz;
+    const float exposure = 1;
     
-    // gamma correct
+    // gamma correct as this is the final render pass
+    color *= control.toneMapExposure;
     color = color / (color + vec3(1));
-    color = pow(color, vec3(1.0 / 2.2));
+    color = pow(color, vec3(control.toneMapExponent / 2.2));
   
     fragColor = vec4(color.xyz, 1);
   }

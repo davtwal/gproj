@@ -199,56 +199,69 @@ namespace dw {
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float curTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
 
+    m_mainScene = util::make_ptr<Scene>();
+
     // Ground plane
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(0)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
+    obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 50, 50, 50 });
       o.setPosition({ 0, 0, 0 });
     };
 
+    m_mainScene->addObject(obj_groundPlane);
+
     // Random objects
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(3)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(3));
+    obj_random0->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ 2, 2, 2 });
       o.setPosition({ 0, 1.f, 2.f });
       o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{0, 0, 1}) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(4)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(4));
+    obj_random1->m_behavior = [](Object& o, float time, float dt) {
       o.setPosition({ 0, -1.f, .5f });
       o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
+    m_mainScene->addObject(obj_random0);
+    m_mainScene->addObject(obj_random1);
+
     // Flying color cube
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_flyingCube = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_flyingCube->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .5f, .5f, .5f });
       o.setPosition({ 1, 1, 2 + 0.f * cos(time) });
       o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
     };
 
+    m_mainScene->addObject(obj_flyingCube);
+
     // Lights
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_circlingLight0 = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_circlingLight0->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .1f, .1f, .1f });
       o.setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
     };
 
-    m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
-      ->m_behavior = [](Object& o, float time, float dt) {
+    auto obj_circlingLight1 = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_circlingLight1->m_behavior = [](Object& o, float time, float dt) {
       o.setScale({ .1f, .1f, .1f });
       o.setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
     };
 
-    m_camera
+    m_mainScene->addObject(obj_circlingLight0);
+    m_mainScene->addObject(obj_circlingLight1);
+
+    Camera camera;
+    camera
       .setNearDepth(0.1f)
       .setFarDepth(50.f)
       .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
       .setLookAt({ 0.f, 0.f, 0.f })
       .setFOVDeg(45.f);
 
-    m_renderer->setCamera(m_camera);
+    m_mainScene->setCamera(camera);
 
     static constexpr unsigned MAX_DYNAMIC_LIGHTS = 128;
 
@@ -258,37 +271,30 @@ namespace dw {
     std::uniform_real_distribution<float> atten_dist(0.5f, 4.f);
 
     for(uint32_t i = 0; i < MAX_DYNAMIC_LIGHTS; ++i) {
-      Light l;
-      l.setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
-      l.setDirection(normalize(-l.getPosition()));
-      l.setColor(glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev)));// / glm::vec3(i + 3);
-      l.setAttenuation(glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f));
-      l.setLocalRadius(20);
-      l.setType(Light::Type::Point);
+      auto l = util::make_ptr<Light>();
+      l->setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
+      l->setDirection(normalize(-l->getPosition()));
+      l->setColor(glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev)));// / glm::vec3(i + 3);
+      l->setAttenuation(glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f));
+      l->setLocalRadius(20);
+      l->setType(Light::Type::Point);
 
-      m_lights.push_back(l);
+      m_mainScene->addLight(l);
     }
 
-    m_lights[0].setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
-    m_lights[1].setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
+    m_mainScene->getLights()[0]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
+    m_mainScene->getLights()[1]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
 
-    for (uint32_t i = 2; i < m_lights.size(); ++i) {
-      auto& light = m_lights[i];
-      m_scene.emplace_back(util::make_ptr<Object>(m_meshManager.getMesh(1)))
-        ->m_behavior = [](Object& o, float time, float dt) {
+    for (uint32_t i = 2; i < m_mainScene->getLights().size(); ++i) {
+      auto& light = m_mainScene->getLights()[i];
+      auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(1));
+      lightObj->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ .1f, .1f, .1f });
         o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
       };
-    }
 
-    Renderer::SceneContainer scene;
-    scene.reserve(m_scene.size());
-    for (auto& obj : m_scene) {
-      scene.push_back(*obj);
+      m_mainScene->addObject(lightObj);
     }
-    m_renderer->setScene(scene);
-    m_renderer->setShaderControl(&m_shaderControl);
-    m_renderer->setLocalLights({ m_lights.begin(), m_lights.end() });
 
     ShadowedLight globalLight;
     globalLight.setPosition({ 5, 5, 5 })
@@ -300,10 +306,12 @@ namespace dw {
       .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
       .setColor({ 1.5f, 1.0f, 0.0f });
 
-    m_renderer->setGlobalLights({
-      globalLight,
-      globalLight2
-    });
+    m_mainScene->addGlobalLight(globalLight);
+    m_mainScene->addGlobalLight(globalLight2);
+
+    m_curScene = m_mainScene;
+    m_renderer->setScene(m_mainScene);
+    m_renderer->setShaderControl(&m_shaderControl);
 
     m_startTime = ClockType::now();
 
@@ -330,6 +338,8 @@ namespace dw {
         ImGui::DragFloat("Depth Bias", &m_shaderControl.global_depthBias, 0.0001f, 0.1f, 0.1f, "%.4f");
         ImGui::DragFloat("Default Roughness", &m_shaderControl.geometry_defaultRoughness, 0.01, 0, 1);
         ImGui::DragFloat("Default Metallic", &m_shaderControl.geometry_defaultMetallic, 0.01, 0, 1);
+        ImGui::DragFloat("Tone Map Exposure", &m_shaderControl.final_toneMapExposure, 0.1);
+        ImGui::DragFloat("Tone Map Exponent", &m_shaderControl.final_toneMapExponent, 0.01);
       ImGui::End();
 #endif
       GLFWControl::Poll();
@@ -355,7 +365,7 @@ namespace dw {
         cameraCurrentT -= STEP_VALUE * dt;
       }
 
-      float cameraZ = m_camera.getEyePos().z;
+      float cameraZ = m_curScene->getCamera().getEyePos().z;
 
       if(m_inputHandler->getKeyState(GLFW_KEY_W)) {
         cameraZ += STEP_VALUE * dt * 2;
@@ -373,22 +383,22 @@ namespace dw {
         RADIUS -= STEP_VALUE * dt;
       }
 
-      m_camera.setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), cameraZ });
-      m_camera.setLookAt({ 0, 0, 0 });
+      m_curScene->getCamera().setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), cameraZ });
+      m_curScene->getCamera().setLookAt({ 0, 0, 0 });
 
-      for(auto& obj : m_scene) {
+      for(auto& obj : m_mainScene->getObjects()) {
         obj->callBehavior(timeCount, dt);
       }
 
-      m_lights[0].setPosition({ 2 * sqrt(2) * cos(3* timeCount), 2 * sqrt(2) * sin(3* timeCount), 2});
-      m_lights[1].setPosition({ -2 * sqrt(2) * cos(3* timeCount), -2 * sqrt(2) * sin(3* timeCount), 2 });
+      m_mainScene->getLights()[0]->setPosition({ 2 * sqrt(2) * cos(3* timeCount), 2 * sqrt(2) * sin(3* timeCount), 2});
+      m_mainScene->getLights()[1]->setPosition({ -2 * sqrt(2) * cos(3* timeCount), -2 * sqrt(2) * sin(3* timeCount), 2 });
 
       std::mt19937 rand_dev(time(NULL));
       std::uniform_real_distribution<float> shift(-1.f, 1.f);
       std::uniform_real_distribution<float> color(-0.5f, 0.5f);
-      for (uint32_t i = 2; i < m_lights.size(); ++i) {
-        auto& light = m_lights[i];
-        auto& obj = m_scene[i + 4];
+      for (uint32_t i = 2; i < m_mainScene->getLights().size(); ++i) {
+        auto& light = *m_mainScene->getLights()[i];
+        auto& obj = m_mainScene->getObjects()[i + 4];
         light.setPosition(light.getPosition() + glm::vec3(shift(rand_dev) * dt, shift(rand_dev) * dt, shift(rand_dev) * dt));
         light.setPosition(glm::clamp(light.getPosition(), glm::vec3(-9.f, -9.f, 0.1f), glm::vec3(9.f)));
         light.setColor(light.getColor() + glm::vec3(color(rand_dev) * dt, color(rand_dev) * dt, color(rand_dev) * dt));
@@ -403,7 +413,7 @@ namespace dw {
   }
 
   int Application::shutdown() {
-    m_scene.clear();
+    m_mainScene.reset();
 
     ImGui_ImplGlfw_Shutdown();
 

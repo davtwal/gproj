@@ -47,12 +47,12 @@ namespace dw {
     ClockType::time_point m_startTime;
 
     // SCENE VARIABLES
-    std::vector<util::ptr<Object>> m_scene;
-    std::vector<Light> m_lights;
+    util::ptr<Scene> m_curScene{ nullptr };
+    util::ptr<Scene> m_mainScene{ nullptr };
+
     util::ptr<Renderer> m_renderer{ nullptr };
     InputHandler* m_inputHandler{ nullptr };
     GLFWWindow* m_window{ nullptr };
-    Camera    m_camera;
     MaterialManager m_mtlManager;
     MeshManager m_meshManager;
     Renderer::ShaderControl m_shaderControl {};

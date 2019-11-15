@@ -3,7 +3,7 @@
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 // * Created     : 2019y 10m 10d
-// * Last Altered: 2019y 10m 10d
+// * Last Altered: 2019y 11m 10d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
@@ -22,12 +22,12 @@
 #include <array>
 
 namespace dw {
-  void RenderStep::renderScene(CommandBuffer& commandBuff,
-    VkRenderPassBeginInfo& beginInfo,
-    Renderer::SceneContainer const& scene,
-    uint32_t                        alignment,
-    VkPipelineLayout                layout,
-    VkDescriptorSet                 descriptorSet) {
+  void RenderStep::renderScene(CommandBuffer&             commandBuff,
+                               VkRenderPassBeginInfo&     beginInfo,
+                               Scene::ObjContainer const& scene,
+                               uint32_t                   alignment,
+                               VkPipelineLayout           layout,
+                               VkDescriptorSet            descriptorSet) {
 
     vkCmdBeginRenderPass(commandBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -36,10 +36,10 @@ namespace dw {
     for (uint32_t j = 0; j < scene.size(); ++j) {
       auto& obj = scene.at(j);
 
-      if (!curMesh || !(obj.get().m_mesh.get() == *curMesh)) {
-        curMesh = &obj.get().m_mesh.get();
+      if (!curMesh || !(obj->m_mesh.get() == *curMesh)) {
+        curMesh = &obj->m_mesh.get();
 
-        const VkBuffer& buff = curMesh->getVertexBuffer();
+        const VkBuffer&    buff   = curMesh->getVertexBuffer();
         const VkDeviceSize offset = 0;
         vkCmdBindVertexBuffers(commandBuff, 0, 1, &buff, &offset);
         vkCmdBindIndexBuffer(commandBuff, curMesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
@@ -48,13 +48,13 @@ namespace dw {
       // One dynamic offset per dynamic descriptor to offset into the ubo containing all model matrices
       uint32_t dynamicOffset = j * alignment;
       vkCmdBindDescriptorSets(commandBuff,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        layout,
-        0,
-        1,
-        &descriptorSet,
-        1,
-        &dynamicOffset);
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              layout,
+                              0,
+                              1,
+                              &descriptorSet,
+                              1,
+                              &dynamicOffset);
 
       vkCmdDrawIndexed(commandBuff, curMesh->getNumIndices(), 1, 0, 0, 0);
     }

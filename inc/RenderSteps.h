@@ -2,8 +2,8 @@
 // * gproj : RenderSteps.h
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
-// * Created     : 2019y 10m 09d
-// * Last Altered: 2019y 10m 09d
+// * Created     : 2019y 10m 10d
+// * Last Altered: 2019y 11m 10d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
@@ -62,24 +62,24 @@ namespace dw {
 
     // fb = output framebuffer from renderpass
     //virtual void writeCmdBuff(Framebuffer& fb, VkRect2D renderArea = {});
-    NO_DISCARD RenderPass& getRenderPass() const;
+    NO_DISCARD RenderPass&       getRenderPass() const;
     NO_DISCARD GraphicsPipeline& getPipeline() const;
-    NO_DISCARD VkPipelineLayout getLayout() const;
+    NO_DISCARD VkPipelineLayout  getLayout() const;
 
   protected:
-    static void renderScene(CommandBuffer& commandBuff,
-      VkRenderPassBeginInfo& beginInfo,
-      Renderer::SceneContainer const& scene,
-      uint32_t                        alignment,
-      VkPipelineLayout                layout,
-      VkDescriptorSet                 descriptorSet);
+    static void renderScene(CommandBuffer&             commandBuff,
+                            VkRenderPassBeginInfo&     beginInfo,
+                            Scene::ObjContainer const& scene,
+                            uint32_t                   alignment,
+                            VkPipelineLayout           layout,
+                            VkDescriptorSet            descriptorSet);
 
     friend class Renderer;
-    VkPipelineLayout      m_layout{ nullptr };
-    VkDescriptorSetLayout m_descSetLayout{ nullptr };
-    VkDescriptorPool      m_descriptorPool{ nullptr };
+    VkPipelineLayout      m_layout{nullptr};
+    VkDescriptorSetLayout m_descSetLayout{nullptr};
+    VkDescriptorPool      m_descriptorPool{nullptr};
 
-  // TODO: make this able to also be a compute pipeline
+    // TODO: make this able to also be a compute pipeline
     util::ptr<GraphicsPipeline> m_pipeline;
     util::ptr<RenderPass>       m_pass;
   };
@@ -93,7 +93,7 @@ namespace dw {
   class GeometryStep : public RenderStep {
     friend class Renderer;
   public:
-    MOVE_CONSTRUCT_ONLY(GeometryStep);
+  MOVE_CONSTRUCT_ONLY(GeometryStep);
     using RenderStep::setupRenderPass;
 
     GeometryStep(LogicalDevice& device, CommandPool& pool);
@@ -105,15 +105,17 @@ namespace dw {
     void setupShaders() override;
 
     // fb = output framebuffer from renderpass
-    void writeCmdBuff(Framebuffer&                    fb,
-                      Renderer::SceneContainer const& scene,
-                      uint32_t                        alignment,
-                      VkRect2D                        renderArea = {}) const;
+    void writeCmdBuff(Framebuffer&               fb,
+                      Scene::ObjContainer const& scene,
+                      uint32_t                   alignment,
+                      VkRect2D                   renderArea = {}) const;
 
-    void updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO,
-                              Buffer& shaderControlUBO,
+    void updateDescriptorSets(Buffer&                  modelUBO,
+                              Buffer&                  cameraUBO,
+                              Buffer&                  mtlUBO,
+                              Buffer&                  shaderControlUBO,
                               MaterialManager::MtlMap& materialMap,
-                              VkSampler sampler) const;
+                              VkSampler                sampler) const;
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
@@ -127,7 +129,7 @@ namespace dw {
   class ShadowMapStep : public RenderStep {
     friend class Renderer;
   public:
-    MOVE_CONSTRUCT_ONLY(ShadowMapStep);
+  MOVE_CONSTRUCT_ONLY(ShadowMapStep);
 
     ShadowMapStep(LogicalDevice& device, CommandPool& pool);
     ~ShadowMapStep() override = default;
@@ -139,11 +141,11 @@ namespace dw {
     void setupShaders() override;
 
     void writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
-                      Renderer::SceneContainer const& scene,
-                      uint32_t alignment,
-                      VkRect2D renderArea = {}) const;
+                      Scene::ObjContainer const&                      scene,
+                      uint32_t                                        alignment,
+                      VkRect2D                                        renderArea = {}) const;
 
-    void updateDescriptorSets(Buffer& modelUBO, Buffer& lightsUBO);
+    void updateDescriptorSets(Buffer& modelUBO, Buffer& lightsUBO) const;
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
@@ -151,13 +153,13 @@ namespace dw {
     util::ptr<IShader>       m_vertexShader;
     util::ptr<IShader>       m_fragmentShader;
     util::Ref<CommandBuffer> m_cmdBuff;
-    VkDescriptorSet          m_descriptorSet{ nullptr };
+    VkDescriptorSet          m_descriptorSet{nullptr};
   };
 
   class BlurStep : public RenderStep {
     friend class Renderer;
   public:
-    MOVE_CONSTRUCT_ONLY(BlurStep);
+  MOVE_CONSTRUCT_ONLY(BlurStep);
 
     BlurStep(LogicalDevice& device, CommandPool& pool);
     ~BlurStep() override;
@@ -170,23 +172,27 @@ namespace dw {
     void setupShaders() override;
 
     void writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
-      DependentImage& intermediaryImg,
-      ImageView& intermediaryView);
+                      DependentImage&                                 intermediaryImg,
+                      ImageView&                                      intermediaryView);
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
   private:
     struct DescriptorSetCont {
-      VkDescriptorSet x{ nullptr };
-      VkDescriptorSet y{ nullptr };
+      VkDescriptorSet x{nullptr};
+      VkDescriptorSet y{nullptr};
     };
 
-    void updateDescriptorSets(DescriptorSetCont const& set, ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler = nullptr) const;
+    void updateDescriptorSets(DescriptorSetCont const& set,
+                              ImageView&               source,
+                              ImageView&               intermediate,
+                              ImageView&               dest,
+                              VkSampler                sampler = nullptr) const;
     util::ptr<IShader>       m_blur_x;
     util::ptr<IShader>       m_blur_y;
     util::Ref<CommandBuffer> m_cmdBuff;
-    VkPipeline m_compute_x{ nullptr };
-    VkPipeline m_compute_y{ nullptr };
+    VkPipeline               m_compute_x{nullptr};
+    VkPipeline               m_compute_y{nullptr};
 
     std::vector<DescriptorSetCont> m_descriptorSets;
 
@@ -199,7 +205,7 @@ namespace dw {
   public:
     static constexpr uint32_t MAX_GLOBAL_LIGHTS = 2;
 
-    MOVE_CONSTRUCT_ONLY(GlobalLightStep);
+  MOVE_CONSTRUCT_ONLY(GlobalLightStep);
 
     GlobalLightStep(LogicalDevice& device, CommandPool& pool);
     ~GlobalLightStep() override = default;
@@ -211,12 +217,12 @@ namespace dw {
 
     void writeCmdBuff(Framebuffer& fb, VkRect2D renderArea = {}) const;
 
-    void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
+    void updateDescriptorSets(std::vector<ImageView> const&                   gbufferViews,
                               std::vector<Renderer::ShadowMappedLight> const& lights,
-                              Buffer& cameraUBO,
-                              Buffer& lightsUBO,
-                              Buffer& shaderControlUBO,
-                              VkSampler sampler) const;
+                              Buffer&                                         cameraUBO,
+                              Buffer&                                         lightsUBO,
+                              Buffer&                                         shaderControlUBO,
+                              VkSampler                                       sampler) const;
 
     NO_DISCARD CommandBuffer& getCommandBuffer() const;
 
@@ -224,13 +230,13 @@ namespace dw {
     util::ptr<IShader>       m_vertexShader;
     util::ptr<IShader>       m_fragmentShader;
     util::Ref<CommandBuffer> m_cmdBuff;
-    VkDescriptorSet          m_descriptorSet{ nullptr };
+    VkDescriptorSet          m_descriptorSet{nullptr};
   };
 
   class FinalStep : public RenderStep {
     friend class Renderer;
   public:
-    MOVE_CONSTRUCT_ONLY(FinalStep);
+  MOVE_CONSTRUCT_ONLY(FinalStep);
 
     FinalStep(LogicalDevice& device, CommandPool& pool, uint32_t numSwapchainImages);
     ~FinalStep() override = default;
@@ -240,12 +246,15 @@ namespace dw {
     void setupDescriptors() override;
     void setupShaders() override;
 
-    void writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea = {},
-      uint32_t image = ~0u);
+    void writeCmdBuff(std::vector<Framebuffer> const& fbs,
+                      Image const&                    previousImage,
+                      VkRect2D                        renderArea = {},
+                      uint32_t                        image      = ~0u);
     void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
                               ImageView const&              previousImage,
                               Buffer&                       cameraUBO,
                               Buffer&                       lightsUBO,
+                              Buffer&                       shaderControlUBO,
                               VkSampler                     sampler);
 
     NO_DISCARD CommandBuffer& getCommandBuffer(uint32_t index);
@@ -255,7 +264,7 @@ namespace dw {
     util::ptr<IShader>                    m_vertexShader;
     util::ptr<IShader>                    m_fragmentShader;
 
-    uint32_t                              m_imageCount;
+    uint32_t m_imageCount;
   };
 }
 

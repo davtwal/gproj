@@ -3,7 +3,7 @@
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 // * Created     : 2019y 10m 15d
-// * Last Altered: 2019y 10m 15d
+// * Last Altered: 2019y 11m 15d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
@@ -25,28 +25,28 @@
 namespace dw {
   GeometryStep::GeometryStep(LogicalDevice& device, CommandPool& pool)
     : RenderStep(device),
-    m_cmdBuff(pool.allocateCommandBuffer()) {
+      m_cmdBuff(pool.allocateCommandBuffer()) {
   }
 
   GeometryStep::GeometryStep(GeometryStep&& o) noexcept
     : RenderStep(std::move(o)),
-    m_vertexShader(std::move(o.m_vertexShader)),
-    m_fragmentShader(std::move(o.m_fragmentShader)),
-    m_cmdBuff(o.m_cmdBuff),
-    m_descriptorSet(o.m_descriptorSet) {
-    o.m_vertexShader = nullptr;
+      m_vertexShader(std::move(o.m_vertexShader)),
+      m_fragmentShader(std::move(o.m_fragmentShader)),
+      m_cmdBuff(o.m_cmdBuff),
+      m_descriptorSet(o.m_descriptorSet) {
+    o.m_vertexShader   = nullptr;
     o.m_fragmentShader = nullptr;
-    o.m_descriptorSet = nullptr;
+    o.m_descriptorSet  = nullptr;
   }
 
   CommandBuffer& GeometryStep::getCommandBuffer() const {
     return m_cmdBuff;
   }
 
-  void GeometryStep::writeCmdBuff(Framebuffer& fb,
-    Renderer::SceneContainer const& scene,
-    uint32_t                        alignment,
-    VkRect2D                        renderArea) const {
+  void GeometryStep::writeCmdBuff(Framebuffer&               fb,
+                                  Scene::ObjContainer const& scene,
+                                  uint32_t                   alignment,
+                                  VkRect2D                   renderArea) const {
     // 1: deferred pass
     if (renderArea.extent.width == 0) {
       renderArea.extent = fb.getExtent();
@@ -54,10 +54,10 @@ namespace dw {
 
     if (!scene.empty()) {
       std::array<VkClearValue, NUM_EXPECTED_GBUFFER_IMAGES + 1> clearValues{};
-      clearValues.back().depthStencil = { 1.f, 0 };
+      clearValues.back().depthStencil = {1.f, 0};
 
       for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES; ++i) {
-        clearValues[i].color = { {0} };
+        clearValues[i].color = {{0}};
       }
 
       auto& commandBuff = m_cmdBuff.get();
@@ -120,7 +120,13 @@ namespace dw {
       };
     }
 
-    layoutBindings.push_back({ static_cast<uint32_t>(layoutBindings.size()), VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr });
+    layoutBindings.push_back({
+                               static_cast<uint32_t>(layoutBindings.size()),
+                               VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                               1,
+                               VK_SHADER_STAGE_FRAGMENT_BIT,
+                               nullptr
+                             });
 
     VkDescriptorSetLayoutCreateInfo layoutCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -131,7 +137,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorSetLayout(getOwningDevice(), &layoutCreateInfo, nullptr, &m_descSetLayout) != VK_SUCCESS || !
-      m_descSetLayout)
+        m_descSetLayout)
       throw std::runtime_error("Could not create descriptor set layout");
 
     ///////////////////////////////////////////////////////
@@ -163,7 +169,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorPool(getOwningDevice(), &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
-      m_descriptorPool)
+        m_descriptorPool)
       throw std::runtime_error("Could not create descriptor pool");
 
     //////////////////
@@ -178,18 +184,18 @@ namespace dw {
     };
 
     VkResult result = vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSet);
-    switch(result) {
-    case VK_ERROR_OUT_OF_POOL_MEMORY:
-      Trace::Error << "Out of pool memory" << Trace::Stop;
-      break;
-    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
-      Trace::Error << "Out of device memory" << Trace::Stop;
-      break;
-    case VK_ERROR_FRAGMENTED_POOL:
-      Trace::Error << "Fragmented pool" << Trace::Stop;
-      break;
-    case VK_ERROR_OUT_OF_HOST_MEMORY:
-      Trace::Error << "Out of host memory" << Trace::Stop;
+    switch (result) {
+      case VK_ERROR_OUT_OF_POOL_MEMORY:
+        Trace::Error << "Out of pool memory" << Trace::Stop;
+        break;
+      case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+        Trace::Error << "Out of device memory" << Trace::Stop;
+        break;
+      case VK_ERROR_FRAGMENTED_POOL:
+        Trace::Error << "Fragmented pool" << Trace::Stop;
+        break;
+      case VK_ERROR_OUT_OF_HOST_MEMORY:
+        Trace::Error << "Out of host memory" << Trace::Stop;
 
     }
 
@@ -197,112 +203,114 @@ namespace dw {
       throw std::runtime_error("Could not allocate descriptor sets");
   }
 
-  void GeometryStep::updateDescriptorSets(Buffer& modelUBO, Buffer& cameraUBO, Buffer& mtlUBO, 
-      Buffer& shaderControlUBO,
-      MaterialManager::MtlMap& materials,
-      VkSampler sampler) const {
+  void GeometryStep::updateDescriptorSets(Buffer&                  modelUBO,
+                                          Buffer&                  cameraUBO,
+                                          Buffer&                  mtlUBO,
+                                          Buffer&                  shaderControlUBO,
+                                          MaterialManager::MtlMap& materials,
+                                          VkSampler                sampler) const {
     // Descriptor sets are automatically freed once the pool is freed.
     // They can be individually freed if the pool was created with
     // VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT sets
     VkDescriptorBufferInfo modelUBOinfo = modelUBO.getDescriptorInfo();
-    modelUBOinfo.range = sizeof(ObjectUniform);
+    modelUBOinfo.range                  = sizeof(ObjectUniform);
 
     std::vector<VkDescriptorImageInfo> imageInfos;
-    std::vector<VkWriteDescriptorSet> descriptorWrites;
+    std::vector<VkWriteDescriptorSet>  descriptorWrites;
     imageInfos.resize(MAX_MATERIALS * Material::MTL_MAP_COUNT);
     descriptorWrites.reserve(MAX_MATERIALS * Material::MTL_MAP_COUNT + 3);
 
-    for(auto& mtl : materials) {
+    for (auto& mtl : materials) {
       auto& views = mtl.second->getViews();
 
       for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
-        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].sampler = sampler;
-        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageView = VkImageView(views[i]);
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].sampler     = sampler;
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageView   = VkImageView(views[i]);
         imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       }
     }
 
     descriptorWrites.push_back({
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSet,
-        0,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &cameraUBO.getDescriptorInfo(),
-        nullptr
-      });
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 0,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &cameraUBO.getDescriptorInfo(),
+                                 nullptr
+                               });
 
     descriptorWrites.push_back({
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSet,
-        1,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        nullptr,
-        &modelUBOinfo,
-        nullptr
-      });
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 1,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                                 nullptr,
+                                 &modelUBOinfo,
+                                 nullptr
+                               });
 
     descriptorWrites.push_back({
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSet,
-        2,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &mtlUBO.getDescriptorInfo(),
-        nullptr
-      });
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 2,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &mtlUBO.getDescriptorInfo(),
+                                 nullptr
+                               });
 
     for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
       descriptorWrites.push_back({
-        VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSet,
-        i + 3,
-        0,
-        MAX_MATERIALS,
-        VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        &imageInfos[i * MAX_MATERIALS],
-        nullptr,
-        nullptr
-      });
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   m_descriptorSet,
+                                   i + 3,
+                                   0,
+                                   MAX_MATERIALS,
+                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                   &imageInfos[i * MAX_MATERIALS],
+                                   nullptr,
+                                   nullptr
+                                 });
     }
 
     descriptorWrites.push_back({
-      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-        nullptr,
-        m_descriptorSet,
-        7,
-        0,
-        1,
-        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        nullptr,
-        &shaderControlUBO.getDescriptorInfo(),
-        nullptr
-      });
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 7,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &shaderControlUBO.getDescriptorInfo(),
+                                 nullptr
+                               });
 
     vkUpdateDescriptorSets(getOwningDevice(),
-      static_cast<uint32_t>(descriptorWrites.size()),
-      descriptorWrites.data(),
-      0,
-      nullptr);
+                           static_cast<uint32_t>(descriptorWrites.size()),
+                           descriptorWrites.data(),
+                           0,
+                           nullptr);
   }
 
   void GeometryStep::setupShaders() {
     m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>>(
-      ShaderModule::Load(getOwningDevice(),
-        "object_pass_vert.spv"));
+                                                                 ShaderModule::Load(getOwningDevice(),
+                                                                                    "object_pass_vert.spv"));
     m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(
-      ShaderModule::Load(getOwningDevice(),
-        "gbuffer_filler_frag.spv"));
+                                                                     ShaderModule::Load(getOwningDevice(),
+                                                                                        "gbuffer_filler_frag.spv"));
   }
 
   void GeometryStep::setupPipeline(VkExtent2D extent) {
@@ -316,12 +324,12 @@ namespace dw {
                           -static_cast<float>(extent.height),
                           0,
                           1.f
-      });
+                        });
 
     creator.setScissor({
                          {0, 0},
                          extent
-      });
+                       });
 
     creator.setFrontFace(VK_FRONT_FACE_COUNTER_CLOCKWISE);
     creator.setDepthTesting(true);
@@ -338,14 +346,14 @@ namespace dw {
       VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT
     };
 
-    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments{ GBUFFER_IMAGE_COUNT, colorAttachmentInfo };
+    std::vector<VkPipelineColorBlendAttachmentState> colorBlendAttachments{GBUFFER_IMAGE_COUNT, colorAttachmentInfo};
     creator.setAttachments(colorBlendAttachments);
 
-    creator.setShaderStages({ m_vertexShader->getCreateInfo(), m_fragmentShader->getCreateInfo() });
+    creator.setShaderStages({m_vertexShader->getCreateInfo(), m_fragmentShader->getCreateInfo()});
 
     m_pipeline = util::make_ptr<GraphicsPipeline>(
-      creator.finishCreate(getOwningDevice(), m_layout, *m_pass, 0, true)
-      );
+                                                  creator.finishCreate(getOwningDevice(), m_layout, *m_pass, 0, true)
+                                                 );
   }
 
 
@@ -361,17 +369,17 @@ namespace dw {
 
     for (uint32_t i = 0; i < NUM_GBUFFER_IMAGES; ++i) {
       m_pass->addAttachment(images[i].get().getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
-        VK_ATTACHMENT_STORE_OP_STORE,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
+                                                              VK_ATTACHMENT_STORE_OP_STORE,
+                                                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
       m_pass->addAttachmentRef(i, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
     }
 
     m_pass->addAttachment(images.back().get().getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
-      VK_ATTACHMENT_STORE_OP_DONT_CARE,
-      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL));
+                                                                VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                                                                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL));
     m_pass->addAttachmentRef(NUM_GBUFFER_IMAGES,
-      VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
-      RenderPass::arfDepthStencil);
+                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                             RenderPass::arfDepthStencil);
     m_pass->finishSubpass();
 
     m_pass->addSubpassDependency({
@@ -382,7 +390,7 @@ namespace dw {
                                    VK_ACCESS_MEMORY_READ_BIT,
                                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_DEPENDENCY_BY_REGION_BIT
-      });
+                                 });
 
     m_pass->addSubpassDependency({
                                    0,
@@ -392,7 +400,7 @@ namespace dw {
                                    VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                                    VK_ACCESS_MEMORY_READ_BIT,
                                    VK_DEPENDENCY_BY_REGION_BIT
-      });
+                                 });
 
     m_pass->finishRenderPass();
   }

@@ -3,7 +3,7 @@
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 // * Created     : 2019y 10m 20d
-// * Last Altered: 2019y 10m 20d
+// * Last Altered: 2019y 11m 20d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
@@ -20,8 +20,8 @@ namespace dw {
 
   BlurStep::BlurStep(LogicalDevice& device, CommandPool& pool)
     : RenderStep(device),
-      m_cmdBuff(pool.allocateCommandBuffer())
-  {}
+      m_cmdBuff(pool.allocateCommandBuffer()) {
+  }
 
   BlurStep::BlurStep(BlurStep&& o) noexcept
     : RenderStep(std::move(o)),
@@ -44,7 +44,7 @@ namespace dw {
       m_compute_x = nullptr;
     }
 
-    if(m_compute_y) {
+    if (m_compute_y) {
       vkDestroyPipeline(getOwningDevice(), m_compute_y, nullptr);
       m_compute_y = nullptr;
     }
@@ -53,19 +53,20 @@ namespace dw {
 
   void BlurStep::setupShaders() {
     m_blur_x = util::make_ptr<Shader<ShaderStage::Compute>>(
-      ShaderModule::Load(getOwningDevice(),
-        "blur_x_comp.spv"
-      ));
+                                                            ShaderModule::Load(getOwningDevice(),
+                                                                               "blur_x_comp.spv"
+                                                                              ));
 
     m_blur_y = util::make_ptr<Shader<ShaderStage::Compute>>(
-      ShaderModule::Load(getOwningDevice(),
-        "blur_y_comp.spv"
-      ));
+                                                            ShaderModule::Load(getOwningDevice(),
+                                                                               "blur_y_comp.spv"
+                                                                              ));
   }
 
-  void BlurStep::setupRenderPass(std::vector<util::Ref<Image>> const&) {}
+  void BlurStep::setupRenderPass(std::vector<util::Ref<Image>> const&) {
+  }
 
-  void BlurStep::setupPipelineLayout(VkPipelineLayout layout ) {
+  void BlurStep::setupPipelineLayout(VkPipelineLayout layout) {
     VkPushConstantRange range = {
       VK_SHADER_STAGE_COMPUTE_BIT,
       0,
@@ -92,7 +93,7 @@ namespace dw {
       {1, sizeof(int), sizeof(int)}
     };
 
-    int data[2] = { KERNEL_SIZE, KERNEL_SIZE / 2 };
+    int                  data[2]  = {KERNEL_SIZE, KERNEL_SIZE / 2};
     VkSpecializationInfo specInfo = {
       2,
       mapEntries,
@@ -153,7 +154,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorSetLayout(getOwningDevice(), &layoutCreateInfo, nullptr, &m_descSetLayout) != VK_SUCCESS || !
-      m_descSetLayout)
+        m_descSetLayout)
       throw std::runtime_error("Could not create descriptor set layout");
 
     std::vector<VkDescriptorPoolSize> poolSizes = {
@@ -173,7 +174,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorPool(getOwningDevice(), &poolCreateInfo, nullptr, &m_descriptorPool) != VK_SUCCESS || !
-      m_descriptorPool)
+        m_descriptorPool)
       throw std::runtime_error("Could not create descriptor pool");
   }
 
@@ -181,7 +182,11 @@ namespace dw {
     return m_cmdBuff;
   }
 
-  void BlurStep::updateDescriptorSets(DescriptorSetCont const& set, ImageView& source, ImageView& intermediate, ImageView& dest, VkSampler sampler) const {
+  void BlurStep::updateDescriptorSets(DescriptorSetCont const& set,
+                                      ImageView&               source,
+                                      ImageView&               intermediate,
+                                      ImageView&               dest,
+                                      VkSampler                sampler) const {
     std::vector<VkWriteDescriptorSet> writes;
     writes.reserve(4);
 
@@ -222,7 +227,7 @@ namespace dw {
     write.pImageInfo = &intermediateInfo;
     writes.push_back(write);
 
-    write.dstSet = set.y;
+    write.dstSet     = set.y;
     write.dstBinding = 0;
     writes.push_back(write);
 
@@ -233,13 +238,18 @@ namespace dw {
     vkUpdateDescriptorSets(getOwningDevice(), writes.size(), writes.data(), 0, nullptr);
   }
 
-  void BlurStep::writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights, DependentImage& intermediateImg, ImageView& intermediaryView) {
+  void BlurStep::writeCmdBuff(std::vector<Renderer::ShadowMappedLight> const& lights,
+                              DependentImage&                                 intermediateImg,
+                              ImageView&                                      intermediaryView) {
     assert(lights.size() <= GlobalLightStep::MAX_GLOBAL_LIGHTS);
 
     m_descriptorSets.clear();
     m_descriptorSets.resize(lights.size());
 
-    std::vector<VkDescriptorSetLayout> layouts = { 2* lights.size(), m_descSetLayout };
+    std::vector<VkDescriptorSetLayout> layouts = {
+      2 * lights.size(),
+      m_descSetLayout
+    };
     VkDescriptorSetAllocateInfo descSetAllocInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       nullptr,
@@ -251,22 +261,27 @@ namespace dw {
     // note: because m_descriptorSet_y comes right after m_descriptorSet_x, then the allocation for 2
     // puts the second into _y
     // and also all of these descriptors are nice and packed :)
-    if (vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSets.front().x) != VK_SUCCESS)
-      throw std::runtime_error(std::string("Could not allocate descriptor sets: "));
+    if (vkAllocateDescriptorSets(getOwningDevice(),
+                                 &descSetAllocInfo,
+                                 &m_descriptorSets.front().x) !=
+        VK_SUCCESS)
+      throw std::
+          runtime_error(std::
+                        string("Could not allocate descriptor sets: "));
 
-    std::array<float, KERNEL_SIZE> weights {{0}};
+    std::array<float, KERNEL_SIZE> weights{{0}};
 
     float weightSum = 0.f;
     for (uint32_t i = 0; i < KERNEL_SIZE; ++i) {
       // integer division on purpose
       constexpr int w = KERNEL_SIZE / 2;
-      int x = i - w;
-      float s = x / ((float)w / 2);
-      weights[i] = glm::exp(-.5f * s * s);
+      int           x = i - w;
+      float         s = x / (static_cast<float>(w) / 2);
+      weights[i]      = glm::exp(-.5f * s * s);
       weightSum += weights[i];
     }
 
-    for(auto& w : weights) {
+    for (auto& w : weights) {
       w /= weightSum;
     }
 
@@ -281,63 +296,127 @@ namespace dw {
       VK_QUEUE_FAMILY_IGNORED,
       nullptr,
       {
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          0,
-          1,
-          0,
-          1
+        VK_IMAGE_ASPECT_COLOR_BIT,
+        0,
+        1,
+        0,
+        1
       }
     };
 
-    std::array<VkImageMemoryBarrier, 2> barriers{ barrier, barrier };
+    std::array<VkImageMemoryBarrier, 2> barriers{barrier, barrier};
 
     barriers[0].image = intermediateImg;
 
     auto& cmdBuff = m_cmdBuff.get();
     cmdBuff.start(false);
 
-    vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-      0, nullptr, 0, nullptr, 1, &barriers[0]);
+    vkCmdPipelineBarrier(cmdBuff,
+                         VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                         VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                         0,
+                         0,
+                         nullptr,
+                         0,
+                         nullptr,
+                         1,
+                         &barriers[0]);
     // ey broski, you were in the middle of making another compute pipeline to do the Y blur :>
     barriers[0].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
     barriers[1].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     const auto size = intermediateImg.getSize();
-    for(size_t i = 0; i < lights.size(); ++i){
-      auto& light = lights.at(i);
-      auto& view = light.m_depthBuffer->getImageViews().front();
-      auto& image = light.m_depthBuffer->getImages().front();
+    for (size_t i = 0; i < lights.size(); ++i) {
+      auto& light       = lights.at(i);
+      auto& view        = light.m_depthBuffer->getImageViews().front();
+      auto& image       = light.m_depthBuffer->getImages().front();
       auto& descriptors = m_descriptorSets.at(i);
       updateDescriptorSets(descriptors, view, intermediaryView, view);
       barriers[1].image = image;
 
-      vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_x);
-      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &descriptors.x, 0, nullptr);
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0,
-        0, nullptr, 0, nullptr, 1, &barriers[1]);
-      vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)* KERNEL_SIZE, weights.data());
-      vkCmdDispatch(cmdBuff, (size.width / 128) + size.width % 128, size.height, 1);
+      vkCmdBindPipeline(cmdBuff,
+                        VK_PIPELINE_BIND_POINT_COMPUTE,
+                        m_compute_x);
+      vkCmdBindDescriptorSets(cmdBuff,
+                              VK_PIPELINE_BIND_POINT_COMPUTE,
+                              m_layout,
+                              0,
+                              1,
+                              &descriptors.x,
+                              0,
+                              nullptr);
+      vkCmdPipelineBarrier(cmdBuff,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           0,
+                           0,
+                           nullptr,
+                           0,
+                           nullptr,
+                           1,
+                           &barriers[1]);
+      vkCmdPushConstants(cmdBuff,
+                         m_layout,
+                         VK_SHADER_STAGE_COMPUTE_BIT,
+                         0,
+                         sizeof(float) * KERNEL_SIZE,
+                         weights.data());
+      vkCmdDispatch(cmdBuff,
+                    (size.width / 128) + size.width % 128,
+                    size.height,
+                    1);
 
       barriers[1].oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0, 0, nullptr, 0, nullptr, static_cast<uint32_t>(barriers.size()), barriers.data());
+      vkCmdPipelineBarrier(cmdBuff,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           0,
+                           0,
+                           nullptr,
+                           0,
+                           nullptr,
+                           static_cast<uint32_t>(barriers.size()),
+                           barriers.data());
 
-      vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_compute_y);
-      vkCmdBindDescriptorSets(cmdBuff, VK_PIPELINE_BIND_POINT_COMPUTE, m_layout, 0, 1, &descriptors.y, 0, nullptr);
-      vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)* KERNEL_SIZE, weights.data());
-      vkCmdDispatch(cmdBuff, size.width, (size.height / 128) + size.height % 128, 1);
+      vkCmdBindPipeline(cmdBuff,
+                        VK_PIPELINE_BIND_POINT_COMPUTE,
+                        m_compute_y);
+      vkCmdBindDescriptorSets(cmdBuff,
+                              VK_PIPELINE_BIND_POINT_COMPUTE,
+                              m_layout,
+                              0,
+                              1,
+                              &descriptors.y,
+                              0,
+                              nullptr);
+      vkCmdPushConstants(cmdBuff,
+                         m_layout,
+                         VK_SHADER_STAGE_COMPUTE_BIT,
+                         0,
+                         sizeof(float) * KERNEL_SIZE,
+                         weights.data());
+      vkCmdDispatch(cmdBuff,
+                    size.width,
+                    (size.height / 128) + size.height % 128,
+                    1);
 
       barriers[1].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0,
-        0, nullptr, 0, nullptr, 1, &barriers[1]);
+      vkCmdPipelineBarrier(cmdBuff,
+                           VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                           VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
+                           0,
+                           0,
+                           nullptr,
+                           0,
+                           nullptr,
+                           1,
+                           &barriers[1]);
       barriers[1].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       barriers[1].newLayout = VK_IMAGE_LAYOUT_GENERAL;
     }
 
     cmdBuff.end();
   }
-
-
 
 
 }

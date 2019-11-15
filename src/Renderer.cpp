@@ -217,7 +217,7 @@ namespace dw {
     m_localLitSemaphore    = nullptr;
 
     m_globalLights.clear();
-    m_objList.clear();
+    m_scene.reset();
 
     if (m_modelUBOdata)
       alignedFree(m_modelUBOdata);
@@ -377,7 +377,7 @@ namespace dw {
 
   void Renderer::drawFrame() {
     assert(m_swapchain->isPresentReady());
-    if (m_objList.empty())
+    if (!m_scene || m_scene->getObjects().empty())
       return;
 
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
@@ -511,14 +511,14 @@ namespace dw {
 
   void Renderer::updateUniformBuffers(uint32_t imageIndex) {
     // NOTE: Global lights are NOT dynamic
-
+    Camera& camera = m_scene->getCamera();
     CameraUniform cam = {
-      m_camera.get().getView(),
-      m_camera.get().getProj(),
-      m_camera.get().getEyePos(),
-      m_camera.get().getViewDir(),
-      m_camera.get().getFarDist(),
-      m_camera.get().getNearDist()
+      camera.getView(),
+      camera.getProj(),
+      camera.getEyePos(),
+      camera.getViewDir(),
+      camera.getFarDist(),
+      camera.getNearDist()
     };
 
     void* data = m_cameraUBO->map();
@@ -527,11 +527,11 @@ namespace dw {
 
     assert(m_modelUBOdata);
 
-    for (uint32_t i = 0; i < m_objList.size(); ++i) {
+    for (uint32_t i = 0; i < m_scene->getObjects().size(); ++i) {
       auto objData = reinterpret_cast<ObjectUniform*>(reinterpret_cast<char*>(m_modelUBOdata) + i * m_modelUBOdynamicAlignment);
 
-      objData->model = m_objList[i].get().getTransform();
-      objData->mtlIndex = m_objList[i].get().m_mesh.get().getMaterial()->getID();
+      objData->model    = m_scene->getObjects()[i]->getTransform();
+      objData->mtlIndex = m_scene->getObjects()[i]->m_mesh.get().getMaterial()->getID();
     }
 
     data = m_modelUBO->map();
@@ -540,8 +540,8 @@ namespace dw {
 
     data                   = m_localLightsUBO->map();
     LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
-    for (size_t i     = 0; i < m_lights.size(); ++i)
-      lightUBOdata[i] = m_lights[i].get().getAsUBO();
+    for (size_t i     = 0; i < m_scene->getLights().size(); ++i)
+      lightUBOdata[i] = m_scene->getLights()[i]->getAsUBO();
     m_localLightsUBO->unMap();
 
     // shader control:
@@ -570,28 +570,24 @@ namespace dw {
     m_shaderControl = std::move(control);
   }
 
-  void Renderer::setCamera(util::Ref<Camera> camera) {
-    m_camera = camera;
-  }
+  void Renderer::setScene(util::ptr<Scene> scene) {
+    m_scene = scene;
 
-  void Renderer::setLocalLights(LightContainer const& lights) {
-    m_lights = lights;
+    if (!scene)
+      return;
+
+    Scene::LightContainer const& lights = scene->getLights();
+    std::vector<ShadowedLight> shadowLights = scene->getGlobalLights();
+
+    // Local lights
     m_localLightsUBO.reset();
 
     VkDeviceSize lightUniformSize = sizeof(LightUBO);
-    m_localLightsUBO              = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
-                                                                                 lightUniformSize * lights.size()));
+    m_localLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+      lightUniformSize * scene->getLights().size()));
 
-    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(),
-                                      m_globalLitFrameBuffer->getImageViews().front(),
-                                      *m_cameraUBO,
-                                      *m_localLightsUBO,
-                                      m_sampler);
-    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front());
-  }
-
-  void Renderer::setGlobalLights(GlobalLightContainer lights) {
-    size_t uboSize = sizeof(ShadowedUBO) * lights.size();
+    // Global lights
+    size_t uboSize = sizeof(ShadowedUBO) * shadowLights.size();
     m_globalLightsUBO.reset();
     m_globalLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, uboSize, true));
 
@@ -599,15 +595,15 @@ namespace dw {
     {
       // NOTE: Global lights are NOT dynamic, hence they are updated here.
       Buffer staging = Buffer::CreateStaging(*m_device, uboSize);
-      auto   data    = reinterpret_cast<ShadowedUBO*>(staging.map());
-      for (size_t i = 0; i < lights.size(); ++i)
-        data[i]     = lights[i].getAsShadowUBO();
+      auto   data = reinterpret_cast<ShadowedUBO*>(staging.map());
+      for (size_t i = 0; i < shadowLights.size(); ++i)
+        data[i] = shadowLights[i].getAsShadowUBO();
       staging.unMap();
 
       CommandBuffer& cmdBuff = m_transferCmdPool->allocateCommandBuffer();
       cmdBuff.start(true);
 
-      VkBufferCopy copy = {0, 0, uboSize};
+      VkBufferCopy copy = { 0, 0, uboSize };
       vkCmdCopyBuffer(cmdBuff, staging, *m_globalLightsUBO, 1, &copy);
 
       cmdBuff.end();
@@ -618,77 +614,77 @@ namespace dw {
     }
 
     m_globalLights.clear();
-    m_globalLights.reserve(lights.size());
+    m_globalLights.reserve(shadowLights.size());
 
     // TODO: instead of remaking depth buffers from scratch, instead reuse them and only allocate new ones
     // TODO: as needed
 
-    for (auto& light : lights) {
+    for (auto& light : shadowLights) {
       util::ptr<Framebuffer> depthBuff = util::make_ptr<Framebuffer>(*m_device, SHADOW_DEPTH_MAP_EXTENT);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-                          VK_IMAGE_TYPE_2D,
-                          VK_IMAGE_VIEW_TYPE_2D,
-                          VK_FORMAT_R32G32B32A32_SFLOAT,
-                          SHADOW_DEPTH_MAP_EXTENT,
-                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-                          1,
-                          1,
-                          false,
-                          false,
-                          false,
-                          false);
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        SHADOW_DEPTH_MAP_EXTENT,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
-                          VK_IMAGE_TYPE_2D,
-                          VK_IMAGE_VIEW_TYPE_2D,
-                          VK_FORMAT_D24_UNORM_S8_UINT,
-                          SHADOW_DEPTH_MAP_EXTENT,
-                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-                          1,
-                          1,
-                          false,
-                          false,
-                          false,
-                          false);
+        VK_IMAGE_TYPE_2D,
+        VK_IMAGE_VIEW_TYPE_2D,
+        VK_FORMAT_D24_UNORM_S8_UINT,
+        SHADOW_DEPTH_MAP_EXTENT,
+        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        1,
+        1,
+        false,
+        false,
+        false,
+        false);
 
       depthBuff->finalize(m_shadowMapStep->getRenderPass());
 
       m_globalLights.emplace_back(light).m_depthBuffer = depthBuff;
     }
 
-    if (m_modelUBO) {
-      m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
-      m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
-    }
-
-    m_blurStep->writeCmdBuff(m_globalLights, *m_blurIntermediate, *m_blurIntermediateView);
-
-    m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
-                                            m_globalLights,
-                                            *m_cameraUBO,
-                                            *m_globalLightsUBO,
-                                            *m_shaderControlBuffer,
-                                            m_sampler);
-
-    m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
-  }
-
-  void Renderer::setScene(std::vector<util::Ref<Object>> const& objects) {
-    m_objList = objects;
-
+    // Object list
     if (m_modelUBOdata)
       alignedFree(m_modelUBOdata);
 
     prepareDynamicUniformBuffers();
 
-    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_shaderControlBuffer, *m_materials, m_sampler);
-    m_geometryStep->writeCmdBuff(*m_gbuffer, m_objList, m_modelUBOdynamicAlignment);
+    // Descriptors
 
-    if (m_globalLightsUBO) {
-      m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
-      m_shadowMapStep->writeCmdBuff(m_globalLights, m_objList, m_modelUBOdynamicAlignment);
-    }
+    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_shaderControlBuffer, *m_materials, m_sampler);
+    m_geometryStep->writeCmdBuff(*m_gbuffer, scene->getObjects(), m_modelUBOdynamicAlignment);
+
+    m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
+    m_shadowMapStep->writeCmdBuff(m_globalLights, scene->getObjects(), m_modelUBOdynamicAlignment);
+
+    m_blurStep->writeCmdBuff(m_globalLights, *m_blurIntermediate, *m_blurIntermediateView);
+
+    m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
+      m_globalLights,
+      *m_cameraUBO,
+      *m_globalLightsUBO,
+      *m_shaderControlBuffer,
+      m_sampler);
+    
+    m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
+
+    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(),
+      m_globalLitFrameBuffer->getImageViews().front(),
+      *m_cameraUBO,
+      *m_localLightsUBO,
+      *m_shaderControlBuffer,
+      m_sampler);
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front());
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
@@ -699,7 +695,7 @@ namespace dw {
       m_modelUBOdynamicAlignment = (m_modelUBOdynamicAlignment + (minUboAlignment - 1)) & ~(minUboAlignment - 1);
     }
 
-    size_t modelUBOsize = m_modelUBOdynamicAlignment * m_objList.size();
+    size_t modelUBOsize = m_modelUBOdynamicAlignment * m_scene->getObjects().size();
 
     Trace::Warn << "Minimum UBO Align  : " << minUboAlignment << Trace::Stop;
     Trace::Warn << "Size of Object UBO : " << sizeof(ObjectUniform) << Trace::Stop;

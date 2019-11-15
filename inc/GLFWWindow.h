@@ -1,20 +1,15 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
-// * gproj2 : GLFWWindow.h
+// * gproj : GLFWWindow.h
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
-//  Created     : 2019y 09m 13d
-// * Last Altered: 2019y 09m 13d
+// * Created     : 2019y 09m 23d
+// * Last Altered: 2019y 11m 23d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
 // * 
-// * Description :
-// *
-// *
-// *
-// *
-// * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
+// * Description :
 
 #ifndef DW_WINDOW_GLFW_H
 #define DW_WINDOW_GLFW_H

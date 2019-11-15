@@ -53,9 +53,10 @@ namespace dw {
     uint32_t numSampledImages = NUM_EXPECTED_GBUFFER_IMAGES + 1;
 
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.resize(numSampledImages + 2);
+    finalBindings.resize(numSampledImages + 3);
     // one view eye/view dir UBO +
     // one for light UBO
+    // one for shader control
 
     finalBindings.front() = {
       0,
@@ -65,7 +66,15 @@ namespace dw {
       nullptr
     };
 
-    for (uint32_t i = 1; i < finalBindings.size(); ++i) {
+    finalBindings[1] = {
+      1,
+      VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+      1,
+      VK_SHADER_STAGE_FRAGMENT_BIT,
+      nullptr
+    };
+
+    for (uint32_t i = 2; i < finalBindings.size(); ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -76,7 +85,7 @@ namespace dw {
     }
 
     finalBindings.back() = {
-      5,
+      6,
       VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
       1,
       VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -98,7 +107,7 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> finalPoolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        numImages * 2
+        numImages * 3
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -334,11 +343,12 @@ namespace dw {
                                        ImageView const& previousImage,
                                        Buffer& cameraUBO,
                                        Buffer& lightsUBO,
+                                       Buffer& shaderControlUBO,
                                        VkSampler                     sampler) {
     uint32_t numSampledImages = NUM_EXPECTED_GBUFFER_IMAGES + 1;
 
     std::vector<VkWriteDescriptorSet> descriptorWrites;
-    descriptorWrites.reserve(m_descriptorSets.size() * (NUM_EXPECTED_GBUFFER_IMAGES + 2));
+    descriptorWrites.reserve(m_descriptorSets.size() * (NUM_EXPECTED_GBUFFER_IMAGES + 3));
     
     std::vector<VkDescriptorImageInfo> imageInfos;
     imageInfos.reserve(numSampledImages);
@@ -364,12 +374,25 @@ namespace dw {
                                    nullptr
         });
 
+      descriptorWrites.push_back({
+                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                   nullptr,
+                                   set,
+                                   1,
+                                   0,
+                                   1,
+                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   nullptr,
+                                   &shaderControlUBO.getDescriptorInfo(),
+                                   nullptr
+        });
+
       for (uint32_t j = 0; j < numSampledImages; ++j) {
         descriptorWrites.push_back({
                                      VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                      nullptr,
                                      set,
-                                     j + 1,
+                                     j + 2,
                                      0,
                                      1,
                                      VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -383,7 +406,7 @@ namespace dw {
                                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                    nullptr,
                                    set,
-                                   5,
+                                   6,
                                    0,
                                    1,
                                    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,

@@ -18,12 +18,7 @@ layout(binding = 1) uniform ShadowLights {
 } lights;
 
 // shader control
-layout(binding = 2) uniform ShaderControl {
-  float momentBias;
-  float depthBias;
-  float defaultRoughness;
-  float defaultMetallic;
-} control;
+layout(binding = 2) SHADER_CONTROL_UNIFORM control;
 
 layout(binding = 3) uniform sampler2D inGBuffPosition;
 layout(binding = 4) uniform sampler2D inGBuffNormal;

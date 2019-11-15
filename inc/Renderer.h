@@ -27,6 +27,7 @@
 #include "MeshManager.h"
 #include "Material.h"
 
+#include "Scene.h"
 #include "ImGui.h"
 
 #include <unordered_map>
@@ -80,15 +81,7 @@ namespace dw {
     void uploadMeshes(MeshManager::MeshMap& meshes) const;
     void uploadMaterials(MaterialManager::MtlMap& materials);
 
-    using SceneContainer = std::vector<util::Ref<Object>>;
-    using LightContainer = std::vector<util::Ref<Light>>;
-    using GlobalLightContainer = std::vector<ShadowedLight>;
-
-    void setScene(SceneContainer const& objects);
-    void setLocalLights(LightContainer const& lights);
-    void setGlobalLights(GlobalLightContainer lights);
-
-    void setCamera(util::Ref<Camera> camera);
+    void setScene(util::ptr<Scene> scene);
 
     void drawFrame();
 
@@ -107,6 +100,10 @@ namespace dw {
       alignas(04) float global_depthBias  {0.0004f};
       alignas(04) float geometry_defaultRoughness{ 0.16f };
       alignas(04) float geometry_defaultMetallic { 0.08f };
+      alignas(04) float final_toneMapExposure{ 1.f };
+      alignas(04) float final_toneMapExponent{ 1.f };
+      alignas(04) float padding{ 0 };
+      alignas(04) float padding2{ 0 };
     };
 
     void setShaderControl(ShaderControl* control);
@@ -219,10 +216,8 @@ namespace dw {
     VkSemaphore m_localLitSemaphore{ nullptr };
 
     // Scene variables
-    util::Ref<Camera> m_camera { s_defaultCamera };
+    util::ptr<Scene> m_scene{ nullptr };
     std::vector<ShadowMappedLight> m_globalLights;
-    LightContainer m_lights;
-    SceneContainer m_objList;
     size_t m_modelUBOdynamicAlignment {0};
     ObjectUniform* m_modelUBOdata = nullptr;
 

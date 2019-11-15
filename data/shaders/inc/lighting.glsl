@@ -136,13 +136,8 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   if(distance > r)
     return vec3(0);
   
-  // ignoring attenuation function for now
-  
-  
   float attenuation = computeAttenFactor(attenFn, distance);
   vec3  radiance  = lightColor * attenuation;
-  
-  //return radiance;
   
   vec3 F0 = mix(vec3(0.04), objColor, metallic);
   
@@ -153,9 +148,8 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   vec3 numer    = NDF * G * F;
   float denom   = 4.0 * NdotV * NdotL;
   
-  //return vec3(max(denom, 0.001)) * attenuation;
-  
-  vec3 specular = numer / max(denom, 0.001);  
+  // the little rings we get are from the fresnel
+  vec3 specular = numer / max(denom, 0.01);  
   
   // calculate diffuse light
   vec3 kS = F;

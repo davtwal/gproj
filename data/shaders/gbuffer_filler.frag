@@ -40,12 +40,7 @@ layout(binding = 5) uniform sampler2D inMtlMetallic[MAX_MATERIALS];
 layout(binding = 6) uniform sampler2D inMtlRoughness[MAX_MATERIALS];
 
 // shader control
-layout(binding = 7) uniform ShaderControl {
-  float momentBias;
-  float depthBias;
-  float defaultRoughness;
-  float defaultMetallic;
-} control;
+layout(binding = 7) SHADER_CONTROL_UNIFORM control;
 
 layout(location = 0) in vec4 inWorldPosition;
 layout(location = 1) in vec4 inWorldNormal;
@@ -64,8 +59,8 @@ void main() {
   vec3 tangent  = normalize(inTangent);
   vec3 bitan    = normalize(inBitangent);
   vec3 color    = inColor.xyz;
-  float roughness = control.defaultRoughness;
-  float metallic  = control.defaultMetallic;
+  float roughness = control.defaultRoughness * mtls.at[obj.mtlIndex].roughnessCoeff;
+  float metallic  = control.defaultMetallic * mtls.at[obj.mtlIndex].metallicCoeff;
   
   // Each material is stored in a 3D texture with MTL_MAP_COUNT layers
   //vec3 albedoMap     = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 0));
