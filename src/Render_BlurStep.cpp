@@ -167,7 +167,7 @@ namespace dw {
     VkDescriptorPoolCreateInfo poolCreateInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
       nullptr,
-      0,
+      VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
       2 * GlobalLightStep::MAX_GLOBAL_LIGHTS,
       static_cast<uint32_t>(poolSizes.size()),
       poolSizes.data()
@@ -243,6 +243,9 @@ namespace dw {
                               ImageView&                                      intermediaryView) {
     assert(lights.size() <= GlobalLightStep::MAX_GLOBAL_LIGHTS);
 
+    if(!m_descriptorSets.empty())
+      vkFreeDescriptorSets(getOwningDevice(), m_descriptorPool, m_descriptorSets.size() * 2, &m_descriptorSets.front().x);
+
     m_descriptorSets.clear();
     m_descriptorSets.resize(lights.size());
 
@@ -261,13 +264,20 @@ namespace dw {
     // note: because m_descriptorSet_y comes right after m_descriptorSet_x, then the allocation for 2
     // puts the second into _y
     // and also all of these descriptors are nice and packed :)
-    if (vkAllocateDescriptorSets(getOwningDevice(),
-                                 &descSetAllocInfo,
-                                 &m_descriptorSets.front().x) !=
-        VK_SUCCESS)
-      throw std::
-          runtime_error(std::
-                        string("Could not allocate descriptor sets: "));
+    VkResult result = vkAllocateDescriptorSets(getOwningDevice(),
+      &descSetAllocInfo,
+      &m_descriptorSets.front().x);
+    switch (result) {
+    case VK_ERROR_OUT_OF_POOL_MEMORY:
+      throw std::runtime_error("Could not allocate blur descriptor sets: Out of pool memory");
+    case VK_ERROR_OUT_OF_HOST_MEMORY:
+      throw std::runtime_error("Could not allocate blur descriptor sets: out of host memory");
+    case VK_ERROR_FRAGMENTED_POOL:
+      throw std::runtime_error("Could not allocate blur descriptor sets: fragmented pool");
+    case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+      throw std::runtime_error("Could not allocate blur descriptor sets: out of device memory");
+    default: break;
+    }
 
     std::array<float, KERNEL_SIZE> weights{{0}};
 

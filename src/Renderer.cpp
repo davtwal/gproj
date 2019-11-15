@@ -542,6 +542,8 @@ namespace dw {
     LightUBO* lightUBOdata = reinterpret_cast<LightUBO*>(data);
     for (size_t i     = 0; i < m_scene->getLights().size(); ++i)
       lightUBOdata[i] = m_scene->getLights()[i]->getAsUBO();
+
+    *reinterpret_cast<int32_t*>(lightUBOdata + FinalStep::MAX_LOCAL_LIGHTS) = static_cast<uint32_t>(m_scene->getLights().size());
     m_localLightsUBO->unMap();
 
     // shader control:
@@ -571,25 +573,38 @@ namespace dw {
   }
 
   void Renderer::setScene(util::ptr<Scene> scene) {
-    m_scene = scene;
-
     if (!scene)
       return;
+
+    if (m_scene) {
+      m_geometryStep->getCommandBuffer().reset();
+      m_shadowMapStep->getCommandBuffer().reset();
+      m_blurStep->getCommandBuffer().reset();
+      m_globalLightStep->getCommandBuffer().reset();
+
+      for(uint32_t i = 0; i < m_swapchain->getNumImages(); ++i)
+        m_finalStep->getCommandBuffer(i).reset();
+      //vkResetCommandPool(*m_device, *m_graphicsCmdPool, 0/*VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT*/);
+    }
+
+    m_scene = scene;
 
     Scene::LightContainer const& lights = scene->getLights();
     std::vector<ShadowedLight> shadowLights = scene->getGlobalLights();
 
     // Local lights
-    m_localLightsUBO.reset();
-
-    VkDeviceSize lightUniformSize = sizeof(LightUBO);
-    m_localLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
-      lightUniformSize * scene->getLights().size()));
+    if (!m_localLightsUBO) {
+      VkDeviceSize lightUniformSize = sizeof(LightUBO);
+      m_localLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+        lightUniformSize * FinalStep::MAX_LOCAL_LIGHTS + sizeof(uint32_t))); // the light count is at the very end of the buffer
+    }
 
     // Global lights
-    size_t uboSize = sizeof(ShadowedUBO) * shadowLights.size();
-    m_globalLightsUBO.reset();
-    m_globalLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, uboSize, true));
+    size_t uboSize = sizeof(ShadowedUBO) * GlobalLightStep::MAX_GLOBAL_LIGHTS + sizeof(uint32_t);
+    if (!m_globalLightsUBO) {
+      // +sizeof(uint32_t) because light count 
+      m_globalLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, uboSize, true));
+    }
 
     // Stage memory
     {
@@ -598,6 +613,8 @@ namespace dw {
       auto   data = reinterpret_cast<ShadowedUBO*>(staging.map());
       for (size_t i = 0; i < shadowLights.size(); ++i)
         data[i] = shadowLights[i].getAsShadowUBO();
+
+      *reinterpret_cast<uint32_t*>(data + GlobalLightStep::MAX_GLOBAL_LIGHTS) = shadowLights.size();
       staging.unMap();
 
       CommandBuffer& cmdBuff = m_transferCmdPool->allocateCommandBuffer();
@@ -660,7 +677,6 @@ namespace dw {
     prepareDynamicUniformBuffers();
 
     // Descriptors
-
     m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_shaderControlBuffer, *m_materials, m_sampler);
     m_geometryStep->writeCmdBuff(*m_gbuffer, scene->getObjects(), m_modelUBOdynamicAlignment);
 

@@ -236,7 +236,9 @@ namespace dw {
   class FinalStep : public RenderStep {
     friend class Renderer;
   public:
-  MOVE_CONSTRUCT_ONLY(FinalStep);
+    MOVE_CONSTRUCT_ONLY(FinalStep);
+
+    static constexpr uint32_t MAX_LOCAL_LIGHTS = 128;
 
     FinalStep(LogicalDevice& device, CommandPool& pool, uint32_t numSwapchainImages);
     ~FinalStep() override = default;

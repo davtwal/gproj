@@ -23,6 +23,7 @@ layout(binding = 5) uniform sampler2D previousImage;
 
 layout(binding = 6) uniform DynamicLightUBO {
   Light at[MAX_DYNAMIC_LOCAL_LIGHTS];
+  uint count;
 } dynLights;
 
 layout(location = 0) in vec2 inUV;
@@ -48,7 +49,7 @@ void main() {
     //return;
     
     vec3 color = vec3(0, 0, 0);
-    for(int i = 0; i < MAX_DYNAMIC_LOCAL_LIGHTS; ++i) {
+    for(int i = 0; i < dynLights.count; ++i) {
       vec3 lightColor = dynLights.at[i].color;
       vec3 lightPos   = dynLights.at[i].pos;
       vec3 lightAtten = dynLights.at[i].atten;

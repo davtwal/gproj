@@ -15,6 +15,7 @@ layout(binding = 0) uniform CameraUBO {
 
 layout(binding = 1) uniform ShadowLights {
   ShadowLight at[MAX_GLOBAL_LIGHTS];
+  uint count;
 } lights;
 
 // shader control
@@ -97,7 +98,7 @@ void main() {
                             .5, .5,  0, 1);
     
     vec3 color = vec3(0, 0, 0);
-    for(int i = 0; i < MAX_GLOBAL_LIGHTS; ++i) {
+    for(int i = 0; i < lights.count; ++i) {
       vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
       
       vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;
