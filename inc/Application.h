@@ -54,6 +54,7 @@ namespace dw {
     util::ptr<Renderer> m_renderer{ nullptr };
     InputHandler* m_inputHandler{ nullptr };
     GLFWWindow* m_window{ nullptr };
+    TextureManager m_textureManager;
     MaterialManager m_mtlManager;
     MeshManager m_meshManager;
     Renderer::ShaderControl m_shaderControl {};

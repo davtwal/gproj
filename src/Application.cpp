@@ -149,7 +149,8 @@ namespace dw {
   }
 
   Application::Application()
-    : m_meshManager(m_mtlManager){}
+    : m_mtlManager(m_textureManager),
+      m_meshManager(m_mtlManager) {}
 
   int Application::parseCommandArgs(int, char**) {
     return 0;
@@ -193,8 +194,9 @@ namespace dw {
     m_meshManager.load("data/objects/teapot.obj");
     m_meshManager.load("data/objects/icosahedron.obj");
 
-    m_meshManager.uploadMeshes(*m_renderer);
+    m_textureManager.uploadTextures(*m_renderer);
     m_mtlManager.uploadMaterials(*m_renderer);
+    m_meshManager.uploadMeshes(*m_renderer);
 
     // fill scenes
     static constexpr unsigned MAX_DYNAMIC_LIGHTS = 128;
@@ -485,6 +487,7 @@ namespace dw {
 
     ImGui_ImplGlfw_Shutdown();
 
+    m_textureManager.clear();
     m_mtlManager.clear();
     m_meshManager.clear();
     m_renderer->shutdown();

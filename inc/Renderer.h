@@ -31,6 +31,7 @@
 #include "ImGui.h"
 
 #include <unordered_map>
+#include "Texture.h"
 
 namespace dw {
   //class Camera;
@@ -80,6 +81,7 @@ namespace dw {
 
     void uploadMeshes(MeshManager::MeshMap& meshes) const;
     void uploadMaterials(MaterialManager::MtlMap& materials);
+    void uploadTextures(TextureManager::TexMap& textures) const;
 
     void setScene(util::ptr<Scene> scene);
 

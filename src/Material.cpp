@@ -25,6 +25,9 @@ namespace fs = std::filesystem;
 
 namespace dw {
   // MANAGER
+  MaterialManager::MaterialManager(TextureManager& textureStorage)
+    : m_textureStorage(textureStorage) {
+  }
 
   util::ptr<Material> MaterialManager::getMtl(MtlKey key) {
     try {
@@ -47,11 +50,10 @@ namespace dw {
       mtl.m_ks = { 1, 1, 1 };
 
       fs::path mtlPath = fs::current_path() / "data" / "materials";
-      mtl.m_raws.resize(Material::MTL_MAP_COUNT);
-      mtl.m_raws[0].Load((mtlPath / fs::path("default_albedo.png")).generic_string());
-      mtl.m_raws[1].Load((mtlPath / fs::path("default_normal.png")).generic_string());
-      mtl.m_raws[2].Load((mtlPath / fs::path("default_black.png")).generic_string());
-      mtl.m_raws[3].Load((mtlPath / fs::path("default_black.png")).generic_string());
+      mtl.m_textures[0] = m_textureStorage.load((mtlPath / fs::path("default_albedo.png")).generic_string())->second;
+      mtl.m_textures[1] = m_textureStorage.load((mtlPath / fs::path("default_normal.png")).generic_string())->second;
+      mtl.m_textures[2] = m_textureStorage.load((mtlPath / fs::path("default_black.png")).generic_string())->second;
+      mtl.m_textures[3] = m_textureStorage.load((mtlPath / fs::path("default_black.png")).generic_string())->second;
 
       mtl.m_useMap[0] = true;
       mtl.m_useMap[1] = false;
@@ -80,7 +82,6 @@ namespace dw {
       material.m_id = m_curID++;
       // load textures
       assert(Material::MTL_MAP_COUNT == 4);
-      material.m_raws.resize(Material::MTL_MAP_COUNT);
 
       fs::path mtlPath = fs::current_path() / "data" / "materials";
 
@@ -89,17 +90,17 @@ namespace dw {
       material.m_useMap[2] = !mtl.metallic_texname.empty();
       material.m_useMap[3] = !mtl.roughness_texname.empty();
 
-      if (material.m_useMap[0])
-        material.m_raws[0].Load((mtlPath / fs::path(mtl.diffuse_texname)).generic_string());
+      if (!mtl.diffuse_texname.empty())
+        material.m_textures[0] = m_textureStorage.load((mtlPath / fs::path(mtl.diffuse_texname)).generic_string())->second;
 
-      if (material.m_useMap[1])
-        material.m_raws[1].Load((mtlPath / fs::path(mtl.normal_texname)).generic_string());
+      if (!mtl.normal_texname.empty())
+        material.m_textures[1] = m_textureStorage.load((mtlPath / fs::path(mtl.normal_texname)).generic_string())->second;
 
-      if(material.m_useMap[2])
-        material.m_raws[2].Load((mtlPath / fs::path(mtl.metallic_texname)).generic_string());
+      if(!mtl.metallic_texname.empty())
+        material.m_textures[2] = m_textureStorage.load((mtlPath / fs::path(mtl.metallic_texname)).generic_string())->second;
 
-      if(material.m_useMap[3])
-        material.m_raws[3].Load((mtlPath / fs::path(mtl.roughness_texname)).generic_string());
+      if(!mtl.roughness_texname.empty())
+        material.m_textures[3] = m_textureStorage.load((mtlPath / fs::path(mtl.roughness_texname)).generic_string())->second;
     }
 
     return iter.first->first;
@@ -113,7 +114,6 @@ namespace dw {
     return m_loadedMtls;
   }
 
-  // MTL
   namespace {
     VkFormat PickFormat(uint8_t bitsPerChannel, uint8_t channels) {
       switch (bitsPerChannel) {
@@ -174,128 +174,127 @@ namespace dw {
   Material::Material(Material&& o) noexcept
     : m_kd(o.m_kd),
       m_ks(o.m_ks),
+      m_textures(std::move(o.m_textures)),
       m_metallic(o.m_metallic),
-      m_roughness(o.m_roughness),
-      m_raws(std::move(o.m_raws)),
-      m_images(std::move(o.m_images)),
-      m_views(std::move(o.m_views)){
+      m_roughness(o.m_roughness)
+    {
   }
 
-  std::vector<DependentImage> const& Material::getImages() const {
-    return m_images;
+  util::ptr<Texture> Material::getTexture(size_t i) const {
+    return m_textures[i];
   }
 
-  std::vector<ImageView> const& Material::getViews() const {
-    return m_views;
+  std::array<util::ptr<Texture>, Material::MTL_MAP_COUNT> const& Material::getTextures() const {
+    return m_textures;
   }
 
   uint32_t Material::getID() const {
     return m_id;
   }
 
-  bool Material::hasTexturesToLoad() const {
-    return !m_raws.empty() && std::find_if(m_raws.begin(), m_raws.end(),
-          [](RawImage const& r) { return r.m_raw != nullptr; }
-        ) != m_raws.end();
-  }
+  //bool Material::hasTexturesToLoad() const {
+  //  return !m_raws.empty() && std::find_if(m_raws.begin(), m_raws.end(),
+  //        [](RawImage const& r) { return r.m_raw != nullptr; }
+  //      ) != m_raws.end();
+  //}
 
-  void Material::createBuffers(LogicalDevice& device) {
-    MemoryAllocator allocator(device.getOwningPhysical());
+  //void Material::createBuffers(LogicalDevice& device) {
+  //  MemoryAllocator allocator(device.getOwningPhysical());
 
-    VkExtent3D extent = { m_raws[0].m_width, m_raws[0].m_height, 1 };
-    VkDeviceSize size = extent.width * extent.height * m_raws[0].m_channels;
-    static constexpr auto DstImgUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-    for (size_t i = 0; i < m_raws.size(); ++i) {
-      auto& img = m_raws[i];
+  //  VkExtent3D extent = { m_raws[0].m_width, m_raws[0].m_height, 1 };
+  //  VkDeviceSize size = extent.width * extent.height * m_raws[0].m_channels;
+  //  static constexpr auto DstImgUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+  //  for (size_t i = 0; i < m_raws.size(); ++i) {
+  //    auto& img = m_raws[i];
 
-      VkFormat format = PickFormat(img.m_bitsPerChannel, img.m_channels);
+  //    VkFormat format = PickFormat(img.m_bitsPerChannel, img.m_channels);
 
-      m_images.emplace_back(device);
-      m_images.back().initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, format, extent, DstImgUsage, 1, 1, false, false, false, false);
-      m_images.back().back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+  //    m_images.emplace_back(device);
+  //    m_images.back().initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, format, extent, DstImgUsage, 1, 1, false, false, false, false);
+  //    m_images.back().back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
-      m_views.emplace_back(m_images.back().createView());
-    }
-  }
+  //    m_views.emplace_back(m_images.back().createView());
+  //  }
+  //}
 
-  Material::StagingBuffs Material::createStaging(LogicalDevice& device) {
-    StagingBuffs ret;
+  //Material::StagingBuffs Material::createStaging(LogicalDevice& device) {
+  //  StagingBuffs ret;
 
-    for(size_t i = 0; i < MTL_MAP_COUNT; ++i) {
-      VkDeviceSize size = m_raws[i].m_width * m_raws[i].m_height * m_raws[i].m_channels * (m_raws[i].m_bitsPerChannel / 8);
-      ret.buffs[i] = m_raws[i].m_raw ? util::make_ptr<Buffer>(Buffer::CreateStaging(device, size)) : nullptr;
-    }
+  //  for(size_t i = 0; i < MTL_MAP_COUNT; ++i) {
+  //    VkDeviceSize size = m_raws[i].m_width * m_raws[i].m_height * m_raws[i].m_channels * (m_raws[i].m_bitsPerChannel / 8);
+  //    ret.buffs[i] = m_raws[i].m_raw ? util::make_ptr<Buffer>(Buffer::CreateStaging(device, size)) : nullptr;
+  //  }
 
-    return ret;
-  }
+  //  return ret;
+  //}
 
-  void Material::uploadStaging(StagingBuffs& buffs) {
-    for(size_t i = 0; i < MTL_MAP_COUNT; ++i) {
-      VkDeviceSize size = m_raws[i].m_width * m_raws[i].m_height * m_raws[i].m_channels * (m_raws[i].m_bitsPerChannel / 8);
-      void* data = buffs.buffs[i]->map();
-      memcpy(data, m_raws[i].m_raw, size);
-      buffs.buffs[i]->unMap();
-    }
-  }
+  //void Material::uploadStaging(StagingBuffs& buffs) {
+  //  for(size_t i = 0; i < MTL_MAP_COUNT; ++i) {
+  //    VkDeviceSize size = m_raws[i].m_width * m_raws[i].m_height * m_raws[i].m_channels * (m_raws[i].m_bitsPerChannel / 8);
+  //    void* data = buffs.buffs[i]->map();
+  //    memcpy(data, m_raws[i].m_raw, size);
+  //    buffs.buffs[i]->unMap();
+  //  }
+  //}
 
-  void Material::uploadCmds(CommandBuffer& cmdBuff, StagingBuffs& staging) {
-    for (size_t i = 0; i < MTL_MAP_COUNT; ++i) {
-      VkExtent3D extent = { m_raws[i].m_width, m_raws[i].m_height, 1 };
+  //void Material::uploadCmds(CommandBuffer& cmdBuff, StagingBuffs& staging) {
+  //  for (size_t i = 0; i < MTL_MAP_COUNT; ++i) {
+  //    VkExtent3D extent = { m_raws[i].m_width, m_raws[i].m_height, 1 };
 
-      VkImageMemoryBarrier barrier = {
-        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        nullptr,
-        0,
-        VK_ACCESS_TRANSFER_WRITE_BIT,
-        VK_IMAGE_LAYOUT_UNDEFINED,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
-        m_images[i],
-        {
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          0,
-          1,
-          0,
-          1
-        },
-      };
+  //    VkImageMemoryBarrier barrier = {
+  //      VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+  //      nullptr,
+  //      0,
+  //      VK_ACCESS_TRANSFER_WRITE_BIT,
+  //      VK_IMAGE_LAYOUT_UNDEFINED,
+  //      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+  //      VK_QUEUE_FAMILY_IGNORED,
+  //      VK_QUEUE_FAMILY_IGNORED,
+  //      m_images[i],
+  //      {
+  //        VK_IMAGE_ASPECT_COLOR_BIT,
+  //        0,
+  //        1,
+  //        0,
+  //        1
+  //      },
+  //    };
 
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
+  //    vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+  //      0,
+  //      0, nullptr,
+  //      0, nullptr,
+  //      1, &barrier);
 
-      VkBufferImageCopy copy = {
-        0,
-        static_cast<uint32_t>(m_raws[i].m_width),
-        static_cast<uint32_t>(m_raws[i].m_height),
-        {
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          0,
-          0,
-         1
-        },
-        {0, 0, 0},
-        extent
-      };
+  //    VkBufferImageCopy copy = {
+  //      0,
+  //      static_cast<uint32_t>(m_raws[i].m_width),
+  //      static_cast<uint32_t>(m_raws[i].m_height),
+  //      {
+  //        VK_IMAGE_ASPECT_COLOR_BIT,
+  //        0,
+  //        0,
+  //       1
+  //      },
+  //      {0, 0, 0},
+  //      extent
+  //    };
 
-      vkCmdCopyBufferToImage(cmdBuff, *staging.buffs[i], m_images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+  //    vkCmdCopyBufferToImage(cmdBuff, *staging.buffs[i], m_images[i], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
-      barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+  //    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+  //    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+  //    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+  //    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
-      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
-    }
+  //    vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+  //      0, nullptr,
+  //      0, nullptr,
+  //      1, &barrier);
+  //  }
 
-    // unload raw images
-    // here instead of etc because i need the size for the copy commands
-    m_raws.clear();
-  }
+  //  // unload raw images
+  //  // here instead of etc because i need the size for the copy commands
+  //  m_raws.clear();
+  //}
 }

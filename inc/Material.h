@@ -22,6 +22,7 @@
 
 #include <unordered_map>
 #include <array>
+#include "Texture.h"
 //namespace tinyobj {
 //  typedef struct material_t material_t;
 //}
@@ -33,28 +34,13 @@ namespace dw {
   class Material {
   public:
     Material() = default;
+    ~Material() = default;
 
     MOVE_CONSTRUCT_ONLY(Material);
 
     static constexpr unsigned MTL_MAP_COUNT = 4;
 
-    NO_DISCARD bool hasTexturesToLoad() const;
     NO_DISCARD uint32_t getID() const;
-
-    struct StagingBuffs {
-      util::ptr<Buffer> buffs[MTL_MAP_COUNT];
-    };
-
-    void createBuffers(LogicalDevice& device);
-    NO_DISCARD StagingBuffs createStaging(LogicalDevice& device);
-
-    NO_DISCARD StagingBuffs createAllBuffs(LogicalDevice& device) {
-      createBuffers(device);
-      return createStaging(device);
-    }
-
-    void uploadStaging(StagingBuffs& buffs);
-    void uploadCmds(CommandBuffer& cmdBuff, StagingBuffs& staging);
 
     //
     struct MaterialUBO {
@@ -70,15 +56,15 @@ namespace dw {
 
     NO_DISCARD MaterialUBO getAsUBO() const {
       return { m_kd, m_ks, m_metallic, m_roughness,
-        m_useMap[0],
-        m_useMap[1],
-        m_useMap[2],
-        m_useMap[3],
+        m_useMap[0],//m_textures[0] != nullptr,
+        m_useMap[1],//m_textures[1] != nullptr,
+        m_useMap[2],//m_textures[2] != nullptr,
+        m_useMap[3]//m_textures[3] != nullptr,
       };
     }
 
-    NO_DISCARD std::vector<DependentImage> const& getImages() const;
-    NO_DISCARD std::vector<ImageView> const& getViews() const;
+    NO_DISCARD std::array<util::ptr<Texture>, MTL_MAP_COUNT> const& getTextures() const;
+    NO_DISCARD util::ptr<Texture> getTexture(size_t i) const;
 
   private:
     friend class MaterialManager;
@@ -99,23 +85,24 @@ namespace dw {
       unsigned char* m_raw{ nullptr };
     };
 
-    std::vector<RawImage> m_raws;
-    std::vector<DependentImage> m_images;
-    std::vector<ImageView> m_views;
+    //std::vector<RawImage> m_raws;
+    //std::vector<DependentImage> m_images;
+    //std::vector<ImageView> m_views;
+    std::array<util::ptr<Texture>, MTL_MAP_COUNT> m_textures;
+    std::array<bool, MTL_MAP_COUNT> m_useMap;
     glm::vec3 m_kd {1};
     glm::vec3 m_ks { 1 };
     float m_metallic{ 1 };
     float m_roughness{ 1 };
 
-    std::array<bool, MTL_MAP_COUNT> m_useMap{ true };
-
     uint32_t m_id{ 0 };
-
   };
 
   class MaterialManager {
   public:
     static constexpr const char* DEFAULT_MTL_NAME = "default";
+
+    MaterialManager(TextureManager& textureStorage);
 
     using MtlKey = std::string;
     using MtlMap = std::unordered_map<MtlKey, util::ptr<Material>>;
@@ -131,6 +118,8 @@ namespace dw {
 
     MtlMap const& getMaterials() const;
   private:
+    TextureManager& m_textureStorage;
+
     MtlMap m_loadedMtls;
     uint32_t m_curID {0};
   };

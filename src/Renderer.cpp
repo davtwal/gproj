@@ -475,16 +475,14 @@ namespace dw {
     m_transferCmdPool->freeCommandBuffer(moveBuff);
   }
 
-  void Renderer::uploadMaterials(MaterialManager::MtlMap& materials) {
-    std::unordered_map<MaterialManager::MtlMap::key_type, Material::StagingBuffs> stagingBuffers;
+  void Renderer::uploadTextures(TextureManager::TexMap& textures) const {
+    std::unordered_map<TextureManager::TexMap::key_type, Texture::StagingBuffs> stagingBuffers;
 
-    m_materials = &materials;
-
-    for (auto& mtl : materials) {
-      if (mtl.second->hasTexturesToLoad()) {
-        mtl.second->uploadStaging(
-          stagingBuffers.try_emplace(mtl.first, mtl.second->createAllBuffs(*m_device))
-            .first->second
+    for (auto& tex : textures) {
+      if (!tex.second->isLoaded()) {
+        tex.second->uploadStaging(
+          stagingBuffers.try_emplace(tex.first, tex.second->createAllBuffs(*m_device))
+          .first->second
         );
       }
     }
@@ -493,13 +491,40 @@ namespace dw {
 
     moveBuff.start(true);
     for (auto& staging : stagingBuffers) {
-      materials.at(staging.first)->uploadCmds(moveBuff, staging.second);
+      textures.at(staging.first)->uploadCmds(moveBuff, staging.second);
     }
     moveBuff.end();
 
     m_graphicsQueue->get().submitOne(moveBuff);
     m_graphicsQueue->get().waitIdle();
     m_graphicsCmdPool->freeCommandBuffer(moveBuff);
+  }
+
+  void Renderer::uploadMaterials(MaterialManager::MtlMap& materials) {
+    //std::unordered_map<MaterialManager::MtlMap::key_type, Material::StagingBuffs> stagingBuffers;
+
+    m_materials = &materials;
+    
+    //for (auto& mtl : materials) {
+    //  if (mtl.second->hasTexturesToLoad()) {
+    //    mtl.second->uploadStaging(
+    //      stagingBuffers.try_emplace(mtl.first, mtl.second->createAllBuffs(*m_device))
+    //        .first->second
+    //    );
+    //  }
+    //}
+    //
+    //CommandBuffer& moveBuff = m_graphicsCmdPool->allocateCommandBuffer();
+    //
+    //moveBuff.start(true);
+    //for (auto& staging : stagingBuffers) {
+    //  materials.at(staging.first)->uploadCmds(moveBuff, staging.second);
+    //}
+    //moveBuff.end();
+    //
+    //m_graphicsQueue->get().submitOne(moveBuff);
+    //m_graphicsQueue->get().waitIdle();
+    //m_graphicsCmdPool->freeCommandBuffer(moveBuff);
 
     if (m_materialsUBO)
       m_materialsUBO.reset();

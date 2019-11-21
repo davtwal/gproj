@@ -221,11 +221,11 @@ namespace dw {
     descriptorWrites.reserve(MAX_MATERIALS * Material::MTL_MAP_COUNT + 3);
 
     for (auto& mtl : materials) {
-      auto& views = mtl.second->getViews();
+      auto& textures = mtl.second->getTextures();
 
       for (uint32_t i = 0; i < Material::MTL_MAP_COUNT; ++i) {
         imageInfos[i * MAX_MATERIALS + mtl.second->getID()].sampler     = sampler;
-        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageView   = VkImageView(views[i]);
+        imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageView   = VkImageView(*textures[i]->getView());
         imageInfos[i * MAX_MATERIALS + mtl.second->getID()].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
       }
     }
