@@ -94,8 +94,8 @@ void main() {
   vec3 V = normalize(cam.eye - inPos);
   vec3 N = normalize(sampledNormal.xyz);
   
+
   if(int(isObject) == 1) {
-    
     mat4 shadowBias = mat4( .5,  0,  0, 0,
                             0, .5,  0, 0,
                             0,  0,  1, 0,
@@ -127,11 +127,19 @@ void main() {
       }
     }
     
+    // Add in IBL:
+    // Diffuse:
+    vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
+    
+    vec4 sampledBG = texture(inBackground, bgColorUV);
+    vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
+    color += computeIBLPBR(sampledBG.xyz, sampledIrradiance.xyz, inColor, inPos, N, V, inRoughness, inMetallic);
+
     fragColor = vec4(color, 1);
   }
   else {
-    vec2 uv = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
-    vec4 sampledBG = texture(inBackground, uv);
+    vec2 bgColorUV = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
+    vec4 sampledBG = texture(inBackground, bgColorUV);
     fragColor = vec4(sampledBG.xyz, 1);
   }
 }

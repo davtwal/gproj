@@ -159,6 +159,22 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   return (diffuse * objColor / PI + specular) * radiance * NdotL;
 }
 
+vec3 computeIBLPBR(vec3 bgColor, vec3 bgIrradiance, 
+                   vec3 objColor, vec3 objPos, vec3 N, vec3 V, float roughness, float metallic) {
+  // diffuse portion of IBL:
+  vec3 kD = objColor;
+  return kD * bgIrradiance / PI;
+
+  // L in this case will be the normal vector, I think?
+
+  // Specular portion requires some Monte Carlo shtuff
+  // Choose N random directions, 20 to 40, W_k where the probability
+  // of W_k is p(W_k) = D(H), or DistributionGGX(W_k, H, roughness)
+  // // For each W_k, evaluate the light by getting the color from a MIPMAP at a specific level
+  // // oh god I have to add mipmap generation to textures now
+  // // frickems
+}
+
 /*vec3 computeDirectPBR(vec3 Ic, vec3 Ip, vec3 Ia, float r,
                       vec3 C,  vec3 P,  vec3 N, vec3 V, float alpha, float metallic) {
   vec3 toPoint = Ip - P;
