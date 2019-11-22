@@ -101,6 +101,7 @@ namespace dw {
   class MaterialManager {
   public:
     static constexpr const char* DEFAULT_MTL_NAME = "default";
+    static constexpr const char* SKYBOX_MTL_NAME = "skybox";
 
     MaterialManager(TextureManager& textureStorage);
 
@@ -111,6 +112,7 @@ namespace dw {
 
     NO_DISCARD util::ptr<Material> getMtl(MtlKey key);
     NO_DISCARD util::ptr<Material> getDefaultMtl();
+    NO_DISCARD util::ptr<Material> getSkyboxMtl();
 
     void clear();
 

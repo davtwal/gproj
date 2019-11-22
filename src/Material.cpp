@@ -66,6 +66,36 @@ namespace dw {
     return ret;
   }
 
+  util::ptr<Material> MaterialManager::getSkyboxMtl() {
+    auto ret = getMtl(SKYBOX_MTL_NAME);
+
+    if (ret == nullptr) {
+      auto iter = m_loadedMtls.try_emplace(SKYBOX_MTL_NAME, util::make_ptr<Material>());
+      auto& mtl = *iter.first->second;
+
+      mtl.m_id = m_curID++;
+
+      mtl.m_kd = { 1, 1, 1 };
+      mtl.m_ks = { 1, 1, 1 };
+
+      fs::path mtlPath = fs::current_path() / "data" / "materials";
+      mtl.m_textures[0] = m_textureStorage.load((mtlPath / fs::path("default_albedo.png")).generic_string())->second;
+      mtl.m_textures[1] = m_textureStorage.load((mtlPath / fs::path("default_normal.png")).generic_string())->second;
+      mtl.m_textures[2] = m_textureStorage.load((mtlPath / fs::path("default_black.png")).generic_string())->second;
+      mtl.m_textures[3] = m_textureStorage.load((mtlPath / fs::path("default_black.png")).generic_string())->second;
+
+      mtl.m_useMap[0] = false;
+      mtl.m_useMap[1] = false;
+      mtl.m_useMap[2] = false;
+      mtl.m_useMap[3] = false;
+
+      ret = iter.first->second;
+    }
+
+    return ret;
+  }
+
+
   void MaterialManager::uploadMaterials(Renderer& renderer) {
     renderer.uploadMaterials(m_loadedMtls);
   }

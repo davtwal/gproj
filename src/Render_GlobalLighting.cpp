@@ -55,8 +55,14 @@ namespace dw {
 
   void GlobalLightStep::setupDescriptors() {
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
-    finalBindings.
-        resize(NUM_EXPECTED_GBUFFER_IMAGES + 3 + 1); // one sampler per gbuffer image + one camera + lighting ubo + shader control ubo + shadow map array
+    finalBindings.resize(
+      NUM_EXPECTED_GBUFFER_IMAGES + // one sampler per gbuffer image
+      1 + // camera
+      1 + // lights
+      1 + // shader control
+      1 + // background texture
+      1 + // irradiance texture
+      1); // shadow map array
 
     for (uint32_t i = 0; i < 3; ++i) {
       finalBindings[i] = {
@@ -68,7 +74,7 @@ namespace dw {
       };
     }
 
-    for (uint32_t i = 3; i < NUM_EXPECTED_GBUFFER_IMAGES + 3 + 1; ++i) {
+    for (uint32_t i = 3; i < NUM_EXPECTED_GBUFFER_IMAGES + 3 + 3; ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -99,7 +105,7 @@ namespace dw {
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS
+        NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS + 2
       }
     };
 
@@ -202,6 +208,8 @@ namespace dw {
 
   void GlobalLightStep::updateDescriptorSets(std::vector<ImageView> const&                   gbufferViews,
                                              std::vector<Renderer::ShadowMappedLight> const& lights,
+                                             ImageView& backgroundImg,
+                                             ImageView& irradianceImg,
                                              Buffer&                                         cameraUBO,
                                              Buffer&                                         lightsUBO,
                                              Buffer&                                         shaderControlUBO,
@@ -209,12 +217,24 @@ namespace dw {
     std::vector<VkWriteDescriptorSet>  descriptorWrites;
     std::vector<VkDescriptorImageInfo> imageInfos;
 
-    descriptorWrites.reserve(NUM_EXPECTED_GBUFFER_IMAGES + 2 + 1);
-    imageInfos.reserve(NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS);
+    descriptorWrites.reserve(NUM_EXPECTED_GBUFFER_IMAGES + 2 + 1 + 2);
+    imageInfos.reserve(NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS + 2);
 
     assert(gbufferViews.size() == NUM_EXPECTED_GBUFFER_IMAGES + 1); // + depth buffer
     for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES; ++i)
       imageInfos.push_back({sampler, gbufferViews[i], VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL});
+
+    imageInfos.push_back({
+                             sampler,
+                             backgroundImg,
+                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      });
+
+    imageInfos.push_back({
+                             sampler,
+                             irradianceImg,
+                             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      });
 
     assert(lights.size() <= MAX_GLOBAL_LIGHTS);
     for (uint32_t i = 0; i < lights.size(); ++i)
@@ -222,7 +242,7 @@ namespace dw {
                              sampler,
                              lights[i].m_depthBuffer->getImageViews().front(),
                              VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                           });
+                           });   
 
     descriptorWrites.push_back({
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -264,7 +284,7 @@ namespace dw {
                                  nullptr
       });
 
-    for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES; ++i) {
+    for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES + 2; ++i) {
       descriptorWrites.push_back({
                                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                    nullptr,
@@ -283,17 +303,15 @@ namespace dw {
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  nullptr,
                                  m_descriptorSet,
-                                 6,
+                                 8,
                                  0,
                                  static_cast<uint32_t>(lights.size()),
                                  VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                 &imageInfos[NUM_EXPECTED_GBUFFER_IMAGES],
+                                 &imageInfos[NUM_EXPECTED_GBUFFER_IMAGES + 2],
                                  nullptr,
                                  nullptr
                                });
-
-
-
+    
     vkUpdateDescriptorSets(getOwningDevice(),
                            static_cast<uint32_t>(descriptorWrites.size()),
                            descriptorWrites.data(),

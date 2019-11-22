@@ -37,6 +37,12 @@ namespace dw {
     return *this;
   }
 
+  Scene& Scene::setBackground(util::ptr<Texture> bg, util::ptr<Texture> irradiance) {
+    m_background = bg;
+    m_backgroundIrradiance = irradiance;
+    return *this;
+  }
+
   Scene::ObjContainer const& Scene::getObjects() const {
     return m_objects;
   }
@@ -65,4 +71,11 @@ namespace dw {
     return m_camera;
   }
 
+  util::ptr<Texture> Scene::getBackground() const {
+    return m_background;
+  }
+
+  util::ptr<Texture> Scene::getIrradiance() const {
+    return m_backgroundIrradiance;
+  }
 }

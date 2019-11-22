@@ -716,6 +716,8 @@ namespace dw {
 
     m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
       m_globalLights,
+      *m_scene->getBackground()->getView(),
+      *m_scene->getIrradiance()->getView(),
       *m_cameraUBO,
       *m_globalLightsUBO,
       *m_shaderControlBuffer,

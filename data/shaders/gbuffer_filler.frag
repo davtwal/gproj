@@ -61,6 +61,7 @@ void main() {
   vec3 color    = inColor.xyz;
   float roughness = control.defaultRoughness * mtls.at[obj.mtlIndex].roughnessCoeff;
   float metallic  = control.defaultMetallic * mtls.at[obj.mtlIndex].metallicCoeff;
+  int hasObject = 1;
   
   // Each material is stored in a 3D texture with MTL_MAP_COUNT layers
   //vec3 albedoMap     = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 0));
@@ -68,6 +69,10 @@ void main() {
     vec3 albedoMap = pow(texture(inMtlAlbedo[obj.mtlIndex], inUV).xyz, vec3(2.2));
     color = color * albedoMap * mtls.at[obj.mtlIndex].diffuseCoeff;
   }
+  else if(abs(bitan.y - 1) < 0.001 && abs(bitan.x) < 0.001 && abs(bitan.z) < 0.001) {
+    hasObject = 0;
+  }
+  
   
   if(mtls.at[obj.mtlIndex].hasNormalMap == 1) {
     //vec3 normalMap = texture(inMtlMaps[obj.mtlIndex], vec3(inUV, 1));
@@ -91,7 +96,7 @@ void main() {
     roughness = roughnessMap * mtls.at[obj.mtlIndex].roughnessCoeff;
   }
   
-  outPos    = vec4(inWorldPosition.xyz, 1);
+  outPos    = vec4(inWorldPosition.xyz, hasObject);
   outNormal = vec4(normal, metallic);
   outColor  = vec4(color, roughness);
 }

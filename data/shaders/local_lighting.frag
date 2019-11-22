@@ -70,7 +70,7 @@ void main() {
     fragColor = vec4(color.xyz, 1);
   }
   else {
-    fragColor = vec4(0, 0, 0, 1);
+    fragColor = previousColor;
   }
   //fragColor /= fragColor.a;
 }

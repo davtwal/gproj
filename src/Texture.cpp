@@ -93,7 +93,14 @@ namespace dw {
 
   void Texture::RawImage::Load(std::string const& filename) {
     if (!m_raw) {
+      // Supported file types from STB_IMAGE (STBI):
+      /* PNG
+       * JPG
+       * HDR
+       * ... a bunch others ...
+       */
       stbi_set_flip_vertically_on_load(true);
+
       int w, h, c;
 
       m_raw = stbi_load(filename.c_str(), &w, &h, &c, STBI_rgb_alpha);

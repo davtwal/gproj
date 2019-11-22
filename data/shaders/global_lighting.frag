@@ -24,7 +24,10 @@ layout(binding = 2) SHADER_CONTROL_UNIFORM control;
 layout(binding = 3) uniform sampler2D inGBuffPosition;
 layout(binding = 4) uniform sampler2D inGBuffNormal;
 layout(binding = 5) uniform sampler2D inGBuffColor;
-layout(binding = 6) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
+layout(binding = 6) uniform sampler2D inBackground;
+layout(binding = 7) uniform sampler2D inIrradiance;
+
+layout(binding = 8) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
 
 layout(location = 0) in vec2 inUV;
 
@@ -88,9 +91,10 @@ void main() {
   vec3 inPos = sampledPos.xyz;
   vec3 inColor = sampledColor.xyz;
   
+  vec3 V = normalize(cam.eye - inPos);
+  vec3 N = normalize(sampledNormal.xyz);
+  
   if(int(isObject) == 1) {
-    vec3 N = normalize(sampledNormal.xyz);
-    vec3 V = normalize(cam.eye - inPos);
     
     mat4 shadowBias = mat4( .5,  0,  0, 0,
                             0, .5,  0, 0,
@@ -125,6 +129,9 @@ void main() {
     
     fragColor = vec4(color, 1);
   }
-  else
-    fragColor = vec4(0, 0, 0, 1);
+  else {
+    vec2 uv = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
+    vec4 sampledBG = texture(inBackground, uv);
+    fragColor = vec4(sampledBG.xyz, 1);
+  }
 }

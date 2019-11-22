@@ -146,6 +146,137 @@ namespace dw {
 
       addMesh(vertices, indices);
     }
+
+    // 3: Sphere
+    {
+      std::vector<Vertex> vertices;
+      std::vector<uint32_t> indices;
+
+      static constexpr float NUM_LATITUDE_LINES = 20.f;
+      static constexpr float NUM_LONGITUDE_LINES = 20.f;
+      static constexpr float F_PI = (float)M_PI;
+      static constexpr bool  NORMALS_POINT_OUTWARDS = false;
+
+      const auto addVertex = [&](uint32_t m, uint32_t n){
+        float pos_coeff = sin(F_PI * m / (NUM_LATITUDE_LINES - 1));
+
+        glm::vec3 pos = { pos_coeff * cos(2 * F_PI * n / NUM_LONGITUDE_LINES),
+                    pos_coeff * sin(2 * F_PI * n / NUM_LONGITUDE_LINES),
+                    cos(F_PI * m / (NUM_LATITUDE_LINES - 1)) };
+
+        glm::vec3 normal = glm::vec3(0) - pos;
+
+        glm::vec2 texCoord = {0, 0};// { .5f - atan2(-normal.y, -normal.x), acos(-normal.z) / F_PI };
+
+        if constexpr (NORMALS_POINT_OUTWARDS)
+          normal = -normal;
+
+        vertices.push_back({
+          pos,
+          normal,
+          {0, 0, 1}, //tangent,
+          {0, 1, 0}, //bitangent, must be 0, 1, 0 for the obj to register as skybox
+          texCoord,
+          {1, 1, 1}
+          });
+      };
+
+      // POLE
+      addVertex(0, 0);
+      // Add triangles for this line
+      for(uint32_t n = 0; n < NUM_LONGITUDE_LINES - 1; ++n) {
+        indices.push_back(0);
+      
+        if constexpr (NORMALS_POINT_OUTWARDS) {
+          indices.push_back(n + 1);
+          indices.push_back(n + 2);
+        } else {
+          indices.push_back(n + 2);
+          indices.push_back(n + 1);
+        }
+      }
+      
+      indices.push_back(0);
+      
+      if constexpr (NORMALS_POINT_OUTWARDS) {
+        indices.push_back(NUM_LONGITUDE_LINES);
+        indices.push_back(1);
+      }
+      else {
+        indices.push_back(1);
+        indices.push_back(NUM_LONGITUDE_LINES);
+      }
+
+      for(uint32_t m = 1; m < NUM_LATITUDE_LINES - 1; ++m) {
+        for(uint32_t n = 0; n < NUM_LONGITUDE_LINES; ++n) {
+          if constexpr (NORMALS_POINT_OUTWARDS) {
+            if(m < NUM_LATITUDE_LINES - 2) {
+              indices.push_back(vertices.size());
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES - 1);
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES);
+
+              indices.push_back(vertices.size());
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES);
+              indices.push_back(vertices.size() + 1);
+            }
+          } else {
+            if (m < NUM_LATITUDE_LINES - 2) {
+              indices.push_back(vertices.size());
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES);
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES - 1);
+
+              indices.push_back(vertices.size());
+              indices.push_back(vertices.size() + 1);
+              indices.push_back(vertices.size() + NUM_LONGITUDE_LINES);
+            }
+          }
+
+          addVertex(m, n);
+
+          // create triangle
+          // adjacent vertices are:
+          /* (m - 1, n    )
+           * (m - 1, n + 1)
+           * (    m, n - 1)
+           * (    m, n + 1)
+           * (m + 1, n - 1)
+           * (m + 1, n    )
+           */
+        }
+      }
+
+      // POLE
+      addVertex(NUM_LATITUDE_LINES - 1, 0);
+
+      // Add triangles for bottom line
+      for(uint32_t n = 0; n < NUM_LONGITUDE_LINES - 1; ++n) {
+        indices.push_back(vertices.size() - 1);
+      
+        if constexpr (NORMALS_POINT_OUTWARDS) {
+          indices.push_back(vertices.size() - 2 - n);
+          indices.push_back(vertices.size() - 3 - n);
+        } else {
+          indices.push_back(vertices.size() - 3 - n);
+          indices.push_back(vertices.size() - 2 - n);
+        }
+      }
+      
+      indices.push_back(vertices.size() - 1);
+      
+      if constexpr (NORMALS_POINT_OUTWARDS) {
+        indices.push_back(vertices.size() - NUM_LONGITUDE_LINES - 1);
+        indices.push_back(vertices.size() - 2);
+      }
+      else {
+        indices.push_back(vertices.size() - 2);
+        indices.push_back(vertices.size() - NUM_LONGITUDE_LINES - 1);
+      }
+
+      vertices.shrink_to_fit();
+      indices.shrink_to_fit();
+
+      addMesh(vertices, indices).second.setMaterial(m_materialLoader.get().getSkyboxMtl());
+    }
   }
 
   Application::Application()
@@ -194,6 +325,9 @@ namespace dw {
     m_meshManager.load("data/objects/teapot.obj");
     m_meshManager.load("data/objects/icosahedron.obj");
 
+    auto bg_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.hdr");
+    auto irr_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.irr.hdr");
+
     m_textureManager.uploadTextures(*m_renderer);
     m_mtlManager.uploadMaterials(*m_renderer);
     m_meshManager.uploadMeshes(*m_renderer);
@@ -202,27 +336,34 @@ namespace dw {
     static constexpr unsigned MAX_DYNAMIC_LIGHTS = 128;
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float curTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
+      // skydome
+    auto obj_skydome = util::make_ptr<Object>(m_meshManager.getMesh(3));
+    obj_skydome->setPosition({ 0, 0, 0 });
+    obj_skydome->setScale({50, 50, 50});
 
     m_mainScene = util::make_ptr<Scene>();
     {
+
+      m_mainScene->addObject(obj_skydome);
+
       // Ground plane
       auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
       obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ 50, 50, 50 });
+        o.setScale({ 100, 100, 100 });
         o.setPosition({ 0, 0, 0 });
       };
 
       m_mainScene->addObject(obj_groundPlane);
 
       // Random objects
-      auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(3));
+      auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(4));
       obj_random0->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ 2, 2, 2 });
         o.setPosition({ 0, 1.f, 2.f });
         o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
       };
 
-      auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(4));
+      auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(5));
       obj_random1->m_behavior = [](Object& o, float time, float dt) {
         o.setPosition({ 0, -1.f, .5f });
         o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
@@ -260,7 +401,7 @@ namespace dw {
       Camera camera;
       camera
         .setNearDepth(0.1f)
-        .setFarDepth(50.f)
+        .setFarDepth(200.f)
         .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
         .setLookAt({ 0.f, 0.f, 0.f })
         .setFOVDeg(45.f);
@@ -315,6 +456,8 @@ namespace dw {
     // Secondary scene
     m_secondScene = util::make_ptr<Scene>();
     {
+      m_secondScene->addObject(obj_skydome);
+
       auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
       obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ 10, 10, 10 });
@@ -323,7 +466,7 @@ namespace dw {
 
       m_secondScene->addObject(obj_groundPlane);
 
-      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(5));
+      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(3));
       obj_icosahedron->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ 1.5f, 1.5f, 1.5f });
         o.setPosition({ 0, 0, 1.5f });
@@ -334,7 +477,7 @@ namespace dw {
       Camera camera;
       camera
         .setNearDepth(0.1f)
-        .setFarDepth(50.f)
+        .setFarDepth(200.f)
         .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
         .setLookAt({ 0.f, 0.f, 0.f })
         .setFOVDeg(45.f);
@@ -348,6 +491,10 @@ namespace dw {
 
       m_secondScene->addGlobalLight(globalLight);
     }
+
+    // Set backgrounds
+    m_mainScene->setBackground(bg_iter->second, irr_iter->second);
+    m_secondScene->setBackground(bg_iter->second, irr_iter->second);
 
     // TODO: Each scene needs its own shader control
     m_curScene = m_mainScene;

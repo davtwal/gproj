@@ -64,7 +64,8 @@ namespace dw {
   }
 
   void Object::callBehavior(float curTime, float dt) {
-    m_behavior(*this, curTime, dt);
+    if(m_behavior)
+      m_behavior(*this, curTime, dt);
   }
 
 }

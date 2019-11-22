@@ -45,7 +45,7 @@ namespace dw {
   CREATE_DEVICE_DEPENDENT(RenderStep)
   public:
     static constexpr unsigned NUM_EXPECTED_GBUFFER_IMAGES = 3;
-    static constexpr unsigned MAX_MATERIALS               = 2;
+    static constexpr unsigned MAX_MATERIALS               = 3;
 
     RenderStep(LogicalDevice& device);
 
@@ -219,6 +219,8 @@ namespace dw {
 
     void updateDescriptorSets(std::vector<ImageView> const&                   gbufferViews,
                               std::vector<Renderer::ShadowMappedLight> const& lights,
+                              ImageView&                                      backgroundImg,
+                              ImageView&                                      irradianceImg,
                               Buffer&                                         cameraUBO,
                               Buffer&                                         lightsUBO,
                               Buffer&                                         shaderControlUBO,
