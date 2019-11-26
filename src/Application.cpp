@@ -298,7 +298,7 @@ namespace dw {
     GLFWControl::Init();
     // open window
 
-    m_window = new GLFWWindow(800, 800, "hey lol");
+    m_window = new GLFWWindow(1000, 1000, "hey lol");
     m_inputHandler = new InputHandler(*m_window);
     m_window->setInputHandler(m_inputHandler);
 
@@ -547,16 +547,20 @@ namespace dw {
       static bool enableShadowMapBlur = true;
       ImGui::Begin("Render Step Control");
         ImGui::Checkbox("Global Lighting", reinterpret_cast<bool*>(&m_shaderControl.global_doGlobalLighting));
+        ImGui::Checkbox("Shadows", reinterpret_cast<bool*>(&m_shaderControl.global_enableShadows));
+        ImGui::Checkbox("IBL Lighting", reinterpret_cast<bool*>(&m_shaderControl.global_enableIBL));
+        ImGui::Checkbox("HDR Background", reinterpret_cast<bool*>(&m_shaderControl.global_enableBackgrounds));
         ImGui::Checkbox("Local Lighting", reinterpret_cast<bool*>(&m_shaderControl.final_doLocalLighting));
         if (ImGui::Checkbox("Blur Shadow Maps", &enableShadowMapBlur))
           m_renderer->setShadowMapBlurEnabled(enableShadowMapBlur);
-        if (ImGui::Checkbox("Submit Global Lighting (warning: fucky)", &enableGlobalLight))
+        if (ImGui::Checkbox("Submit Global Lighting (warning: weird)", &enableGlobalLight))
           m_renderer->setGlobalLightingEnabled(enableGlobalLight);
       ImGui::End();
 #endif
       GLFWControl::Poll();
       // input check'
-      static constexpr float STEP_VALUE = 1.f;
+      static constexpr float STEP_VALUE = 2.75f;
+      static constexpr float ROTATE_STEP = 0.75f;
       static float RADIUS = M_SQRT2 * 4.5f;
       static float cameraCurrentT = 0.f;
 
@@ -570,33 +574,72 @@ namespace dw {
       glfwSetWindowTitle(m_window->getHandle(), titleBuff);
 
       if (m_inputHandler->getKeyState(GLFW_KEY_A)) {
-        cameraCurrentT += STEP_VALUE * dt;
+        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getRightDir() * STEP_VALUE);
       }
 
       if (m_inputHandler->getKeyState(GLFW_KEY_D)) {
-        cameraCurrentT -= STEP_VALUE * dt;
+        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() - dt * m_curScene->getCamera().getRightDir() * STEP_VALUE);
       }
 
-      float cameraZ = m_curScene->getCamera().getEyePos().z;
+      //float cameraZ = m_curScene->getCamera().getEyePos().z;
 
       if(m_inputHandler->getKeyState(GLFW_KEY_W)) {
-        cameraZ += STEP_VALUE * dt * 2;
+        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getViewDir() * STEP_VALUE);
+        //cameraZ += STEP_VALUE * dt * 2;
       }
 
       if(m_inputHandler->getKeyState(GLFW_KEY_S)) {
-        cameraZ -= STEP_VALUE * dt * 2;
+        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() - dt * m_curScene->getCamera().getViewDir() * STEP_VALUE);
+        //cameraZ -= STEP_VALUE * dt * 2;
       }
 
-      if (m_inputHandler->getKeyState(GLFW_KEY_EQUAL)) {
-        RADIUS += STEP_VALUE * dt;
+      if (m_inputHandler->getKeyState(GLFW_KEY_LEFT)) {
+        // set view dir
+        auto curView = m_curScene->getCamera().getViewDir();
+        // rotate by dt * ROTATE_STEP around the up direction
+        curView = glm::toMat4(glm::angleAxis(ROTATE_STEP * dt * 1.5f, m_curScene->getCamera().getUpDir())) * glm::vec4(curView, 0);
+
+        m_curScene->getCamera().setViewDir(curView);
+        //m_curScene->getCamera().setViewDir(m_curScene->getCamera())
+        //m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getViewDir());
+        //cameraZ += STEP_VALUE * dt * 2;
       }
 
-      if (m_inputHandler->getKeyState(GLFW_KEY_MINUS)) {
-        RADIUS -= STEP_VALUE * dt;
+      if (m_inputHandler->getKeyState(GLFW_KEY_RIGHT)) {// set view dir
+        auto curView = m_curScene->getCamera().getViewDir();
+        // rotate by dt * ROTATE_STEP around the up direction
+        curView = glm::toMat4(glm::angleAxis(-ROTATE_STEP * dt * 1.5f, m_curScene->getCamera().getUpDir())) * glm::vec4(curView, 0);
+
+        m_curScene->getCamera().setViewDir(curView);
+        //cameraZ -= STEP_VALUE * dt * 2;
       }
 
-      m_curScene->getCamera().setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), cameraZ });
-      m_curScene->getCamera().setLookAt({ 0, 0, 0 });
+      if(m_inputHandler->getKeyState(GLFW_KEY_UP)) {
+        auto curView = m_curScene->getCamera().getViewDir();
+        // rotate by dt * ROTATE_STEP around the right direction
+        curView = glm::toMat4(glm::angleAxis(-ROTATE_STEP * dt, m_curScene->getCamera().getRightDir())) * glm::vec4(curView, 0);
+
+        m_curScene->getCamera().setViewDir(curView);
+      }
+
+      if (m_inputHandler->getKeyState(GLFW_KEY_DOWN)) {
+        auto curView = m_curScene->getCamera().getViewDir();
+        // rotate by dt * ROTATE_STEP around the right direction
+        curView = glm::toMat4(glm::angleAxis(ROTATE_STEP * dt, m_curScene->getCamera().getRightDir())) * glm::vec4(curView, 0);
+
+        m_curScene->getCamera().setViewDir(curView);
+      }
+
+      //if (m_inputHandler->getKeyState(GLFW_KEY_EQUAL)) {
+      //  //RADIUS += STEP_VALUE * dt;
+      //}
+      //
+      //if (m_inputHandler->getKeyState(GLFW_KEY_MINUS)) {
+      //  //RADIUS -= STEP_VALUE * dt;
+      //}
+
+      //m_curScene->getCamera().setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), cameraZ });
+      //m_curScene->getCamera().setLookAt({ 0, 0, 0 });
 
       for (auto& obj : m_curScene->getObjects()) {
         obj->callBehavior(timeCount, dt);

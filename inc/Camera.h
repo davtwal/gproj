@@ -37,6 +37,9 @@ namespace dw {
     NO_DISCARD glm::vec3 const& getEyePos() const;
     NO_DISCARD glm::vec3 const& getViewDir() const;
 
+    NO_DISCARD glm::vec3 getRightDir() const;
+    NO_DISCARD glm::vec3 getUpDir() const;
+
     NO_DISCARD float getAspect() const;
     NO_DISCARD float getFOV() const;
     NO_DISCARD float getFOVDeg() const;

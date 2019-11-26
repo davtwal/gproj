@@ -22,4 +22,7 @@
     float toneMapExponent;      \
     int   doLocalLighting;      \
     int   doGlobalLighting;     \
+    int   doShadows;            \
+    int   doIBLLighting;        \
+    int   enableHDRBackground;  \
   }

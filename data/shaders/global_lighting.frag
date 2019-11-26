@@ -122,7 +122,7 @@ void main() {
   
   vec3 V = normalize(cam.eye - inPos);
 
-  if(int(isObject) == 1) {
+  if(int(isObject) == 1 && control.doGlobalLighting == 1) {
     vec3 N = normalize(sampledNormal.xyz);
     vec3 R = 2 * max(dot(N, V), 0) * N - V;
 
@@ -132,7 +132,7 @@ void main() {
                             .5, .5,  0, 1);
     
     vec3 color = vec3(0, 0, 0);
-    for(int i = 0; i < lights.count && control.doGlobalLighting == 1; ++i) {
+    for(int i = 0; i < lights.count; ++i) {
       vec4 shadowCoord =  shadowBias * lights.at[i].proj *  lights.at[i].view * vec4(inPos, 1.f);
       
       vec2 shadowIndex = shadowCoord.xy / shadowCoord.w;
@@ -144,7 +144,7 @@ void main() {
         
         float G = getG(lightDepth, pixelDepth);
         
-        if(G < 1) {         
+        if(G < 1 || control.doShadows == 0) {         
           vec3 lightColor = lights.at[i].color;
           vec3 lightPos   = lights.at[i].pos;
           vec3 lightAtten = lights.at[i].atten;
@@ -152,6 +152,9 @@ void main() {
           
           vec3 pbrColor = computeDirectPBR(lightColor, lightPos, lightAtten, lightRad, inColor, inPos, N, V, inRoughness, inMetallic);
           
+          if(control.doShadows == 0)
+            G = 0;
+
           color += (1 - G) * pbrColor;
         }
       }
@@ -159,62 +162,68 @@ void main() {
     
     // Add in IBL:
     // Diffuse:
-    vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
-    vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
-    vec3 IBL_diffuse = computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor) * max(dot(N, V), 0);
+    if(control.doIBLLighting == 1) {
+      vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
+      vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
+      vec3 IBL_diffuse = computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor) * max(dot(N, V), 0);
 
-    // Specular:
-    vec3 A = normalize(vec3(-R.y, R.x, 0)); // cross R w/ Z-axis
-    vec3 B = normalize(cross(R, A));
-    float sampleCountCoeff = 1.0 / MAX_IMPORTANCE_SAMPLES;
+      // Specular:
+      vec3 A = normalize(vec3(-R.y, R.x, 0)); // cross R w/ Z-axis
+      vec3 B = normalize(cross(R, A));
+      float sampleCountCoeff = 1.0 / MAX_IMPORTANCE_SAMPLES;
 
-    // if(importance.numSamples.x == 0x3E800000) {
-    //   fragColor = vec4(1, 0, 0, 1);
-    //   return;
-    // }
-    vec3 IBL_specular = vec3(0, 0, 0);
-    for(int i = 0; i < MAX_IMPORTANCE_SAMPLES; ++i) {
-      // find specular lighting sample direction
-      vec4 sampleVec4 = importance.samples[i / 2];
-      vec2 sampleVec2 = i % 2 == 0 ? sampleVec4.xy : sampleVec4.zw;
-      vec3 w = getSampleDirection(sampleVec2.x, sampleVec2.y, inRoughness, A, B, R);
-      vec2 uv = vec2(.5 - atan(-w.y, -w.x) / (2 * PI), acos(-w.z) / PI);
+      // if(importance.numSamples.x == 0x3E800000) {
+      //   fragColor = vec4(1, 0, 0, 1);
+      //   return;
+      // }
+      vec3 IBL_specular = vec3(0, 0, 0);
+      for(int i = 0; i < MAX_IMPORTANCE_SAMPLES; ++i) {
+        // find specular lighting sample direction
+        vec4 sampleVec4 = importance.samples[i / 2];
+        vec2 sampleVec2 = i % 2 == 0 ? sampleVec4.xy : sampleVec4.zw;
+        vec3 w = getSampleDirection(sampleVec2.x, sampleVec2.y, inRoughness, A, B, R);
+        vec2 uv = vec2(.5 - atan(-w.y, -w.x) / (2 * PI), acos(-w.z) / PI);
       
-      // TODO: Read from a specific mipmap level
+        // TODO: Read from a specific mipmap level
 
-      vec3 H = normalize(w + V);
+        vec3 H = normalize(w + V);
 
-      float NdotV = max(dot(N, V), 0);
-      float NdotL = max(dot(N, w), 0);
+        float NdotV = max(dot(N, V), 0);
+        float NdotL = max(dot(N, w), 0);
 
-      float NDF = DistributionGGX(N, H, inRoughness);
-      float G   = GeometrySmith_IBL(NdotV, NdotL, inRoughness);
+        float NDF = DistributionGGX(N, H, inRoughness);
+        float G   = GeometrySmith_IBL(NdotV, NdotL, inRoughness);
 
-      vec3 F0 = mix(vec3(0.0), inColor, inMetallic);
-      vec3 F  = fresnelSchlick(max(dot(H, V), 0), F0);
+        vec3 F0 = mix(vec3(0.0), inColor, inMetallic);
+        vec3 F  = fresnelSchlick(max(dot(H, V), 0), F0);
 
-      // Note: the D term is not included in the numerator, as it cancels
-      // out with the probability distribution, as we say that the
-      // probability of each sample is the NDF.
-      vec3 numer = G * F;
-      float denom = 4.0 * NdotV * NdotL;
+        // Note: the D term is not included in the numerator, as it cancels
+        // out with the probability distribution, as we say that the
+        // probability of each sample is the NDF.
+        vec3 numer = G * F;
+        float denom = 4.0 * NdotV * NdotL;
 
-      vec3 specular = numer / max(denom, 0.01);
+        vec3 specular = numer / max(denom, 0.01);
 
-      ivec2 bgSize = textureSize(inBackground, 0);
-      float mipLevel = .5 * log2((bgSize.x + bgSize.y) / 2.0) - .5 * log2(NDF);
-      vec3 sampledBG = textureLod(inBackground, uv, mipLevel).rgb;
+        ivec2 bgSize = textureSize(inBackground, 0);
+        float mipLevel = .5 * log2((bgSize.x + bgSize.y) / 2.0) - .5 * log2(NDF);
+        vec3 sampledBG = textureLod(inBackground, uv, mipLevel).rgb;
 
-      IBL_specular += sampleCountCoeff * specular * sampledBG * NdotL;
+        IBL_specular += sampleCountCoeff * specular * sampledBG * NdotL;
+      }
+
+      color += IBL_specular;
     }
-
-    color += IBL_specular;
     fragColor = vec4(color, 1);
   }
   else {
     // just do the background color
-    vec2 bgColorUV = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
-    vec4 sampledBG = texture(inBackground, bgColorUV);
-    fragColor = vec4(sampledBG.xyz, 1);
+    if(control.enableHDRBackground == 1) {
+      vec2 bgColorUV = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
+      vec4 sampledBG = texture(inBackground, bgColorUV);
+      fragColor = vec4(sampledBG.xyz, 1);
+    }
+    else
+      fragColor = vec4(0, 0, 0, 1);
   }
 }

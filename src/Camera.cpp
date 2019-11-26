@@ -25,6 +25,14 @@ namespace dw {
     getProj();
   }
 
+  glm::vec3 Camera::getRightDir() const {
+    return glm::normalize(glm::cross(UP_DIR, m_viewDir));
+  }
+
+  glm::vec3 Camera::getUpDir() const {
+    return glm::normalize(glm::cross(m_viewDir, getRightDir()));
+  }
+
 
   glm::mat4 const& Camera::getView() {
     if(m_viewDirty) {

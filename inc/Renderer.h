@@ -106,6 +106,9 @@ namespace dw {
       alignas(04) float final_toneMapExponent{ 1.f };
       alignas(04) int   final_doLocalLighting{ 1 };
       alignas(04) int   global_doGlobalLighting{ 1 };
+      alignas(04) int   global_enableShadows{ 1 };
+      alignas(04) int   global_enableIBL{ 1 };
+      alignas(04) int   global_enableBackgrounds{ 1 };
     };
 
     void setShaderControl(ShaderControl* control);
