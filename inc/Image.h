@@ -58,7 +58,7 @@ namespace dw {
     // Views
     NO_DISCARD ImageView createView(VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,
                                     uint32_t                  startMipLevel   = 0,
-                                    uint32_t                  mipLevelCount   = 1,
+                                    uint32_t                  mipLevelCount   = ALL_MIP_LEVELS,
                                     uint32_t                  startArrayIndex = 0,
                                     uint32_t                  arrayImageCount = 1,
                                     VkComponentMapping const& mapping         = {}) const;
@@ -66,7 +66,7 @@ namespace dw {
     NO_DISCARD ImageView createView(VkFormat                  format,
                                     VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,
                                     uint32_t                  startMipLevel   = 0,
-                                    uint32_t                  mipLevelCount   = 1,
+                                    uint32_t                  mipLevelCount   = ALL_MIP_LEVELS,
                                     uint32_t                  startArrayIndex = 0,
                                     uint32_t                  arrayImageCount = 1,
                                     VkComponentMapping const& mapping         = {}) const;
@@ -74,7 +74,7 @@ namespace dw {
     NO_DISCARD ImageView createView(VkImageViewType           type,
                                     VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,
                                     uint32_t                  startMipLevel   = 0,
-                                    uint32_t                  mipLevelCount   = 1,
+                                    uint32_t                  mipLevelCount   = ALL_MIP_LEVELS,
                                     uint32_t                  startArrayIndex = 0,
                                     uint32_t                  arrayImageCount = 1,
                                     VkComponentMapping const& mapping         = {}) const;
@@ -83,13 +83,15 @@ namespace dw {
                                     VkImageViewType           type            = VK_IMAGE_VIEW_TYPE_2D,
                                     VkImageAspectFlags        readAspect      = VK_IMAGE_ASPECT_COLOR_BIT,
                                     uint32_t                  startMipLevel   = 0,
-                                    uint32_t                  mipLevelCount   = 1,
+                                    uint32_t                  mipLevelCount   = ALL_MIP_LEVELS,
                                     uint32_t                  startArrayIndex = 0,
                                     uint32_t                  arrayImageCount = 1,
                                     VkComponentMapping const& mapping         = {}) const;
 
     operator VkImage() const;
-    
+
+    static constexpr uint32_t ALL_MIP_LEVELS = ~0u;
+
     void initImage(VkImageType       type,     // 1D, 2D, or 3D
                    VkImageViewType   intendedViewType,
                    VkFormat          format,      // format
@@ -109,6 +111,8 @@ namespace dw {
     NO_DISCARD VkExtent2D getSize() const;
     NO_DISCARD VkExtent3D getExtent() const;
 
+    NO_DISCARD uint32_t getMipLevels() const;
+
     NO_DISCARD
     VkAttachmentDescription getAttachmentDesc(VkAttachmentLoadOp loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
                                               VkAttachmentStoreOp storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -125,6 +129,7 @@ namespace dw {
     VkImage         m_image{nullptr};
     VkFormat        m_format;
     VkImageViewType m_type;
+    uint32_t        m_mipLevels{ 1 };
     bool            m_mutable{false};
   };
 

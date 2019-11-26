@@ -180,12 +180,20 @@ namespace dw {
     VkExtent3D extent = { m_raw->m_width, m_raw->m_height, 1 };
     static constexpr auto DstImgUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
+    VkFlags usageFlags = DstImgUsage;
+
     auto& img = *m_raw;
 
     VkFormat format = PickFormat(img.m_bitsPerChannel, img.m_channels);
 
+    uint32_t mipLevels = 1;
+    if (m_raw->m_rawf) {// if HDR
+      mipLevels = static_cast<uint32_t>(std::floor(std::log2(std::max(m_raw->m_width, m_raw->m_height)))) + 1;
+      usageFlags |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+    }
+
     m_image = util::make_ptr<DependentImage>(device);
-    m_image->initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, format, extent, DstImgUsage, 1, 1, false, false, false, false);
+    m_image->initImage(VK_IMAGE_TYPE_2D, VK_IMAGE_VIEW_TYPE_2D, format, extent, usageFlags, mipLevels, 1, false, false, false, false);
     m_image->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     m_view = util::make_ptr<ImageView>(m_image->createView());
@@ -222,7 +230,7 @@ namespace dw {
       {
         VK_IMAGE_ASPECT_COLOR_BIT,
         0,
-        1,
+        m_image->getMipLevels(),
         0,
         1
       },
@@ -234,6 +242,8 @@ namespace dw {
       0, nullptr,
       1, &barrier);
 
+    barrier.subresourceRange.levelCount = 1;
+
     VkBufferImageCopy copy = {
       0,
       static_cast<uint32_t>(m_raw->m_width),
@@ -242,7 +252,7 @@ namespace dw {
         VK_IMAGE_ASPECT_COLOR_BIT,
         0,
         0,
-       1
+        1
       },
       {0, 0, 0},
       extent
@@ -250,6 +260,54 @@ namespace dw {
 
     vkCmdCopyBufferToImage(cmdBuff, *staging, *m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
 
+    // Generate mipmaps if they exist:
+    auto imageExtent = m_image->getExtent();
+    for(uint32_t i = 1; i < m_image->getMipLevels(); ++i) {
+
+      barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+      barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+      barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      barrier.subresourceRange.baseMipLevel = i - 1;
+
+      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
+
+      VkImageBlit blit = {
+        {
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          i - 1,
+          0,
+          1
+        },
+        {{0,0,0}, {imageExtent.width, imageExtent.height, 1}},
+        {
+          VK_IMAGE_ASPECT_COLOR_BIT,
+          i,
+          0,
+          1
+        },
+        {{0,0,0},
+          {imageExtent.width > 1 ? imageExtent.width / 2 : 1, imageExtent.height > 1 ? imageExtent.height / 2 : 1, 1}
+        }
+      };
+
+      vkCmdBlitImage(cmdBuff, *m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, *m_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &blit, VK_FILTER_LINEAR);
+
+      barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+      barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+      barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+      barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+      vkCmdPipelineBarrier(cmdBuff, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier);
+
+      if (imageExtent.width > 1) imageExtent.width /= 2;
+      if (imageExtent.height > 1) imageExtent.height /= 2;
+    }
+
+    barrier.subresourceRange.baseMipLevel = m_image->getMipLevels() - 1;
     barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
     barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;

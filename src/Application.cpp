@@ -466,7 +466,7 @@ namespace dw {
 
       m_secondScene->addObject(obj_groundPlane);
 
-      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(3));
+      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(6));
       obj_icosahedron->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ 1.5f, 1.5f, 1.5f });
         o.setPosition({ 0, 0, 1.5f });
@@ -640,7 +640,7 @@ namespace dw {
     m_renderer->shutdown();
 
     delete m_inputHandler; m_inputHandler = nullptr;
-    delete m_window;
+    delete m_window; m_window = nullptr;
 
     GLFWControl::Shutdown();
     return 0;

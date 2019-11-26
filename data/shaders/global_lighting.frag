@@ -48,6 +48,10 @@ vec3 getSampleDirection(float u, float v, float roughness, vec3 A, vec3 B, vec3 
   // skew the points to match the distribution
   v = acos(pow(v, 1.0 / (alpha + 1)));
 
+  float temp = u;
+  u = v;
+  v = temp;
+  
   // convert UV to hemisphere sample
   float inner = 2 * PI * (.5 - u);
   float sinpv = sin(PI * v);
@@ -157,7 +161,7 @@ void main() {
     // Diffuse:
     vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
     vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
-    color += computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor);
+    vec3 IBL_diffuse = computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor) * max(dot(N, V), 0);
 
     // Specular:
     vec3 A = normalize(vec3(-R.y, R.x, 0)); // cross R w/ Z-axis
@@ -168,7 +172,7 @@ void main() {
     //   fragColor = vec4(1, 0, 0, 1);
     //   return;
     // }
-
+    vec3 IBL_specular = vec3(0, 0, 0);
     for(int i = 0; i < MAX_IMPORTANCE_SAMPLES; ++i) {
       // find specular lighting sample direction
       vec4 sampleVec4 = importance.samples[i / 2];
@@ -186,7 +190,7 @@ void main() {
       float NDF = DistributionGGX(N, H, inRoughness);
       float G   = GeometrySmith_IBL(NdotV, NdotL, inRoughness);
 
-      vec3 F0 = mix(vec3(0.04), inColor, inMetallic);
+      vec3 F0 = mix(vec3(0.0), inColor, inMetallic);
       vec3 F  = fresnelSchlick(max(dot(H, V), 0), F0);
 
       // Note: the D term is not included in the numerator, as it cancels
@@ -196,18 +200,15 @@ void main() {
       float denom = 4.0 * NdotV * NdotL;
 
       vec3 specular = numer / max(denom, 0.01);
-      //ivec2 bgSize = textureSize(inBackground, 0);
-      //float mipLevel = .5 * log2((bgSize.x + bgSize.y) / 2.0) + .5 * log2(NDF);
-      //vec4 sampledBG = textureLod(inBackground, uv, mipLevel);
-      vec4 sampledBG = texture(inBackground, uv);
 
-      //fragColor = vec4(sampledBG.xyz, 1);
-      //fragColor = vec4(importance.numSamples / 50.f, 0, 0, 1);
-      //return;
+      ivec2 bgSize = textureSize(inBackground, 0);
+      float mipLevel = .5 * log2((bgSize.x + bgSize.y) / 2.0) - .5 * log2(NDF);
+      vec3 sampledBG = textureLod(inBackground, uv, mipLevel).rgb;
 
-      color += sampleCountCoeff * specular * sampledBG.xyz * NdotL;
+      IBL_specular += sampleCountCoeff * specular * sampledBG * NdotL;
     }
 
+    color += IBL_specular;
     fragColor = vec4(color, 1);
   }
   else {

@@ -201,6 +201,8 @@ namespace dw {
   void Renderer::shutdown() {
     vkDeviceWaitIdle(*m_device);
 
+    m_materials = nullptr;
+
 #ifdef DW_USE_IMGUI
     shutdownImGui();
 #endif
@@ -219,8 +221,10 @@ namespace dw {
     m_globalLights.clear();
     m_scene.reset();
 
-    if (m_modelUBOdata)
+    if (m_modelUBOdata) {
       alignedFree(m_modelUBOdata);
+      m_modelUBOdata = nullptr;
+    }
 
     m_modelUBOdata = nullptr;
 
@@ -231,13 +235,14 @@ namespace dw {
     m_blurIntermediateView.reset();
     m_blurIntermediate.reset();
 
-    m_materialsUBO.reset();
-    m_globalLightsUBO.reset();
-    m_localLightsUBO.reset();
     m_modelUBO.reset();
     m_cameraUBO.reset();
-    m_shaderControlBuffer.reset();
+    m_globalLightsUBO.reset();
+    m_localLightsUBO.reset();
+    m_globalImportanceUBO.reset();
+    m_materialsUBO.reset();
 
+    m_shaderControlBuffer.reset();
     m_shaderControl = nullptr;
 
     m_geometryStep.reset();
@@ -252,9 +257,6 @@ namespace dw {
 
     delete m_presentQueue;
     m_presentQueue = nullptr;
-    m_swapchain.reset();
-
-    m_surface.reset();
 
     delete m_graphicsQueue;
     m_graphicsQueue = nullptr;
@@ -264,6 +266,9 @@ namespace dw {
 
     delete m_computeQueue;
     m_computeQueue = nullptr;
+
+    m_surface.reset();
+    m_swapchain.reset();
 
     delete m_device;
     m_device = nullptr;

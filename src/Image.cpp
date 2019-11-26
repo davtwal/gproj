@@ -31,8 +31,10 @@ namespace dw {
   }
 
   ImageView::~ImageView() {
-    if (m_view)
+    if (m_view) {
       vkDestroyImageView(m_device, m_view, nullptr);
+      m_view = nullptr;
+    }
   }
 
   ImageView::ImageView(ImageView&& o) noexcept
@@ -54,6 +56,7 @@ namespace dw {
       m_image(o.m_image),
       m_format(o.m_format),
       m_type(o.m_type),
+      m_mipLevels(o.m_mipLevels),
       m_mutable(o.m_mutable) {
   }
 
@@ -151,15 +154,16 @@ namespace dw {
       }
     }
 
-    if (mipLevels > 1) {
-      // check for powers of two
-      if ((extent.depth & (extent.depth - 1)) != 0
-          || (extent.height & (extent.height - 1)) != 0
-          || (extent.width & (extent.width - 1)) != 0) {
-        Trace::Error << "Attempted to create an image with >1 mip levels but not a power of two image" << Trace::Stop;
-        return;
-      }
-    }
+    // TODO: check if this check is still needed
+    //if (mipLevels > 1) {
+    //  // check for powers of two
+    //  if ((extent.depth & (extent.depth - 1)) != 0
+    //      || (extent.height & (extent.height - 1)) != 0
+    //      || (extent.width & (extent.width - 1)) != 0) {
+    //    Trace::Error << "Attempted to create an image with >1 mip levels but not a power of two image" << Trace::Stop;
+    //    return;
+    //  }
+    //}
 
     /* From the vulkan spec:
       Creation of images with tiling VK_IMAGE_TILING_LINEAR may not be supported unless
@@ -224,6 +228,7 @@ namespace dw {
     m_format = format;
     m_mutable = isMutable;
     m_type = intendedViewType;
+    m_mipLevels = mipLevels;
     m_extent = extent;
   }
 
@@ -302,6 +307,11 @@ namespace dw {
     //  Refers to a specific part of the image. You cannot create a view with
     //  multiple aspects, such as reading both depth and stencil.
 
+    if (mipLevelCount == ALL_MIP_LEVELS)
+      mipLevelCount = m_mipLevels - startMipLevel;
+
+    assert(mipLevelCount + startMipLevel <= m_mipLevels);
+
     VkImageViewCreateInfo createInfo = {
       VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
       nullptr,
@@ -347,6 +357,10 @@ namespace dw {
 
   LogicalDevice& IndependentImage::getDevice() const {
     return *m_devicePointer;
+  }
+
+  uint32_t Image::getMipLevels() const {
+    return m_mipLevels;
   }
 
   // DEPENDENT IMAGE
