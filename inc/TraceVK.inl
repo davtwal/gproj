@@ -22,6 +22,9 @@
 #include "Trace.h"
 #include "Vulkan.h"
 #include <vector>
+#include "glm/vec3.hpp"
+#include "glm/vec4.hpp"
+#include "glm/vec2.hpp"
 
 template <>
 inline Trace& operator<<<VkExtent3D>(Trace& t, VkExtent3D const& e) {
@@ -146,6 +149,24 @@ inline Trace& operator<<<VkQueueFamilyProperties>(Trace& t, VkQueueFamilyPropert
     << "PR: " << (m.queueFlags & VK_QUEUE_PROTECTED_BIT ? "X " : "  ") << "\n"
     << "    Min Image Transfer Gran.:" << m.minImageTransferGranularity << "\n";
 
+  return t;
+}
+
+template <>
+inline Trace& operator<<<glm::vec2>(Trace& t, glm::vec2 const& v) {
+  t << "<" << v.x << ", " << v.y << ">";
+  return t;
+}
+
+template <>
+inline Trace& operator<<<glm::vec3>(Trace& t, glm::vec3 const& v) {
+  t << "<" << v.x << ", " << v.y << ", " << v.z << ">";
+  return t;
+}
+
+template <>
+inline Trace& operator<<<glm::vec4>(Trace& t, glm::vec4 const& v) {
+  t << "<" << v.x << ", " << v.y << ", " << v.z << "," << v.w << ">";
   return t;
 }
 

@@ -79,6 +79,14 @@ namespace dw {
         case 4: return VK_FORMAT_R16G16B16A16_UNORM;
         default: return VK_FORMAT_UNDEFINED;
         }
+      case 32:
+        switch(channels) {
+        case 1: return VK_FORMAT_R32_SFLOAT;
+        case 2: return VK_FORMAT_R32G32_SFLOAT;
+        case 3: return VK_FORMAT_R32G32B32_SFLOAT;
+        case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        default: return VK_FORMAT_UNDEFINED;
+        }
       default: return VK_FORMAT_UNDEFINED;
       }
     }
@@ -88,6 +96,11 @@ namespace dw {
     if (m_raw) {
       stbi_image_free(m_raw);
       m_raw = nullptr;
+    }
+
+    else if(m_rawf) {
+      stbi_image_free(m_rawf);
+      m_rawf = nullptr;
     }
   }
 
@@ -100,18 +113,31 @@ namespace dw {
        * ... a bunch others ...
        */
       stbi_set_flip_vertically_on_load(true);
-
+      
       int w, h, c;
 
-      m_raw = stbi_load(filename.c_str(), &w, &h, &c, STBI_rgb_alpha);
-      if (m_raw) {
-        m_width = static_cast<uint64_t>(w);
-        m_height = static_cast<uint64_t>(h);
-        m_channels = 4;// static_cast<uint64_t>(c);
-        m_bitsPerChannel = 8;
+      if (stbi_is_hdr(filename.c_str())) {
+        m_rawf = stbi_loadf(filename.c_str(), &w, &h, &c, STBI_rgb_alpha);
+        if (m_rawf) {
+          m_width = static_cast<uint64_t>(w);
+          m_height = static_cast<uint64_t>(h);
+          m_channels = 4;
+          m_bitsPerChannel = sizeof(float) * 8;
+        }
+        else
+          Trace::Error << "Could not load " << filename << " [HDR]: " << stbi_failure_reason() << Trace::Stop;
       }
-      else
-        Trace::Error << "Could not load " << filename << ": " << stbi_failure_reason() << Trace::Stop;
+      else {
+        m_raw = stbi_load(filename.c_str(), &w, &h, &c, STBI_rgb_alpha);
+        if (m_raw) {
+          m_width = static_cast<uint64_t>(w);
+          m_height = static_cast<uint64_t>(h);
+          m_channels = 4;
+          m_bitsPerChannel = 8;
+        }
+        else
+          Trace::Error << "Could not load " << filename << " [LDR]: " << stbi_failure_reason() << Trace::Stop;
+      }
     }
   }
 
@@ -120,8 +146,10 @@ namespace dw {
     m_height(o.m_height),
     m_channels(o.m_channels),
     m_bitsPerChannel(o.m_channels),
-    m_raw(o.m_raw) {
+    m_raw(o.m_raw),
+    m_rawf(o.m_rawf) {
     o.m_raw = nullptr;
+    o.m_rawf = nullptr;
   }
 
   // Texture
@@ -150,7 +178,6 @@ namespace dw {
     MemoryAllocator allocator(device.getOwningPhysical());
 
     VkExtent3D extent = { m_raw->m_width, m_raw->m_height, 1 };
-    VkDeviceSize size = extent.width * extent.height * m_raw->m_channels;
     static constexpr auto DstImgUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
     auto& img = *m_raw;
@@ -172,7 +199,10 @@ namespace dw {
   void Texture::uploadStaging(StagingBuffs& buffs) {
     VkDeviceSize size = m_raw->m_width * m_raw->m_height * m_raw->m_channels * (m_raw->m_bitsPerChannel / 8);
     void* data = buffs->map();
-    memcpy(data, m_raw->m_raw, size);
+    if (m_raw->m_raw)
+      memcpy(data, m_raw->m_raw, size);
+    else
+      memcpy(data, m_raw->m_rawf, size);
     buffs->unMap();
   }
 

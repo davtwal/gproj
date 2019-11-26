@@ -47,24 +47,38 @@ namespace dw {
                                                                  ShaderModule::Load(getOwningDevice(),
                                                                                     "fsq_vert.spv"
                                                                                    ));
+
+
     m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(
                                                                      ShaderModule::Load(getOwningDevice(),
                                                                                         "global_lighting_frag.spv"
                                                                                        ));
   }
 
+  static constexpr uint32_t ADDITIONAL_TEXTURE_BINDINGS =
+    1 +   // background texture
+    1 +   // irradiance texture
+    1;    // shadow map array
+
+  static constexpr uint32_t ADDITIONAL_TEXTURES =
+    1 + // background
+    1 + // irradiance
+    GlobalLightStep::MAX_GLOBAL_LIGHTS;
+
+  static constexpr uint32_t ADDITIONAL_BUFFERS =
+    1 + // camera
+    1 + // lights
+    1 + // shader control
+    1;  // importance samples
+
+  static constexpr uint32_t ADDITIONAL_ITEMS = ADDITIONAL_TEXTURE_BINDINGS + ADDITIONAL_BUFFERS;
+
   void GlobalLightStep::setupDescriptors() {
     std::vector<VkDescriptorSetLayoutBinding> finalBindings;
     finalBindings.resize(
-      NUM_EXPECTED_GBUFFER_IMAGES + // one sampler per gbuffer image
-      1 + // camera
-      1 + // lights
-      1 + // shader control
-      1 + // background texture
-      1 + // irradiance texture
-      1); // shadow map array
+      NUM_EXPECTED_GBUFFER_IMAGES + ADDITIONAL_ITEMS); // shadow map array
 
-    for (uint32_t i = 0; i < 3; ++i) {
+    for (uint32_t i = 0; i < ADDITIONAL_BUFFERS; ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -74,7 +88,7 @@ namespace dw {
       };
     }
 
-    for (uint32_t i = 3; i < NUM_EXPECTED_GBUFFER_IMAGES + 3 + 3; ++i) {
+    for (uint32_t i = ADDITIONAL_BUFFERS; i < NUM_EXPECTED_GBUFFER_IMAGES + ADDITIONAL_ITEMS; ++i) {
       finalBindings[i] = {
         i,
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -101,11 +115,11 @@ namespace dw {
     std::vector<VkDescriptorPoolSize> poolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        3
+        ADDITIONAL_BUFFERS
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS + 2
+        NUM_EXPECTED_GBUFFER_IMAGES + ADDITIONAL_TEXTURES
       }
     };
 
@@ -168,6 +182,21 @@ namespace dw {
     m_pass->finishRenderPass();
   }
 
+  void GlobalLightStep::setupPipelineLayout(VkPipelineLayout) {
+    VkPipelineLayoutCreateInfo layoutCreate = {
+      VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+      nullptr,
+      0,
+      1,
+      &m_descSetLayout,
+      0,
+      nullptr
+    };
+
+    if (vkCreatePipelineLayout(getOwningDevice(), &layoutCreate, nullptr, &m_layout) != VK_SUCCESS)
+      throw std::runtime_error("Could not create global light pipeline layout");
+  }
+
   void GlobalLightStep::setupPipeline(VkExtent2D extent) {
     GraphicsPipelineCreator creator;
 
@@ -212,13 +241,14 @@ namespace dw {
                                              ImageView& irradianceImg,
                                              Buffer&                                         cameraUBO,
                                              Buffer&                                         lightsUBO,
+                                             Buffer&                                         importanceSampleUBO,
                                              Buffer&                                         shaderControlUBO,
                                              VkSampler                                       sampler) const {
     std::vector<VkWriteDescriptorSet>  descriptorWrites;
     std::vector<VkDescriptorImageInfo> imageInfos;
 
     descriptorWrites.reserve(NUM_EXPECTED_GBUFFER_IMAGES + 2 + 1 + 2);
-    imageInfos.reserve(NUM_EXPECTED_GBUFFER_IMAGES + MAX_GLOBAL_LIGHTS + 2);
+    imageInfos.reserve(NUM_EXPECTED_GBUFFER_IMAGES + ADDITIONAL_TEXTURES);
 
     assert(gbufferViews.size() == NUM_EXPECTED_GBUFFER_IMAGES + 1); // + depth buffer
     for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES; ++i)
@@ -270,7 +300,7 @@ namespace dw {
                                  nullptr
                                });
 
-    // shader control
+    // importance samples
     descriptorWrites.push_back({
                                  VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                  nullptr,
@@ -280,16 +310,30 @@ namespace dw {
                                  1,
                                  VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                                  nullptr,
+                                 &importanceSampleUBO.getDescriptorInfo(),
+                                 nullptr
+      });
+
+    // shader control
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 3,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
                                  &shaderControlUBO.getDescriptorInfo(),
                                  nullptr
       });
 
-    for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES + 2; ++i) {
+    for (uint32_t i = 0; i < NUM_EXPECTED_GBUFFER_IMAGES + ADDITIONAL_TEXTURE_BINDINGS; ++i) {
       descriptorWrites.push_back({
                                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                    nullptr,
                                    m_descriptorSet,
-                                   i + 3,
+                                   i + ADDITIONAL_BUFFERS,
                                    0,
                                    1,
                                    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -299,18 +343,8 @@ namespace dw {
                                  });
     }
 
-    descriptorWrites.push_back({
-                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                 nullptr,
-                                 m_descriptorSet,
-                                 8,
-                                 0,
-                                 static_cast<uint32_t>(lights.size()),
-                                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                 &imageInfos[NUM_EXPECTED_GBUFFER_IMAGES + 2],
-                                 nullptr,
-                                 nullptr
-                               });
+    descriptorWrites.back().descriptorCount = static_cast<uint32_t>(lights.size());
+    descriptorWrites.back().pImageInfo = &imageInfos[NUM_EXPECTED_GBUFFER_IMAGES + 2];
     
     vkUpdateDescriptorSets(getOwningDevice(),
                            static_cast<uint32_t>(descriptorWrites.size()),
@@ -322,6 +356,8 @@ namespace dw {
   void GlobalLightStep::writeCmdBuff(Framebuffer& fb, VkRect2D renderArea) const {
     if (renderArea.extent.width == 0)
       renderArea.extent = fb.getExtent();
+
+    static_assert(MAX_IMPORTANCE_SAMPLES % 4 == 0);
 
     VkClearValue clearValue = {{{0}}};
 
@@ -337,6 +373,22 @@ namespace dw {
       &clearValue
     };
 
+    /*ImportanceSampleUBO vec2data{};
+    static constexpr int numSamples = 10;
+    vec2data.numSamples = numSamples;
+
+    int pos = 0;
+    for (uint32_t i = 0; i < numSamples; ++i) {
+      int kk = i;
+      float u = 0.f;
+      for (float p = 0.5f; kk; p *= .5f, kk >>= 1)
+        if (kk & 1)
+          u += p;
+
+      vec2data.samples[pos++] = u;
+      vec2data.samples[pos++] = (i + .5f) / numSamples;
+    }*/
+
     cmdBuff.start(false);
     vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
     vkCmdBindDescriptorSets(cmdBuff,
@@ -349,6 +401,7 @@ namespace dw {
                             nullptr);
 
     vkCmdBeginRenderPass(cmdBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    //vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ImportanceSampleUBO), &vec2data);
     vkCmdDraw(cmdBuff, 4, 1, 0, 0);
     vkCmdEndRenderPass(cmdBuff);
     cmdBuff.end();

@@ -46,6 +46,7 @@ namespace dw {
 
     NO_DISCARD VkDescriptorBufferInfo const& getDescriptorInfo() const;
     NO_DISCARD VkDeviceSize getSize() const;
+    NO_DISCARD VkDeviceMemory getMemory() const;
 
   private:
     void back(MemoryAllocator& allocator, VkMemoryPropertyFlags memFlags);

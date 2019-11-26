@@ -55,6 +55,10 @@ namespace dw {
     return m_info.buffer;
   }
 
+  VkDeviceMemory Buffer::getMemory() const {
+    return m_memory;
+  }
+
   Buffer::Buffer(LogicalDevice& device, VkDeviceSize size, VkBufferUsageFlags usage, VkMemoryPropertyFlags properties)
     : m_device(device) {
     VkBufferCreateInfo createInfo = {

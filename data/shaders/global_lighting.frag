@@ -4,6 +4,8 @@
 #include "inc/defines.glsl"
 #include "inc/lighting.glsl"
 
+layout(constant_id = 0) const int MAX_IMPORTANCE_SAMPLES = 32;
+
 layout(binding = 0) uniform CameraUBO {
   mat4 view;
   mat4 proj;
@@ -18,20 +20,43 @@ layout(binding = 1) uniform ShadowLights {
   uint count;
 } lights;
 
+layout(binding = 2) uniform ImportanceSampling {
+  vec4 samples[MAX_IMPORTANCE_SAMPLES / 2]; // divide by 2 because each vec2 is a sample
+  //int numSamples;
+  //vec3 padding;
+} importance;
+
 // shader control
-layout(binding = 2) SHADER_CONTROL_UNIFORM control;
+layout(binding = 3) SHADER_CONTROL_UNIFORM control;
 
-layout(binding = 3) uniform sampler2D inGBuffPosition;
-layout(binding = 4) uniform sampler2D inGBuffNormal;
-layout(binding = 5) uniform sampler2D inGBuffColor;
-layout(binding = 6) uniform sampler2D inBackground;
-layout(binding = 7) uniform sampler2D inIrradiance;
+layout(binding = 4) uniform sampler2D inGBuffPosition;
+layout(binding = 5) uniform sampler2D inGBuffNormal;
+layout(binding = 6) uniform sampler2D inGBuffColor;
+layout(binding = 7) uniform sampler2D inBackground;
+layout(binding = 8) uniform sampler2D inIrradiance;
 
-layout(binding = 8) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
+layout(binding = 9) uniform sampler2D shadowMap[MAX_GLOBAL_LIGHTS];
 
 layout(location = 0) in vec2 inUV;
 
 layout(location = 0) out vec4 fragColor;
+
+// This function takes the sample (u, v) as the epsilon 1 and epsilon 2
+vec3 getSampleDirection(float u, float v, float roughness, vec3 A, vec3 B, vec3 R) {
+  float alpha = (roughness * roughness) / 2;
+
+  // skew the points to match the distribution
+  v = acos(pow(v, 1.0 / (alpha + 1)));
+
+  // convert UV to hemisphere sample
+  float inner = 2 * PI * (.5 - u);
+  float sinpv = sin(PI * v);
+  vec3 L = vec3(cos(inner) * sinpv, sin(inner) * sinpv, cos(PI * v));
+
+  // rotate
+  vec3 w = normalize(L.x * A + L.y * B + L.z * R); // normalizing done to ward off rounding errors
+  return w;
+}
 
 float getG(vec4 moments, float fragmentDepth) {
   // Code comes from the supplementary paper for Hamburger 4MSM.
@@ -92,10 +117,11 @@ void main() {
   vec3 inColor = sampledColor.xyz;
   
   vec3 V = normalize(cam.eye - inPos);
-  vec3 N = normalize(sampledNormal.xyz);
-  
 
   if(int(isObject) == 1) {
+    vec3 N = normalize(sampledNormal.xyz);
+    vec3 R = 2 * max(dot(N, V), 0) * N - V;
+
     mat4 shadowBias = mat4( .5,  0,  0, 0,
                             0, .5,  0, 0,
                             0,  0,  1, 0,
@@ -130,14 +156,62 @@ void main() {
     // Add in IBL:
     // Diffuse:
     vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
-    
-    vec4 sampledBG = texture(inBackground, bgColorUV);
     vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
-    color += computeIBLPBR(sampledBG.xyz, sampledIrradiance.xyz, inColor, inPos, N, V, inRoughness, inMetallic);
+    color += computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor);
+
+    // Specular:
+    vec3 A = normalize(vec3(-R.y, R.x, 0)); // cross R w/ Z-axis
+    vec3 B = normalize(cross(R, A));
+    float sampleCountCoeff = 1.0 / MAX_IMPORTANCE_SAMPLES;
+
+    // if(importance.numSamples.x == 0x3E800000) {
+    //   fragColor = vec4(1, 0, 0, 1);
+    //   return;
+    // }
+
+    for(int i = 0; i < MAX_IMPORTANCE_SAMPLES; ++i) {
+      // find specular lighting sample direction
+      vec4 sampleVec4 = importance.samples[i / 2];
+      vec2 sampleVec2 = i % 2 == 0 ? sampleVec4.xy : sampleVec4.zw;
+      vec3 w = getSampleDirection(sampleVec2.x, sampleVec2.y, inRoughness, A, B, R);
+      vec2 uv = vec2(.5 - atan(-w.y, -w.x) / (2 * PI), acos(-w.z) / PI);
+      
+      // TODO: Read from a specific mipmap level
+
+      vec3 H = normalize(w + V);
+
+      float NdotV = max(dot(N, V), 0);
+      float NdotL = max(dot(N, w), 0);
+
+      float NDF = DistributionGGX(N, H, inRoughness);
+      float G   = GeometrySmith_IBL(NdotV, NdotL, inRoughness);
+
+      vec3 F0 = mix(vec3(0.04), inColor, inMetallic);
+      vec3 F  = fresnelSchlick(max(dot(H, V), 0), F0);
+
+      // Note: the D term is not included in the numerator, as it cancels
+      // out with the probability distribution, as we say that the
+      // probability of each sample is the NDF.
+      vec3 numer = G * F;
+      float denom = 4.0 * NdotV * NdotL;
+
+      vec3 specular = numer / max(denom, 0.01);
+      //ivec2 bgSize = textureSize(inBackground, 0);
+      //float mipLevel = .5 * log2((bgSize.x + bgSize.y) / 2.0) + .5 * log2(NDF);
+      //vec4 sampledBG = textureLod(inBackground, uv, mipLevel);
+      vec4 sampledBG = texture(inBackground, uv);
+
+      //fragColor = vec4(sampledBG.xyz, 1);
+      //fragColor = vec4(importance.numSamples / 50.f, 0, 0, 1);
+      //return;
+
+      color += sampleCountCoeff * specular * sampledBG.xyz * NdotL;
+    }
 
     fragColor = vec4(color, 1);
   }
   else {
+    // just do the background color
     vec2 bgColorUV = vec2(.5 - atan(V.y, V.x) / (2 * PI), acos(V.z) / PI);
     vec4 sampledBG = texture(inBackground, bgColorUV);
     fragColor = vec4(sampledBG.xyz, 1);

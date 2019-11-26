@@ -65,6 +65,9 @@ namespace dw {
       uint64_t m_channels{ 0 };
       uint64_t m_bitsPerChannel{ 0 };
       unsigned char* m_raw{ nullptr };
+      float* m_rawf{ nullptr };
+
+
     };
 
     util::ptr<RawImage>        m_raw;

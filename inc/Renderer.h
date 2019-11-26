@@ -195,6 +195,7 @@ namespace dw {
     util::ptr<Buffer> m_cameraUBO;        //!< Contains rendering camera info
     util::ptr<Buffer> m_localLightsUBO;   //!< Contains all local light info
     util::ptr<Buffer> m_globalLightsUBO;  //!< Contains all global (shadow mapped) light info
+    util::ptr<Buffer> m_globalImportanceUBO;
     util::ptr<Buffer> m_materialsUBO;     //!< Contains the coefficients for the materials
     // TODO: not this this is hacky
     MaterialManager::MtlMap* m_materials {nullptr};

@@ -60,17 +60,16 @@ void main() {
     }
     
     color += previousColor.xyz;
-    const float exposure = 1;
-    
-    // gamma correct as this is the final render pass
-    color *= control.toneMapExposure;
-    color = color / (color + vec3(1));
-    color = pow(color, vec3(control.toneMapExponent / 2.2));
   
     fragColor = vec4(color.xyz, 1);
   }
   else {
     fragColor = previousColor;
   }
+  
+  // gamma correct as this is the final render pass
+  fragColor.xyz *= control.toneMapExposure;
+  fragColor.xyz = fragColor.xyz / (fragColor.xyz + vec3(1));
+  fragColor.xyz = pow(fragColor.xyz, vec3(control.toneMapExponent / 2.2));
   //fragColor /= fragColor.a;
 }

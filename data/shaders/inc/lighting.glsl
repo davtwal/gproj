@@ -94,10 +94,7 @@ float DistributionGGX(vec3 N, vec3 H, float roughness) {
   return numer / denom;
 }
 
-float GeometrySchlickGGX(float NdotV, float roughness) {
-  float r = roughness + 1;
-  float k = (r * r) / 8.0; // for direct light only
-  
+float GeometrySchlickGGX(float NdotV, float k) {
   float numer = NdotV;
   float denom = NdotV * (1.0 - k) + k;
   
@@ -114,10 +111,19 @@ float GeometrySchlickGGX(float NdotV, float roughness) {
   return numer / denom;
 }
 
-float GeometrySmith(float NdotV, float NdotL, float roughness) {  
-  float ggx2 = GeometrySchlickGGX(NdotV, roughness);
-  float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-  return ggx1;
+float GeometrySmith_Direct(float NdotV, float NdotL, float roughness) {  
+  float r = roughness + 1;
+  float k = (r * r) / 8.0; // for direct light only
+  float ggx2 = GeometrySchlickGGX(NdotV, k);
+  float ggx1 = GeometrySchlickGGX(NdotL, k);
+  return ggx1 * ggx2;
+}
+
+float GeometrySmith_IBL(float NdotV, float NdotL, float roughness) {
+  float k = (roughness * roughness) / 2.0;
+  float ggx2 = GeometrySchlickGGX(NdotV, k);
+  float ggx1 = GeometrySchlickGGX(NdotL, k);
+  return ggx1 * ggx2;
 }
 
 vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
@@ -142,7 +148,7 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   vec3 F0 = mix(vec3(0.04), objColor, metallic);
   
   float NDF = DistributionGGX(N, H, roughness);
-  float G   = GeometrySmith(NdotV, NdotL, roughness);
+  float G   = GeometrySmith_Direct(NdotV, NdotL, roughness);
   vec3  F   = fresnelSchlick(HdotV, F0);
   
   vec3 numer    = NDF * G * F;
@@ -159,13 +165,24 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   return (diffuse * objColor / PI + specular) * radiance * NdotL;
 }
 
-vec3 computeIBLPBR(vec3 bgColor, vec3 bgIrradiance, 
-                   vec3 objColor, vec3 objPos, vec3 N, vec3 V, float roughness, float metallic) {
+vec3 computeIBLPBRDiffuse(vec3 bgIrradiance, vec3 objColor) {
+  return bgIrradiance * objColor;
+}
+
+//vec3 computeIBLPBR(in sampler2D bgColor, in sampler2D bgIrradiance,
+//                   in vec3 objColor, in vec3 objPos, in vec3 N,
+//                   in vec3 V, in vec3 L, in float roughness, in float metallic) {
   // diffuse portion of IBL:
-  vec3 kD = objColor;
-  return kD * bgIrradiance / PI;
+  //vec3 kD = objColor;
+  //return kD * bgIrradiance / PI;
 
   // L in this case will be the normal vector, I think?
+  // no no
+  // L is random direction created by the actual shader running this code
+  // which means it's passed in!
+  // so
+  
+  //vec3 H = normalize(L + V);
 
   // Specular portion requires some Monte Carlo shtuff
   // Choose N random directions, 20 to 40, W_k where the probability
@@ -173,7 +190,12 @@ vec3 computeIBLPBR(vec3 bgColor, vec3 bgIrradiance,
   // // For each W_k, evaluate the light by getting the color from a MIPMAP at a specific level
   // // oh god I have to add mipmap generation to textures now
   // // frickems
-}
+  // Mipmap level: .5f * log2((W*H)/N) - .5 * log2(NDF)
+  
+  //float NDF = DistributionGGX(N, H, roughness);
+  //float G   = GeometrySmith_IBL(NdotV, NdotL, roughness);
+  //vec3  F   = fresnelSchlick(HdotV, F0);
+//}
 
 /*vec3 computeDirectPBR(vec3 Ic, vec3 Ip, vec3 Ia, float r,
                       vec3 C,  vec3 P,  vec3 N, vec3 V, float alpha, float metallic) {

@@ -204,6 +204,12 @@ namespace dw {
     friend class Renderer;
   public:
     static constexpr uint32_t MAX_GLOBAL_LIGHTS = 2;
+    static constexpr uint32_t MAX_IMPORTANCE_SAMPLES = 32;
+
+    struct ImportanceSampleUBO {
+      float samples[2 * MAX_IMPORTANCE_SAMPLES];
+      //alignas(04) glm::vec3 padding{ 0 };
+    };
 
   MOVE_CONSTRUCT_ONLY(GlobalLightStep);
 
@@ -211,6 +217,7 @@ namespace dw {
     ~GlobalLightStep() override = default;
 
     void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipelineLayout(VkPipelineLayout layout = nullptr) override;
     void setupPipeline(VkExtent2D extent) override;
     void setupDescriptors() override;
     void setupShaders() override;
@@ -223,6 +230,7 @@ namespace dw {
                               ImageView&                                      irradianceImg,
                               Buffer&                                         cameraUBO,
                               Buffer&                                         lightsUBO,
+                              Buffer&                                         importanceSamplesUBO,
                               Buffer&                                         shaderControlUBO,
                               VkSampler                                       sampler) const;
 

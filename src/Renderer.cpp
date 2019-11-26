@@ -505,27 +505,6 @@ namespace dw {
 
     m_materials = &materials;
     
-    //for (auto& mtl : materials) {
-    //  if (mtl.second->hasTexturesToLoad()) {
-    //    mtl.second->uploadStaging(
-    //      stagingBuffers.try_emplace(mtl.first, mtl.second->createAllBuffs(*m_device))
-    //        .first->second
-    //    );
-    //  }
-    //}
-    //
-    //CommandBuffer& moveBuff = m_graphicsCmdPool->allocateCommandBuffer();
-    //
-    //moveBuff.start(true);
-    //for (auto& staging : stagingBuffers) {
-    //  materials.at(staging.first)->uploadCmds(moveBuff, staging.second);
-    //}
-    //moveBuff.end();
-    //
-    //m_graphicsQueue->get().submitOne(moveBuff);
-    //m_graphicsQueue->get().waitIdle();
-    //m_graphicsCmdPool->freeCommandBuffer(moveBuff);
-
     if (m_materialsUBO)
       m_materialsUBO.reset();
 
@@ -580,6 +559,37 @@ namespace dw {
     data                                    = m_shaderControlBuffer->map();
     *reinterpret_cast<ShaderControl*>(data) = *m_shaderControl;
     m_shaderControlBuffer->unMap();
+
+    // generate new random samples:
+    data = m_globalImportanceUBO->map();
+
+    auto vec2data = reinterpret_cast<GlobalLightStep::ImportanceSampleUBO*>(data);
+    static constexpr uint32_t numSamples = 10;
+
+    int pos = 0;
+    for(uint32_t i = 0; i < numSamples; ++i) {
+      int kk = i;
+      float u = 0.f;
+      for (float p = 0.5f; kk; p *= .5f, kk >>= 1)
+        if(kk & 1)
+          u += p;
+
+      vec2data->samples[pos++] = u;
+      vec2data->samples[pos++] = (i + .5f) / numSamples;
+    }
+
+    //vec2data->numSamples = numSamples;
+
+    VkMappedMemoryRange importanceRange = {
+      VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE,
+      nullptr,
+      m_globalImportanceUBO->getMemory(),
+      0,
+      VK_WHOLE_SIZE
+    };
+
+    vkFlushMappedMemoryRanges(*m_device, 1, &importanceRange);
+    m_globalImportanceUBO->unMap();
 
     // Flush to make changes visible to the host
     // we dont do this cus coherent on my machine
@@ -720,6 +730,7 @@ namespace dw {
       *m_scene->getIrradiance()->getView(),
       *m_cameraUBO,
       *m_globalLightsUBO,
+      *m_globalImportanceUBO,
       *m_shaderControlBuffer,
       m_sampler);
     
@@ -956,6 +967,7 @@ namespace dw {
 
     m_cameraUBO           = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
     m_shaderControlBuffer = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(ShaderControl)));
+    m_globalImportanceUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(GlobalLightStep::ImportanceSampleUBO)));
   }
 
   void Renderer::setupFrameBufferImages() {
