@@ -22,7 +22,7 @@
 namespace dw {
   class GLFWWindow {
   public:
-    using OnResizeCB = void(*)(GLFWWindow*, int, int);
+    using OnResizeCB = std::function<void(GLFWWindow*, int, int)>;
 
     GLFWWindow(int width, int height, std::string const& name);
     ~GLFWWindow();

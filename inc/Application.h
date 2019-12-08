@@ -58,6 +58,7 @@ namespace dw {
     MaterialManager m_mtlManager;
     MeshManager m_meshManager;
     Renderer::ShaderControl m_shaderControl {};
+    bool m_resizedWindow{ false };
   };
 } // namespace dw
 #endif

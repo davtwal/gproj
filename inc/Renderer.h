@@ -40,6 +40,7 @@ namespace dw {
   class BlurStep;
   class GlobalLightStep;
   class FinalStep;
+  class SplashScreenStep;
 
   class PhysicalDevice;
   class VulkanControl;
@@ -74,8 +75,9 @@ namespace dw {
   class Renderer {
   public:
     // initialize
-    void initGeneral(GLFWWindow* window); // will NOT be delete-d by shutdown
-    void initSpecific();
+    void init(GLFWWindow* window, bool startImgui = true);
+
+    void restartWindow();
 
     NO_DISCARD bool done() const;
 
@@ -86,8 +88,9 @@ namespace dw {
     void setScene(util::ptr<Scene> scene);
 
     void drawFrame();
+    void displayLogo(util::ptr<ImageView> logoView);
 
-    void shutdown();
+    void shutdown(bool shutdownImgui = true);
 
     struct ShadowMappedLight {
       ShadowMappedLight(ShadowedLight const& light);
@@ -150,6 +153,9 @@ namespace dw {
     // called every frame
     void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
 
+    void setupWindow();
+    void shutdownWindow();
+
     // shutdown helpers
     void shutdownScene();
     void recreateSwapChain();
@@ -206,7 +212,10 @@ namespace dw {
     bool m_blurEnabled{ true };
     bool m_globalLightEnabled{ true };
     // bool m_ambientLightEnabled{ true };
-    //
+
+    // logo display pass
+    util::ptr<SplashScreenStep> m_splashScreenStep;
+
     // gbuffer/deferred pass
     util::ptr<GeometryStep> m_geometryStep;
     util::ptr<Framebuffer> m_gbuffer{ nullptr };

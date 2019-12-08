@@ -41,6 +41,8 @@
 #include <unordered_map>
 #include <chrono>
 #include <random>
+#include <thread>
+#include <atomic>
 
 #include "ImGui.h"
 
@@ -298,9 +300,14 @@ namespace dw {
     GLFWControl::Init();
     // open window
 
-    m_window = new GLFWWindow(1000, 1000, "hey lol");
+    m_window = new GLFWWindow(800, 640, "hey lol");
     m_inputHandler = new InputHandler(*m_window);
     m_window->setInputHandler(m_inputHandler);
+    m_window->setOnResizeCB([this](GLFWWindow* window, int nx, int ny) {
+      m_resizedWindow = true;
+      m_mainScene->getCamera().setAspect((float)nx / ny);
+      m_secondScene->getCamera().setAspect((float)nx / ny);
+    });
 
 #ifdef DW_USE_IMGUI
     IMGUI_CHECKVERSION();
@@ -315,11 +322,27 @@ namespace dw {
 
     m_renderer = util::make_ptr<Renderer>();
 
-    m_renderer->initGeneral(m_window);
-    m_renderer->initSpecific();
+    m_renderer->init(m_window);
 
     // load the objects that i want
     m_meshManager.loadBasicMeshes();
+
+    auto digipenLogo = m_textureManager.load("data/textures/DigiPen_RGB_Red.jpg");
+
+    m_textureManager.uploadTextures(*m_renderer);
+    m_meshManager.uploadMeshes(*m_renderer);
+
+    std::atomic_bool continueDisplayingLogo = true;
+    auto displayLogoThreadFn = [this, &continueDisplayingLogo, &digipenLogo]() {
+      auto startTime = std::chrono::high_resolution_clock::now();
+      while (continueDisplayingLogo || (std::chrono::high_resolution_clock::now() - startTime) < std::chrono::seconds(5) ) {
+        GLFWControl::Poll();
+        m_renderer->displayLogo(digipenLogo->second->getView());
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+      }
+    };
+
+    std::thread displayLogoThread(displayLogoThreadFn);
 
     m_meshManager.load("data/objects/lamp.obj");
     m_meshManager.load("data/objects/teapot.obj");
@@ -501,6 +524,9 @@ namespace dw {
     m_renderer->setScene(m_mainScene);
     m_renderer->setShaderControl(&m_shaderControl);
 
+    continueDisplayingLogo.store(false);
+    displayLogoThread.join();
+
     m_startTime = ClockType::now();
 
     m_inputHandler->registerKeyFunction(GLFW_KEY_ESCAPE, [this]() {
@@ -515,37 +541,51 @@ namespace dw {
   int Application::loop() {
     ClockType::time_point prevTime = ClockType::now();
     ClockType::time_point curTime = ClockType::now();
+    static bool showImGuiControls = true;
+    m_inputHandler->registerKeyFunction(GLFW_KEY_ENTER, [this]() {
+      showImGuiControls = !showImGuiControls;
+      },
+      nullptr
+    );
+
     while (!m_renderer->done()) {
+      GLFWControl::Poll();
+      if (m_resizedWindow) {
+        m_resizedWindow = false;
+        m_renderer->restartWindow();
+      }
+
 #ifdef DW_USE_IMGUI
       ImGui_ImplGlfw_NewFrame();
       ImGui_ImplVulkan_NewFrame();
       ImGui::NewFrame();
 
-      ImGui::Begin("Shader Control");
+      if (showImGuiControls) {
+        ImGui::Begin("Shader Control (Press Enter to toggle visibility)");
         ImGui::DragFloat("Moment Bias", &m_shaderControl.global_momentBias, 0.00000005f, 0, .0001, "%.8f");
         ImGui::DragFloat("Depth Bias", &m_shaderControl.global_depthBias, 0.0001f, 0.1f, 0.1f, "%.4f");
         ImGui::DragFloat("Default Roughness", &m_shaderControl.geometry_defaultRoughness, 0.01, 0, 1);
         ImGui::DragFloat("Default Metallic", &m_shaderControl.geometry_defaultMetallic, 0.01, 0, 1);
         ImGui::DragFloat("Tone Map Exposure", &m_shaderControl.final_toneMapExposure, 0.1);
         ImGui::DragFloat("Tone Map Exponent", &m_shaderControl.final_toneMapExponent, 0.01);
-      ImGui::End();
+        ImGui::End();
 
-      ImGui::Begin("Scene Switcher");
-        if(ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
+        ImGui::Begin("Scene Switcher");
+        if (ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
           m_curScene = m_mainScene;
           m_renderer->setScene(m_curScene);
         }
 
         ImGui::SameLine();
-        if(ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
+        if (ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
           m_curScene = m_secondScene;
           m_renderer->setScene(m_secondScene);
         }
-      ImGui::End();
+        ImGui::End();
 
-      static bool enableGlobalLight = true;
-      static bool enableShadowMapBlur = true;
-      ImGui::Begin("Render Step Control");
+        static bool enableGlobalLight = true;
+        static bool enableShadowMapBlur = true;
+        ImGui::Begin("Render Step Control");
         ImGui::Checkbox("Global Lighting", reinterpret_cast<bool*>(&m_shaderControl.global_doGlobalLighting));
         ImGui::Checkbox("Shadows", reinterpret_cast<bool*>(&m_shaderControl.global_enableShadows));
         ImGui::Checkbox("IBL Lighting", reinterpret_cast<bool*>(&m_shaderControl.global_enableIBL));
@@ -555,9 +595,11 @@ namespace dw {
           m_renderer->setShadowMapBlurEnabled(enableShadowMapBlur);
         if (ImGui::Checkbox("Submit Global Lighting (warning: weird)", &enableGlobalLight))
           m_renderer->setGlobalLightingEnabled(enableGlobalLight);
-      ImGui::End();
+        ImGui::End();
+      }
+
+      ImGui::EndFrame();
 #endif
-      GLFWControl::Poll();
       // input check'
       static constexpr float STEP_VALUE = 2.75f;
       static constexpr float ROTATE_STEP = 0.75f;
@@ -674,6 +716,8 @@ namespace dw {
 
   int Application::shutdown() {
     m_mainScene.reset();
+    m_secondScene.reset();
+    m_curScene.reset();
 
     ImGui_ImplGlfw_Shutdown();
 

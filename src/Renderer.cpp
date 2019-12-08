@@ -152,18 +152,13 @@ namespace dw {
   ///////////////////////////// SETUP & SHUTDOWN //////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
-  void Renderer::initGeneral(GLFWWindow* window) {
+  void Renderer::init(GLFWWindow* window, bool startImgui) {
     assert(window);
     m_window = window;
     setupInstance();
     setupHelpers();
     setupDevice();
-    setupSurface();
-    setupSwapChain();
-    setupCommandPools();
-  }
 
-  void Renderer::initSpecific() {
     VkSemaphoreCreateInfo semaphoreCreateInfo = {
       VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
       nullptr,
@@ -186,26 +181,66 @@ namespace dw {
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_localLitSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create local lighting semaphore");
 
-    setupSamplers();
+    setupCommandPools();
     setupUniformBuffers();
+    setupSamplers();
+
+    setupWindow();
+
+#ifdef DW_USE_IMGUI
+    if(startImgui)
+      setupImGui();
+#endif
+  }
+
+  void Renderer::setupWindow() {
+    setupSurface();
+    setupSwapChain();
     setupFrameBufferImages();
     setupRenderSteps();
     setupFrameBuffers();
     transitionRenderImages();
-
-#ifdef DW_USE_IMGUI
-    setupImGui();
-#endif
   }
 
-  void Renderer::shutdown() {
+  void Renderer::shutdownWindow() {
+    m_gbuffer.reset();
+    m_globalLitFrameBuffer.reset();
+    m_blurIntermediateView.reset();
+    m_blurIntermediate.reset();
+
+    m_splashScreenStep.reset();
+    m_geometryStep.reset();
+    m_shadowMapStep.reset();
+    m_blurStep.reset();
+    m_globalLightStep.reset();
+    m_finalStep.reset();
+
+    delete m_presentQueue;
+    m_presentQueue = nullptr;
+
+    m_surface.reset();
+    m_swapchain.reset();
+  }
+
+  void Renderer::restartWindow() {
+    vkDeviceWaitIdle(*m_device);
+
+    shutdownWindow();
+    setupWindow();
+    setScene(m_scene);
+  }
+
+  void Renderer::shutdown(bool shutdownImgui) {
     vkDeviceWaitIdle(*m_device);
 
     m_materials = nullptr;
 
 #ifdef DW_USE_IMGUI
-    shutdownImGui();
+    if(shutdownImgui)
+      shutdownImGui();
 #endif
+
+    shutdownWindow();
 
     vkDestroySemaphore(*m_device, m_deferredSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
@@ -218,6 +253,9 @@ namespace dw {
     m_globalLightSemaphore = nullptr;
     m_localLitSemaphore    = nullptr;
 
+    vkDestroySampler(*m_device, m_sampler, nullptr);
+    m_sampler = nullptr;
+
     m_globalLights.clear();
     m_scene.reset();
 
@@ -229,12 +267,6 @@ namespace dw {
     m_modelUBOdata = nullptr;
 
     vkDestroySampler(*m_device, m_sampler, nullptr);
-
-    m_gbuffer.reset();
-    m_globalLitFrameBuffer.reset();
-    m_blurIntermediateView.reset();
-    m_blurIntermediate.reset();
-
     m_modelUBO.reset();
     m_cameraUBO.reset();
     m_globalLightsUBO.reset();
@@ -245,18 +277,9 @@ namespace dw {
     m_shaderControlBuffer.reset();
     m_shaderControl = nullptr;
 
-    m_geometryStep.reset();
-    m_shadowMapStep.reset();
-    m_blurStep.reset();
-    m_globalLightStep.reset();
-    m_finalStep.reset();
-
     m_graphicsCmdPool.reset();
     m_transferCmdPool.reset();
     m_computeCmdPool.reset();
-
-    delete m_presentQueue;
-    m_presentQueue = nullptr;
 
     delete m_graphicsQueue;
     m_graphicsQueue = nullptr;
@@ -266,9 +289,6 @@ namespace dw {
 
     delete m_computeQueue;
     m_computeQueue = nullptr;
-
-    m_surface.reset();
-    m_swapchain.reset();
 
     delete m_device;
     m_device = nullptr;
@@ -455,6 +475,37 @@ namespace dw {
     m_swapchain->present();
     graphicsQueue.waitIdle(); // todo: not wait
 
+  }
+
+  void Renderer::displayLogo(util::ptr<ImageView> logoView) {
+    assert(m_swapchain->isPresentReady());
+    uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
+    Image const& nextImage = m_swapchain->getNextImage();
+
+    auto& graphicsQueue = m_graphicsQueue->get();
+
+    m_splashScreenStep->updateDescriptorSets(nextImageIndex, *logoView, m_sampler);
+    m_splashScreenStep->writeCmdBuff(nextImageIndex, m_swapchain->getFrameBuffers()[nextImageIndex]);
+
+    VkCommandBuffer splashCmdBuff = m_splashScreenStep->getCommandBuffer(nextImageIndex);
+
+    VkPipelineStageFlags semaphoreWaitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkSubmitInfo         submitInfo = {
+      VK_STRUCTURE_TYPE_SUBMIT_INFO,
+      nullptr,
+      1,
+      &m_swapchain->getNextImageSemaphore(),
+      &semaphoreWaitFlag,
+      1,
+      &splashCmdBuff,
+      1,
+      &m_swapchain->getImageRenderReadySemaphore()
+    };
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    m_swapchain->present();
+    graphicsQueue.waitIdle(); // todo: not wait
   }
 
   void Renderer::uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const {
@@ -1058,6 +1109,14 @@ namespace dw {
   }
 
   void Renderer::setupRenderSteps() {
+    m_splashScreenStep = util::make_ptr<SplashScreenStep>(*m_device, *m_graphicsCmdPool, m_swapchain->getNumImages());
+
+    m_splashScreenStep->setupShaders();
+    m_splashScreenStep->setupDescriptors();
+    m_splashScreenStep->setupRenderPass({ m_swapchain->getImages()[0] });
+    m_splashScreenStep->setupPipelineLayout();
+    m_splashScreenStep->setupPipeline(m_swapchain->getImageSize());
+
     m_geometryStep = util::make_ptr<GeometryStep>(*m_device, *m_graphicsCmdPool);
 
     m_geometryStep->setupShaders();
@@ -1074,7 +1133,6 @@ namespace dw {
     m_shadowMapStep->setupPipelineLayout();
     m_shadowMapStep->setupPipeline({SHADOW_DEPTH_MAP_EXTENT.width, SHADOW_DEPTH_MAP_EXTENT.height});
 
-    // Note: Assuming that command pool can do compute!
     m_blurStep = util::make_ptr<BlurStep>(*m_device, *m_computeCmdPool);
 
     m_blurStep->setupShaders();

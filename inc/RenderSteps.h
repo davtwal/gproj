@@ -84,6 +84,44 @@ namespace dw {
     util::ptr<RenderPass>       m_pass;
   };
 
+
+  class SplashScreenStep : public RenderStep {
+    friend class Renderer;
+  public:
+    MOVE_CONSTRUCT_ONLY(SplashScreenStep);
+
+    SplashScreenStep(LogicalDevice& device, CommandPool& pool, uint32_t imageCount);
+    ~SplashScreenStep() override = default;
+
+    void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipeline(VkExtent2D extent) override;
+    void setupDescriptors() override;
+    void setupShaders() override;
+
+    // fb = output framebuffer from renderpass
+    void writeCmdBuff(uint32_t index,
+      Framebuffer const& fb,
+      //Scene::ObjContainer const& scene,
+      //uint32_t                   alignment,
+      VkRect2D                   renderArea = {}) const;
+
+    void updateDescriptorSets(
+      uint32_t index,
+      ImageView& logoView,
+      VkSampler                sampler) const;
+
+    NO_DISCARD CommandBuffer& getCommandBuffer(uint32_t nextImageIndex) const;
+
+  private:
+    std::vector<VkDescriptorSet>          m_descriptorSets;
+    std::vector<util::Ref<CommandBuffer>> m_cmdBuffs;
+    util::ptr<IShader>                    m_vertexShader;
+    util::ptr<IShader>                    m_fragmentShader;
+
+    uint32_t m_imageCount;
+  };
+
+
   /* Geometry Pass:
    *  - Output framebuffer:
    *    + 3x R32G32B32A32 SFLOAT
@@ -94,7 +132,6 @@ namespace dw {
     friend class Renderer;
   public:
   MOVE_CONSTRUCT_ONLY(GeometryStep);
-    using RenderStep::setupRenderPass;
 
     GeometryStep(LogicalDevice& device, CommandPool& pool);
     ~GeometryStep() override = default;
