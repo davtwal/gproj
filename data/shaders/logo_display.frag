@@ -11,5 +11,12 @@ layout (location = 0) in vec2 inUV;
 layout (location = 0) out vec4 fragColor;
 
 void main() {
-    fragColor = vec4(texture(logoTexture, inUV).rgb, 1);
+    // this is beautiful code
+    // for sure
+    // yes
+    vec2 modifiedUV = (inUV * vec2(2, 3) - vec2(0.5, 1));
+    if(modifiedUV.r >= 1 || modifiedUV.r <= 0 || modifiedUV.g >= 1 || modifiedUV.g <= 0)
+        fragColor = vec4(1, 1, 1, 1);
+    else
+        fragColor = vec4(texture(logoTexture, modifiedUV).rgb, 1);
 }

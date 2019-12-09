@@ -30,6 +30,7 @@
 #include "Queue.h"
 #include "CommandBuffer.h"
 #include "RenderPass.h"
+#include "RenderSteps.h"
 #include "Shader.h"
 #include "Vertex.h"
 #include "Buffer.h"
@@ -296,11 +297,123 @@ namespace dw {
     return 0;
   }
 
+  util::ptr<Scene> Application::createPushScene() {
+    auto scene = util::make_ptr<Scene>();
+
+    // Ground plane
+    auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
+    obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 100, 100, 100 });
+      o.setPosition({ 0, 0, 0 });
+    };
+
+    scene->addObject(obj_groundPlane);
+
+    // Random objects
+    auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(4));
+    obj_random0->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 2, 2, 2 });
+      o.setPosition({ 0, 1.f, 2.f });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
+
+    auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(5));
+    obj_random1->m_behavior = [](Object& o, float time, float dt) {
+      o.setPosition({ 0, -1.f, .5f });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
+
+    scene->addObject(obj_random0);
+    scene->addObject(obj_random1);
+
+    // Flying color cube
+    auto obj_flyingCube = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_flyingCube->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ .5f, .5f, .5f });
+      o.setPosition({ 1, 1, 2 + 0.f * cos(time) });
+      o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
+
+    scene->addObject(obj_flyingCube);
+
+    // Lights
+    auto obj_circlingLight0 = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_circlingLight0->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ .1f, .1f, .1f });
+      o.setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
+    };
+
+    auto obj_circlingLight1 = util::make_ptr<Object>(m_meshManager.getMesh(1));
+    obj_circlingLight1->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ .1f, .1f, .1f });
+      o.setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
+    };
+
+    scene->addObject(obj_circlingLight0);
+    scene->addObject(obj_circlingLight1);
+
+    Camera camera;
+    camera
+      .setNearDepth(0.1f)
+      .setFarDepth(200.f)
+      .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
+      .setLookAt({ 0.f, 0.f, 0.f })
+      .setFOVDeg(45.f);
+
+    scene->setCamera(camera);
+
+    std::mt19937 rand_dev(time(NULL));
+    std::uniform_real_distribution<float> pos_dist(-9, 9);
+    std::uniform_real_distribution<float> color_dist(0, 1);
+    std::uniform_real_distribution<float> atten_dist(0.5f, 4.f);
+
+    for (uint32_t i = 0; i < FinalStep::MAX_LOCAL_LIGHTS; ++i) {
+      auto l = util::make_ptr<Light>();
+      l->setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
+      l->setDirection(normalize(-l->getPosition()));
+      l->setColor(glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev)));// / glm::vec3(i + 3);
+      l->setAttenuation(glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f));
+      l->setLocalRadius(20);
+      l->setType(Light::Type::Point);
+
+      scene->addLight(l);
+    }
+
+    scene->getLights()[0]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
+    scene->getLights()[1]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
+
+    for (uint32_t i = 2; i < scene->getLights().size(); ++i) {
+      auto& light = scene->getLights()[i];
+      auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(1));
+      lightObj->m_behavior = [](Object& o, float time, float dt) {
+        o.setScale({ .1f, .1f, .1f });
+        o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+      };
+
+      scene->addObject(lightObj);
+    }
+
+    ShadowedLight globalLight;
+    globalLight.setPosition({ 5, 5, 5 })
+      .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
+      .setColor({ 1.f, 1.0f, 1.0f });
+
+    ShadowedLight globalLight2;
+    globalLight2.setPosition({ -5, -5, 5 })
+      .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
+      .setColor({ 1.5f, 1.0f, 0.0f });
+
+    scene->addGlobalLight(globalLight);
+    scene->addGlobalLight(globalLight2);
+
+    return scene;
+  }
+
   int Application::initialize() {
     GLFWControl::Init();
     // open window
 
-    m_window = new GLFWWindow(800, 640, "hey lol");
+    m_window = new GLFWWindow(800, 640, "GPROJ - Loading Your Experience...");
     m_inputHandler = new InputHandler(*m_window);
     m_window->setInputHandler(m_inputHandler);
     m_window->setOnResizeCB([this](GLFWWindow* window, int nx, int ny) {
@@ -364,117 +477,8 @@ namespace dw {
     obj_skydome->setPosition({ 0, 0, 0 });
     obj_skydome->setScale({50, 50, 50});
 
-    m_mainScene = util::make_ptr<Scene>();
-    {
-
-      m_mainScene->addObject(obj_skydome);
-
-      // Ground plane
-      auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
-      obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ 100, 100, 100 });
-        o.setPosition({ 0, 0, 0 });
-      };
-
-      m_mainScene->addObject(obj_groundPlane);
-
-      // Random objects
-      auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(4));
-      obj_random0->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ 2, 2, 2 });
-        o.setPosition({ 0, 1.f, 2.f });
-        o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-      };
-
-      auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(5));
-      obj_random1->m_behavior = [](Object& o, float time, float dt) {
-        o.setPosition({ 0, -1.f, .5f });
-        o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-      };
-
-      m_mainScene->addObject(obj_random0);
-      m_mainScene->addObject(obj_random1);
-
-      // Flying color cube
-      auto obj_flyingCube = util::make_ptr<Object>(m_meshManager.getMesh(1));
-      obj_flyingCube->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ .5f, .5f, .5f });
-        o.setPosition({ 1, 1, 2 + 0.f * cos(time) });
-        o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-      };
-
-      m_mainScene->addObject(obj_flyingCube);
-
-      // Lights
-      auto obj_circlingLight0 = util::make_ptr<Object>(m_meshManager.getMesh(1));
-      obj_circlingLight0->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ .1f, .1f, .1f });
-        o.setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
-      };
-
-      auto obj_circlingLight1 = util::make_ptr<Object>(m_meshManager.getMesh(1));
-      obj_circlingLight1->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ .1f, .1f, .1f });
-        o.setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
-      };
-
-      m_mainScene->addObject(obj_circlingLight0);
-      m_mainScene->addObject(obj_circlingLight1);
-
-      Camera camera;
-      camera
-        .setNearDepth(0.1f)
-        .setFarDepth(200.f)
-        .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
-        .setLookAt({ 0.f, 0.f, 0.f })
-        .setFOVDeg(45.f);
-
-      m_mainScene->setCamera(camera);
-
-      std::mt19937 rand_dev(time(NULL));
-      std::uniform_real_distribution<float> pos_dist(-9, 9);
-      std::uniform_real_distribution<float> color_dist(0, 1);
-      std::uniform_real_distribution<float> atten_dist(0.5f, 4.f);
-
-      for (uint32_t i = 0; i < MAX_DYNAMIC_LIGHTS; ++i) {
-        auto l = util::make_ptr<Light>();
-        l->setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
-        l->setDirection(normalize(-l->getPosition()));
-        l->setColor(glm::vec3(color_dist(rand_dev), color_dist(rand_dev), color_dist(rand_dev)));// / glm::vec3(i + 3);
-        l->setAttenuation(glm::vec3(1.f + atten_dist(rand_dev), atten_dist(rand_dev), 1.f));
-        l->setLocalRadius(20);
-        l->setType(Light::Type::Point);
-
-        m_mainScene->addLight(l);
-      }
-
-      m_mainScene->getLights()[0]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
-      m_mainScene->getLights()[1]->setAttenuation(glm::vec3(1.f, 0.5f, 0.1f));
-
-      for (uint32_t i = 2; i < m_mainScene->getLights().size(); ++i) {
-        auto& light = m_mainScene->getLights()[i];
-        auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(1));
-        lightObj->m_behavior = [](Object& o, float time, float dt) {
-          o.setScale({ .1f, .1f, .1f });
-          o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-        };
-
-        m_mainScene->addObject(lightObj);
-      }
-
-      ShadowedLight globalLight;
-      globalLight.setPosition({ 5, 5, 5 })
-        .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-        .setColor({ 1.f, 1.0f, 1.0f });
-
-      ShadowedLight globalLight2;
-      globalLight2.setPosition({ -5, -5, 5 })
-        .setDirection(glm::normalize(glm::vec3(1, 1, -1)))
-        .setColor({ 1.5f, 1.0f, 0.0f });
-
-      m_mainScene->addGlobalLight(globalLight);
-      m_mainScene->addGlobalLight(globalLight2);
-    }
+    m_mainScene = createPushScene();
+    m_mainScene->addObject(obj_skydome);
 
     // Secondary scene
     m_secondScene = util::make_ptr<Scene>();
@@ -570,19 +574,6 @@ namespace dw {
         ImGui::DragFloat("Tone Map Exponent", &m_shaderControl.final_toneMapExponent, 0.01);
         ImGui::End();
 
-        ImGui::Begin("Scene Switcher");
-        if (ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
-          m_curScene = m_mainScene;
-          m_renderer->setScene(m_curScene);
-        }
-
-        ImGui::SameLine();
-        if (ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
-          m_curScene = m_secondScene;
-          m_renderer->setScene(m_secondScene);
-        }
-        ImGui::End();
-
         static bool enableGlobalLight = true;
         static bool enableShadowMapBlur = true;
         ImGui::Begin("Render Step Control");
@@ -598,6 +589,43 @@ namespace dw {
         ImGui::End();
       }
 
+      ImGui::Begin("Scene Switcher");
+      if (ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
+        m_curScene = m_mainScene;
+        m_renderer->setScene(m_curScene);
+      }
+
+      ImGui::SameLine();
+      if (ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
+        m_curScene = m_secondScene;
+        m_renderer->setScene(m_secondScene);
+      }
+      ImGui::End();
+
+      ImGui::Begin("Credits");
+      ImGui::Text("DigiPen Institute of Technology\n Presents: GPROJ\n");
+      ImGui::Text("\nwww.digipen.edu");
+      ImGui::Text("\nCopyright (C) 2019 by DigiPen Corp, USA.\nAll rights reserved.");
+      ImGui::Text("\nDeveloped by David T. Walker");
+      ImGui::Text("\nInstructors:");
+      ImGui::BulletText("Jen Sward");
+      ImGui::BulletText("Matthew Picioccio");
+      ImGui::BulletText("Andrew Kaplan");
+      ImGui::Text("\nPresident:");
+      ImGui::BulletText("Claude Comair");
+      ImGui::Text("\nExecutives:");
+      ImGui::BulletText("Jason Chu");
+      ImGui::BulletText("John Bauer");
+      ImGui::BulletText("Samir Abu Samra");
+      ImGui::BulletText("Raymond Yan");
+      ImGui::BulletText("Prasanna Ghali");
+      ImGui::BulletText("Michele Comair");
+      ImGui::BulletText("Xin Li");
+      ImGui::BulletText("Erik Mohrmann");
+      ImGui::BulletText("Melvin Gonsalvez");
+      ImGui::BulletText("Christopher Comair");
+      ImGui::End();
+
       ImGui::EndFrame();
 #endif
       // input check'
@@ -612,7 +640,16 @@ namespace dw {
       float timeCount = DurationType(curTime - m_startTime).count();
       float dt = DurationType(curTime - prevTime).count();
       char titleBuff[256] = { '\0' };
-      sprintf(titleBuff, "hey lol - %.0f fps", 1 / dt);
+      float fps = 1.f / dt;
+      if (fps >= 119.f)
+        sprintf(titleBuff, "GPROJ - Sprinting Merilly at %.0f FPS", fps);
+      else if (fps >= 59.f)
+        sprintf(titleBuff, "GPROJ - Delightfully Running at %.0f FPS", fps);
+      else if (fps >= 10.f)
+        sprintf(titleBuff, "GPROJ - Chugging Along at %.0f FPS", fps);
+      else
+        sprintf(titleBuff, "GPROJ - Scared of Burning Out at %.0f FPS", fps);
+
       glfwSetWindowTitle(m_window->getHandle(), titleBuff);
 
       if (m_inputHandler->getKeyState(GLFW_KEY_A)) {
