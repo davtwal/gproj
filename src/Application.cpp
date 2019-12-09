@@ -385,7 +385,7 @@ namespace dw {
 
     for (uint32_t i = 2; i < scene->getLights().size(); ++i) {
       auto& light = scene->getLights()[i];
-      auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(1));
+      auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(5));
       lightObj->m_behavior = [](Object& o, float time, float dt) {
         o.setScale({ .1f, .1f, .1f });
         o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
@@ -407,8 +407,59 @@ namespace dw {
     scene->addGlobalLight(globalLight);
     scene->addGlobalLight(globalLight2);
 
+    auto bg_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.hdr");
+    auto irr_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.irr.hdr");
+
+    scene->setBackground(bg_iter->second, irr_iter->second);
+
     return scene;
   }
+
+  util::ptr<Scene> Application::createSecondaryScene() {
+    auto scene = util::make_ptr<Scene>();
+    {
+      auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
+      obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
+        o.setScale({ 10, 10, 10 });
+        o.setPosition({ 0, 0, 0 });
+      };
+
+      scene->addObject(obj_groundPlane);
+
+      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(6));
+      obj_icosahedron->m_behavior = [](Object& o, float time, float dt) {
+        o.setScale({ 1.5f, 1.5f, 1.5f });
+        o.setPosition({ 0, 0, 1.5f });
+      };
+
+      scene->addObject(obj_icosahedron);
+
+      Camera camera;
+      camera
+        .setNearDepth(0.1f)
+        .setFarDepth(200.f)
+        .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
+        .setLookAt({ 0.f, 0.f, 0.f })
+        .setFOVDeg(45.f);
+
+      scene->setCamera(camera);
+
+      ShadowedLight globalLight;
+      globalLight.setPosition({ 20, 20, 20 })
+        .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
+        .setColor({ 1.f, 1.0f, 1.0f });
+
+      scene->addGlobalLight(globalLight);
+
+      auto bg_iter = m_textureManager.load("data/textures/Factory_Catwalk_2k.hdr");
+      auto irr_iter = m_textureManager.load("data/textures/Factory_Catwalk_2k.irr.hdr");
+
+      scene->setBackground(bg_iter->second, irr_iter->second);
+    }
+
+    return scene;
+  }
+
 
   int Application::initialize() {
     GLFWControl::Init();
@@ -466,9 +517,6 @@ namespace dw {
     m_meshManager.load("data/objects/teapot.obj");
     m_meshManager.load("data/objects/icosahedron.obj");
 
-    auto bg_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.hdr");
-    auto irr_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.irr.hdr");
-
     tinyobj::material_t asphaltMtl = { "Asphalt", {0}, {1, 1, 1}, {1, 1, 1}, {0}, {0}, 0, 0, 0, 2, 0,
       "",
       "Asphalt/TexturesCom_Asphalt11_2x2_512_albedo.png",
@@ -500,47 +548,12 @@ namespace dw {
     m_mainScene->addObject(obj_skydome);
 
     // Secondary scene
-    m_secondScene = util::make_ptr<Scene>();
-    {
-      m_secondScene->addObject(obj_skydome);
-
-      auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
-      obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ 10, 10, 10 });
-        o.setPosition({ 0, 0, 0 });
-      };
-
-      m_secondScene->addObject(obj_groundPlane);
-
-      auto obj_icosahedron = util::make_ptr<Object>(m_meshManager.getMesh(6));
-      obj_icosahedron->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ 1.5f, 1.5f, 1.5f });
-        o.setPosition({ 0, 0, 1.5f });
-      };
-
-      m_secondScene->addObject(obj_icosahedron);
-
-      Camera camera;
-      camera
-        .setNearDepth(0.1f)
-        .setFarDepth(200.f)
-        .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
-        .setLookAt({ 0.f, 0.f, 0.f })
-        .setFOVDeg(45.f);
-
-      m_secondScene->setCamera(camera);
-
-      ShadowedLight globalLight;
-      globalLight.setPosition({ 20, 20, 20 })
-        .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
-        .setColor({ 1.f, 1.0f, 1.0f });
-
-      m_secondScene->addGlobalLight(globalLight);
-    }
+    m_secondScene = createSecondaryScene();
+    m_secondScene->addObject(obj_skydome);
 
     // Set backgrounds
-    m_mainScene->setBackground(bg_iter->second, irr_iter->second);
-    m_secondScene->setBackground(bg_iter->second, irr_iter->second);
+    //m_mainScene->setBackground(bg_iter->second, irr_iter->second);
+    //m_secondScene->setBackground(bg_iter->second, irr_iter->second);
 
     // TODO: Each scene needs its own shader control
     m_curScene = m_mainScene;
