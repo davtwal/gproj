@@ -55,18 +55,19 @@ namespace dw {
     // 0: Ground plane
     {
       std::vector<Vertex> vertices = {
-        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {}, {}, {0, 0}, {0.7f, 0.7f, 0.7f}},// {0.0f, 0.0f}},
-        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {}, {}, {1, 0}, {0.7f, 0.7f, 0.7f}},// {1.0f, 0.0f}},
-        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {}, {}, {1, 1}, {0.7f, 0.7f, 0.7f}},// {1.0f, 1.0f}},
-        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {}, {}, {0, 1}, {0.7f, 0.7f, 0.7f}},// {0.0f, 1.0f}},
+        {{-0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 0}, {1.f, 1.f, 1.f}},// {0.0f, 0.0f}},
+        {{ 0.5f, -0.5f, 0.0f}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {1, 0}, {1.f, 1.f, 1.f}},// {1.0f, 0.0f}},
+        {{ 0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {1, 1}, {1.f, 1.f, 1.f}},// {1.0f, 1.0f}},
+        {{-0.5f,  0.5f, 0.0f}, {0, 0, 1}, {0, 0, 0}, {0, 0, 0}, {0, 1}, {1.f, 1.f, 1.f}},// {0.0f, 1.0f}},
       };
 
       std::vector<uint32_t> indices = {
         0, 1, 2, 2, 3, 0,
-        4, 5, 6, 6, 7, 4
+
+        //4, 5, 6, 6, 7, 4
       };
 
-      addMesh(vertices, indices);
+      addMesh(vertices, indices).second.calculateTangents();
     }
 
     // 1: Non-face-normal cube
@@ -101,7 +102,7 @@ namespace dw {
         1, 3, 7, 5, 1, 7  // +X
       };
 
-      addMesh(vertices, indices);
+      addMesh(vertices, indices).second.calculateTangents();;
     }
 
     // 2: Face-normal cube
@@ -147,7 +148,7 @@ namespace dw {
         20, 21, 22, 21, 23, 22
       };
 
-      addMesh(vertices, indices);
+      addMesh(vertices, indices).second.calculateTangents();;
     }
 
     // 3: Sphere
@@ -303,7 +304,7 @@ namespace dw {
     // Ground plane
     auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
     obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ 100, 100, 100 });
+      o.setScale({ 30, 30, 30 });
       o.setPosition({ 0, 0, 0 });
     };
 
@@ -413,7 +414,11 @@ namespace dw {
     GLFWControl::Init();
     // open window
 
-    m_window = new GLFWWindow(800, 640, "GPROJ - Loading Your Experience...");
+    static constexpr unsigned WINDOW_WIDTH = 1600;
+    static constexpr unsigned WINDOW_HEIGHT = 800;
+    static constexpr float    WINDOW_ASPECT = static_cast<float>(WINDOW_WIDTH) / WINDOW_HEIGHT;
+
+    m_window = new GLFWWindow(WINDOW_WIDTH, WINDOW_HEIGHT, "GPROJ - Loading Your Experience...");
     m_inputHandler = new InputHandler(*m_window);
     m_window->setInputHandler(m_inputHandler);
     m_window->setOnResizeCB([this](GLFWWindow* window, int nx, int ny) {
@@ -464,9 +469,23 @@ namespace dw {
     auto bg_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.hdr");
     auto irr_iter = m_textureManager.load("data/textures/14-Hamarikyu_Bridge_B_3k.irr.hdr");
 
-    m_textureManager.uploadTextures(*m_renderer);
-    m_mtlManager.uploadMaterials(*m_renderer);
-    m_meshManager.uploadMeshes(*m_renderer);
+    tinyobj::material_t asphaltMtl = { "Asphalt", {0}, {1, 1, 1}, {1, 1, 1}, {0}, {0}, 0, 0, 0, 2, 0,
+      "",
+      "Asphalt/TexturesCom_Asphalt11_2x2_512_albedo.png",
+      "",
+      "",
+      "",
+      "", "", "", {}, {}, {}, {}, {}, {}, {}, {},
+      0, 0, 0, 0, 0, 0, 0, 0,
+      "Asphalt/TexturesCom_Asphalt11_2x2_512_roughness.png",
+      "Asphalt/TexturesCom_Asphalt11_2x2_512_metallic.png",
+      "", "",
+      "Asphalt/TexturesCom_Asphalt11_2x2_512_normal.png",
+      {}, {}, {}, {}, {}, 0, {}
+    };
+
+    
+    m_meshManager.getMesh(0).get().setMaterial(m_mtlManager.getMtl(m_mtlManager.load(asphaltMtl)));
 
     // fill scenes
     static constexpr unsigned MAX_DYNAMIC_LIGHTS = 128;
@@ -525,11 +544,18 @@ namespace dw {
 
     // TODO: Each scene needs its own shader control
     m_curScene = m_mainScene;
-    m_renderer->setScene(m_mainScene);
-    m_renderer->setShaderControl(&m_shaderControl);
+
+    m_mainScene->getCamera().setAspect(WINDOW_ASPECT);
+    m_secondScene->getCamera().setAspect(WINDOW_ASPECT);
 
     continueDisplayingLogo.store(false);
     displayLogoThread.join();
+
+    m_textureManager.uploadTextures(*m_renderer);
+    m_mtlManager.uploadMaterials(*m_renderer);
+    m_meshManager.uploadMeshes(*m_renderer);
+    m_renderer->setScene(m_mainScene);
+    m_renderer->setShaderControl(&m_shaderControl);
 
     m_startTime = ClockType::now();
 
@@ -591,12 +617,14 @@ namespace dw {
 
       ImGui::Begin("Scene Switcher");
       if (ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
+        m_shaderControl.global_momentBias = 0.00000005f;
         m_curScene = m_mainScene;
         m_renderer->setScene(m_curScene);
       }
 
       ImGui::SameLine();
       if (ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
+        m_shaderControl.global_momentBias = 0.00000445f;
         m_curScene = m_secondScene;
         m_renderer->setScene(m_secondScene);
       }

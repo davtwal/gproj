@@ -45,7 +45,7 @@ namespace dw {
   CREATE_DEVICE_DEPENDENT(RenderStep)
   public:
     static constexpr unsigned NUM_EXPECTED_GBUFFER_IMAGES = 3;
-    static constexpr unsigned MAX_MATERIALS               = 3;
+    static constexpr unsigned MAX_MATERIALS               = 4;
 
     RenderStep(LogicalDevice& device);
 

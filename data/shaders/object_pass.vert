@@ -33,9 +33,9 @@ void main() {
   mat4 multNorm = inverse(transpose(obj.model));
   
   outWorldPosition  = obj.model * vec4(inPosition, 1.0);
-  outWorldNormal    = (multNorm * vec4(inNormal, 0));
-  outTangent        = (multNorm * vec4(inTangent, 0)).xyz;
-  outBitangent      = (multNorm * vec4(inBitangent, 0)).xyz;
+  outWorldNormal    = normalize(multNorm * vec4(inNormal, 0));
+  outTangent        = normalize(multNorm * vec4(inTangent, 0)).xyz;
+  outBitangent      = normalize(multNorm * vec4(inBitangent, 0)).xyz;
   outUV             = inUV;
   outColor          = inColor;
 

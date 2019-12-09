@@ -81,7 +81,7 @@ void main() {
     // do normal mapping, output in 'normal'
     
     mat3 TBN = mat3(tangent, bitan, normal);
-    normal = TBN * normalMap;
+    normal = normalize(TBN * normalMap);
   }
   
   if(mtls.at[obj.mtlIndex].hasMetallicMap == 1) {

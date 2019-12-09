@@ -6,7 +6,7 @@
 // AO/Sheen = 4
 // Height = 5? unknown
 
-#define MAX_MATERIALS 2
+#define MAX_MATERIALS 4
 #define MTL_MAP_COUNT 4
 
 #define MAX_GLOBAL_LIGHTS 2

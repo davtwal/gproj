@@ -373,22 +373,6 @@ namespace dw {
       &clearValue
     };
 
-    /*ImportanceSampleUBO vec2data{};
-    static constexpr int numSamples = 10;
-    vec2data.numSamples = numSamples;
-
-    int pos = 0;
-    for (uint32_t i = 0; i < numSamples; ++i) {
-      int kk = i;
-      float u = 0.f;
-      for (float p = 0.5f; kk; p *= .5f, kk >>= 1)
-        if (kk & 1)
-          u += p;
-
-      vec2data.samples[pos++] = u;
-      vec2data.samples[pos++] = (i + .5f) / numSamples;
-    }*/
-
     cmdBuff.start(false);
     vkCmdBindPipeline(cmdBuff, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
     vkCmdBindDescriptorSets(cmdBuff,
@@ -401,7 +385,6 @@ namespace dw {
                             nullptr);
 
     vkCmdBeginRenderPass(cmdBuff, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    //vkCmdPushConstants(cmdBuff, m_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(ImportanceSampleUBO), &vec2data);
     vkCmdDraw(cmdBuff, 4, 1, 0, 0);
     vkCmdEndRenderPass(cmdBuff);
     cmdBuff.end();

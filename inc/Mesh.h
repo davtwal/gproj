@@ -39,12 +39,13 @@ namespace dw {
     Mesh(Mesh const&)            = delete;
     Mesh& operator=(Mesh const&) = delete;
 
-    void setMaterial(util::ptr<Material> mtl);
+    Mesh& setMaterial(util::ptr<Material> mtl);
+    Mesh& calculateTangents();
 
     NO_DISCARD util::ptr<Material> getMaterial() const;
 
-    NO_DISCARD Buffer& getVertexBuffer();
-    NO_DISCARD Buffer& getIndexBuffer();
+    NO_DISCARD Buffer& getVertexBuffer() const;
+    NO_DISCARD Buffer& getIndexBuffer() const;
 
     NO_DISCARD size_t getNumVertices() const;
     NO_DISCARD size_t getNumIndices() const;
@@ -56,6 +57,7 @@ namespace dw {
     // e.g. numVertices * sizeof Vertex
     NO_DISCARD size_t getSizeOfVertices() const;
     NO_DISCARD size_t getSizeOfIndices() const;
+
 
     // TODO: These can be better.
     // I'd like to be able to have two functions overall:
@@ -81,7 +83,7 @@ namespace dw {
     using StagingBuffs = std::pair<Buffer, Buffer>;
 
     void                    createBuffers(LogicalDevice& device);
-    NO_DISCARD StagingBuffs createStaging(LogicalDevice& device);
+    NO_DISCARD StagingBuffs createStaging(LogicalDevice& device) const;
 
     NO_DISCARD StagingBuffs createAllBuffs(LogicalDevice& device) {
       createBuffers(device);
