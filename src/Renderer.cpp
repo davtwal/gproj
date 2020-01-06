@@ -173,13 +173,19 @@ namespace dw {
       throw std::runtime_error("Could not create shadow map rendering semaphore");
 
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_blurSemaphore) != VK_SUCCESS)
-      throw std::runtime_error("Could not create shadow map rendering semaphore");
+      throw std::runtime_error("Could not create blur semaphore");
 
     if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_globalLightSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create global lighting rendering semaphore");
 
-    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_localLitSemaphore) != VK_SUCCESS)
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_localLightSemaphore) != VK_SUCCESS)
       throw std::runtime_error("Could not create local lighting semaphore");
+
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_ambientSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create ambient pass semaphore");
+
+    if (vkCreateSemaphore(*m_device, &semaphoreCreateInfo, nullptr, &m_finalSemaphore) != VK_SUCCESS)
+      throw std::runtime_error("Could not create post process semaphore");
 
     setupCommandPools();
     setupUniformBuffers();
@@ -204,15 +210,19 @@ namespace dw {
 
   void Renderer::shutdownWindow() {
     m_gbuffer.reset();
-    m_globalLitFrameBuffer.reset();
     m_blurIntermediateView.reset();
     m_blurIntermediate.reset();
+    m_globalLitFrameBuffer.reset();
+    m_localLitFramebuffer.reset();
+    m_ambientFramebuffer.reset();
 
     m_splashScreenStep.reset();
     m_geometryStep.reset();
     m_shadowMapStep.reset();
     m_blurStep.reset();
     m_globalLightStep.reset();
+    m_localLightStep.reset();
+    m_ambientStep.reset();
     m_finalStep.reset();
 
     delete m_presentQueue;
@@ -246,12 +256,16 @@ namespace dw {
     vkDestroySemaphore(*m_device, m_shadowSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_blurSemaphore, nullptr);
     vkDestroySemaphore(*m_device, m_globalLightSemaphore, nullptr);
-    vkDestroySemaphore(*m_device, m_localLitSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_localLightSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_ambientSemaphore, nullptr);
+    vkDestroySemaphore(*m_device, m_finalSemaphore, nullptr);
     m_deferredSemaphore    = nullptr;
     m_shadowSemaphore      = nullptr;
     m_blurSemaphore        = nullptr;
     m_globalLightSemaphore = nullptr;
-    m_localLitSemaphore    = nullptr;
+    m_localLightSemaphore  = nullptr;
+    m_ambientSemaphore     = nullptr;
+    m_finalSemaphore       = nullptr;
 
     vkDestroySampler(*m_device, m_sampler, nullptr);
     m_sampler = nullptr;
@@ -414,7 +428,9 @@ namespace dw {
     VkCommandBuffer shadowCmdBuff      = m_shadowMapStep->getCommandBuffer();
     VkCommandBuffer blurCmdBuff        = m_blurStep->getCommandBuffer();
     VkCommandBuffer globalLightCmdBuff = m_globalLightStep->getCommandBuffer();
-    VkCommandBuffer localLightCmdBuff  = m_finalStep->getCommandBuffer(nextImageIndex);
+    VkCommandBuffer localLightCmdBuff  = m_localLightStep->getCommandBuffer();
+    VkCommandBuffer ambientCmdBuff     = m_ambientStep->getCommandBuffer();
+    VkCommandBuffer finalCmdBuff       = m_finalStep->getCommandBuffer(nextImageIndex);
 
     updateUniformBuffers(nextImageIndex);
 
@@ -459,6 +475,20 @@ namespace dw {
       submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
     }
 
+    submitInfo.pSignalSemaphores = &m_localLightSemaphore;
+    submitInfo.pCommandBuffers = &localLightCmdBuff;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    submitInfo.pWaitSemaphores = &m_localLightSemaphore;
+
+    submitInfo.pSignalSemaphores = &m_ambientSemaphore;
+    submitInfo.pCommandBuffers = &ambientCmdBuff;
+
+    vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
+
+    submitInfo.pWaitSemaphores = &m_ambientSemaphore;
+
 #ifdef DW_USE_IMGUI
     // this updates the second subpass that is defined for imgui rendering
     m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(),
@@ -468,7 +498,7 @@ namespace dw {
 #endif
 
     submitInfo.pSignalSemaphores = &m_swapchain->getImageRenderReadySemaphore();
-    submitInfo.pCommandBuffers   = &localLightCmdBuff;
+    submitInfo.pCommandBuffers   = &finalCmdBuff;
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
@@ -607,7 +637,7 @@ namespace dw {
     for (size_t i     = 0; i < m_scene->getLights().size(); ++i)
       lightUBOdata[i] = m_scene->getLights()[i]->getAsUBO();
 
-    *reinterpret_cast<int32_t*>(lightUBOdata + FinalStep::MAX_LOCAL_LIGHTS) = static_cast<uint32_t>(m_scene->getLights().size());
+    *reinterpret_cast<int32_t*>(lightUBOdata + LocalLightingStep::MAX_LOCAL_LIGHTS) = static_cast<uint32_t>(m_scene->getLights().size());
     m_localLightsUBO->unMap();
 
     // shader control:
@@ -676,6 +706,8 @@ namespace dw {
       m_shadowMapStep->getCommandBuffer().reset();
       m_blurStep->getCommandBuffer().reset();
       m_globalLightStep->getCommandBuffer().reset();
+      m_localLightStep->getCommandBuffer().reset();
+      m_ambientStep->getCommandBuffer().reset();
 
       for(uint32_t i = 0; i < m_swapchain->getNumImages(); ++i)
         m_finalStep->getCommandBuffer(i).reset();
@@ -691,7 +723,7 @@ namespace dw {
     if (!m_localLightsUBO) {
       VkDeviceSize lightUniformSize = sizeof(LightUBO);
       m_localLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
-        lightUniformSize * FinalStep::MAX_LOCAL_LIGHTS + sizeof(uint32_t))); // the light count is at the very end of the buffer
+        lightUniformSize * LocalLightingStep::MAX_LOCAL_LIGHTS + sizeof(uint32_t))); // the light count is at the very end of the buffer
     }
 
     // Global lights
@@ -792,13 +824,19 @@ namespace dw {
     
     m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
 
-    m_finalStep->updateDescriptorSets(m_gbuffer->getImageViews(),
+    m_localLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
       m_globalLitFrameBuffer->getImageViews().front(),
       *m_cameraUBO,
       *m_localLightsUBO,
       *m_shaderControlBuffer,
       m_sampler);
-    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_globalLitFrameBuffer->getImages().front());
+    m_localLightStep->writeCmdBuff(*m_localLitFramebuffer, m_globalLitFrameBuffer->getImages().front());
+
+    m_ambientStep->updateDescriptorSets(m_gbuffer->getImageViews()[0], m_gbuffer->getImageViews()[1], m_sampler);
+    m_ambientStep->writeCmdBuff(*m_ambientFramebuffer);
+
+    m_finalStep->updateDescriptorSets(m_localLitFramebuffer->getImageViews().front(), m_sampler);
+    m_finalStep->writeCmdBuff(m_swapchain->getFrameBuffers(), m_localLitFramebuffer->getImages().front());
   }
 
   void Renderer::prepareDynamicUniformBuffers() {
@@ -1009,7 +1047,7 @@ namespace dw {
       false,
       VK_COMPARE_OP_LESS,
       0.f,
-      1.f,
+      16.f,
       VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK,
       false
     };
@@ -1074,6 +1112,36 @@ namespace dw {
                                      false,
                                      false);
 
+    m_localLitFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
+    m_localLitFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+      VK_IMAGE_TYPE_2D,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_R8G8B8A8_UNORM,
+      gbuffExtent,
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      1,
+      1,
+      false,
+      false,
+      false,
+      false);
+
+    m_ambientFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
+    m_ambientFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
+      VK_IMAGE_TYPE_2D,
+      VK_IMAGE_VIEW_TYPE_2D,
+      VK_FORMAT_R8G8B8A8_UNORM,
+      gbuffExtent,
+      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+      1,
+      1,
+      false,
+      false,
+      false,
+      false);
+
     MemoryAllocator allocator(m_device->getOwningPhysical());
     m_blurIntermediate = util::make_ptr<DependentImage>(*m_device);
     m_blurIntermediate->initImage(VK_IMAGE_TYPE_2D,
@@ -1091,21 +1159,6 @@ namespace dw {
     m_blurIntermediate->back(allocator, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 
     m_blurIntermediateView = util::make_ptr<ImageView>(m_blurIntermediate->createView());
-
-    /*m_localLitFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
-
-    m_localLitFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-      VK_IMAGE_TYPE_2D,
-      VK_IMAGE_VIEW_TYPE_2D,
-      VK_FORMAT_R8G8B8A8_UNORM,
-      gbuffExtent,
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      1,
-      1,
-      false,
-      false,
-      false,
-      false);*/
   }
 
   void Renderer::setupRenderSteps() {
@@ -1148,6 +1201,22 @@ namespace dw {
     m_globalLightStep->setupPipelineLayout();
     m_globalLightStep->setupPipeline(m_globalLitFrameBuffer->getExtent());
 
+    m_localLightStep = util::make_ptr<LocalLightingStep>(*m_device, *m_graphicsCmdPool);
+
+    m_localLightStep->setupShaders();
+    m_localLightStep->setupDescriptors();
+    m_localLightStep->setupRenderPass({ m_localLitFramebuffer->getImages()[0] });
+    m_localLightStep->setupPipelineLayout();
+    m_localLightStep->setupPipeline(m_localLitFramebuffer->getExtent());
+
+    m_ambientStep = util::make_ptr<AmbientStep>(*m_device, *m_graphicsCmdPool);
+
+    m_ambientStep->setupShaders();
+    m_ambientStep->setupDescriptors();
+    m_ambientStep->setupRenderPass({ m_ambientFramebuffer->getImages()[0] });
+    m_ambientStep->setupPipelineLayout();
+    m_ambientStep->setupPipeline(m_ambientFramebuffer->getExtent());
+
     m_finalStep = util::make_ptr<FinalStep>(*m_device, *m_graphicsCmdPool, m_swapchain->getNumImages());
 
     m_finalStep->setupShaders();
@@ -1160,7 +1229,8 @@ namespace dw {
   void Renderer::setupFrameBuffers() const {
     m_gbuffer->finalize(m_geometryStep->getRenderPass());
     m_globalLitFrameBuffer->finalize(m_globalLightStep->getRenderPass());
-    //m_localLitFramebuffer->finalize(m_finalStep->getRenderPass());
+    m_localLitFramebuffer->finalize(m_localLightStep->getRenderPass());
+    m_ambientFramebuffer->finalize(m_ambientStep->getRenderPass());
 
     // this is preferred when we are only using a color attachment on the output
     // framebuffers, e.g., when you are just rendering a FSQ to do the final lighting pass

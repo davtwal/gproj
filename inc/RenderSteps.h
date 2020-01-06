@@ -280,12 +280,71 @@ namespace dw {
     VkDescriptorSet          m_descriptorSet{nullptr};
   };
 
+  class LocalLightingStep : public RenderStep {
+    friend class Renderer;
+  public:
+    static constexpr uint32_t MAX_LOCAL_LIGHTS = 128;
+    MOVE_CONSTRUCT_ONLY(LocalLightingStep);
+
+    LocalLightingStep(LogicalDevice& device, CommandPool& pool);
+    ~LocalLightingStep() override = default;
+
+    void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipeline(VkExtent2D extent) override;
+    void setupDescriptors() override;
+    void setupShaders() override;
+
+    void writeCmdBuff(Framebuffer&    fb,
+      Image const&                    previousImage,
+      VkRect2D                        renderArea = {});
+
+    void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
+      ImageView const& previousImage,
+      Buffer& cameraUBO,
+      Buffer& lightsUBO,
+      Buffer& shaderControlUBO,
+      VkSampler sampler);
+
+    NO_DISCARD CommandBuffer& getCommandBuffer();
+  private:
+    util::ptr<IShader>       m_vertexShader;
+    util::ptr<IShader>       m_fragmentShader;
+    util::Ref<CommandBuffer> m_cmdBuff;
+    VkDescriptorSet          m_descriptorSet{ nullptr };
+  };
+
+  class AmbientStep : public RenderStep {
+    friend class Renderer;
+  public:
+    MOVE_CONSTRUCT_ONLY(AmbientStep);
+
+    AmbientStep(LogicalDevice& device, CommandPool& pool);
+    ~AmbientStep() override = default;
+
+    void setupRenderPass(std::vector<util::Ref<Image>> const& images) override;
+    void setupPipeline(VkExtent2D extent) override;
+    void setupDescriptors() override;
+    void setupShaders() override;
+
+    void writeCmdBuff(Framebuffer const& fb,
+      VkRect2D                        renderArea = {});
+
+    void updateDescriptorSets(ImageView const& gbuffPosition, ImageView const& gbuffNormal,
+      VkSampler                     sampler);
+
+    NO_DISCARD CommandBuffer& getCommandBuffer() const;
+
+  private:
+    util::ptr<IShader>       m_vertexShader;
+    util::ptr<IShader>       m_fragmentShader;
+    util::Ref<CommandBuffer> m_cmdBuff;
+    VkDescriptorSet          m_descriptorSet{ nullptr };
+  };
+
   class FinalStep : public RenderStep {
     friend class Renderer;
   public:
     MOVE_CONSTRUCT_ONLY(FinalStep);
-
-    static constexpr uint32_t MAX_LOCAL_LIGHTS = 128;
 
     FinalStep(LogicalDevice& device, CommandPool& pool, uint32_t numSwapchainImages);
     ~FinalStep() override = default;
@@ -299,11 +358,8 @@ namespace dw {
                       Image const&                    previousImage,
                       VkRect2D                        renderArea = {},
                       uint32_t                        image      = ~0u);
-    void updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
-                              ImageView const&              previousImage,
-                              Buffer&                       cameraUBO,
-                              Buffer&                       lightsUBO,
-                              Buffer&                       shaderControlUBO,
+
+    void updateDescriptorSets(ImageView const&              previousImage,
                               VkSampler                     sampler);
 
     NO_DISCARD CommandBuffer& getCommandBuffer(uint32_t index);

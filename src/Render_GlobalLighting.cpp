@@ -109,7 +109,7 @@ namespace dw {
     };
 
     if (vkCreateDescriptorSetLayout(getOwningDevice(), &finalLayoutCreate, nullptr, &m_descSetLayout) != VK_SUCCESS)
-      throw std::runtime_error("could not create final descriptor set");
+      throw std::runtime_error("could not create global lighting descriptor set");
 
     // pool
     std::vector<VkDescriptorPoolSize> poolSizes = {
@@ -145,7 +145,6 @@ namespace dw {
 
     if (vkAllocateDescriptorSets(getOwningDevice(), &allocateInfo, &m_descriptorSet) != VK_SUCCESS)
       throw std::runtime_error("could not create global lighting descriptor sets");
-
   }
 
   void GlobalLightStep::setupRenderPass(std::vector<util::Ref<Image>> const& images) {

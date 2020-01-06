@@ -24,31 +24,30 @@
 #include "ImGui.h"
 
 namespace dw {
-  FinalStep::FinalStep(LogicalDevice& device, CommandPool& pool, uint32_t numSwapchainImages)
-    : RenderStep(device),
-    m_imageCount(numSwapchainImages) {
+  LocalLightingStep::LocalLightingStep(LogicalDevice& device, CommandPool& pool)
+    : RenderStep(device), m_cmdBuff(pool.allocateCommandBuffer()) {}
+   /* m_imageCount(numSwapchainImages) {
     m_cmdBuffs.reserve(m_imageCount);
     for (size_t i = 0; i < m_imageCount; ++i) {
       m_cmdBuffs.emplace_back(pool.allocateCommandBuffer());
     }
-  }
+  }*/
 
-  FinalStep::FinalStep(FinalStep&& o) noexcept
+  LocalLightingStep::LocalLightingStep(LocalLightingStep&& o) noexcept
     : RenderStep(std::move(o)),
-    m_descriptorSets(std::move(o.m_descriptorSets)),
-    m_cmdBuffs(std::move(o.m_cmdBuffs)),
     m_vertexShader(std::move(o.m_vertexShader)),
     m_fragmentShader(std::move(o.m_fragmentShader)),
-    m_imageCount(o.m_imageCount) {
-    o.m_descriptorSets.clear();
-    o.m_cmdBuffs.clear();
+    m_descriptorSet(std::move(o.m_descriptorSet)),
+    m_cmdBuff(o.m_cmdBuff)
+  {
+    o.m_descriptorSet = nullptr;
   }
 
-  CommandBuffer& FinalStep::getCommandBuffer(uint32_t index) {
-    return m_cmdBuffs.at(index);
+  CommandBuffer& LocalLightingStep::getCommandBuffer() {
+    return m_cmdBuff;
   }
 
-  void FinalStep::setupDescriptors() {
+  void LocalLightingStep::setupDescriptors() {
     // one sampler per gbuffer image + one sampler for previous image
     uint32_t numSampledImages = NUM_EXPECTED_GBUFFER_IMAGES + 1;
 
@@ -103,15 +102,15 @@ namespace dw {
     if (vkCreateDescriptorSetLayout(getOwningDevice(), &finalLayoutCreate, nullptr, &m_descSetLayout) != VK_SUCCESS)
       throw std::runtime_error("could not create final descriptor set");
 
-    uint32_t                          numImages = m_imageCount;
+    //uint32_t                          numImages = m_imageCount;
     std::vector<VkDescriptorPoolSize> finalPoolSizes = {
       {
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        numImages * 3
+        /*numImages */ 3
       },
       {
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-        numImages * numSampledImages
+        /*numImages */ numSampledImages
       }
     };
 
@@ -119,7 +118,7 @@ namespace dw {
       VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
       nullptr,
       0,
-      numImages,
+      /*numImages*/1,
       static_cast<uint32_t>(finalPoolSizes.size()),
       finalPoolSizes.data()
     };
@@ -127,17 +126,17 @@ namespace dw {
     if (vkCreateDescriptorPool(getOwningDevice(), &finalPoolInfo, nullptr, &m_descriptorPool) != VK_SUCCESS)
       throw std::runtime_error("could not create final descrition pool");
 
-    std::vector<VkDescriptorSetLayout> finalLayouts = { numImages, m_descSetLayout };
+    std::vector<VkDescriptorSetLayout> finalLayouts = { /*numImages*/1, m_descSetLayout };
     VkDescriptorSetAllocateInfo        descSetAllocInfo = {
       VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
       nullptr,
       m_descriptorPool,
-      numImages,
+      /*numImages*/1,
       finalLayouts.data()
     };
 
-    m_descriptorSets.resize(numImages);
-    VkResult result = vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, m_descriptorSets.data());
+    //m_descriptorSets.resize(numImages);
+    VkResult result = vkAllocateDescriptorSets(getOwningDevice(), &descSetAllocInfo, &m_descriptorSet);
     switch (result) {
     case VK_ERROR_OUT_OF_HOST_MEMORY:
       throw std::runtime_error("could not allocate descriptor sets (final) (out of host memory)");
@@ -156,20 +155,20 @@ namespace dw {
     }
   }
 
-  void FinalStep::setupShaders() {
+  void LocalLightingStep::setupShaders() {
     m_vertexShader = util::make_ptr<Shader<ShaderStage::Vertex>
     >(ShaderModule::Load(getOwningDevice(), "fsq_vert.spv"));
     m_fragmentShader = util::make_ptr<Shader<ShaderStage::Fragment>>(ShaderModule::Load(getOwningDevice(),
       "local_lighting_frag.spv"));
   }
 
-  void FinalStep::setupRenderPass(std::vector<util::Ref<Image>> const& images) {
+  void LocalLightingStep::setupRenderPass(std::vector<util::Ref<Image>> const& images) {
     assert(images.size() == 1);
 
     m_pass = util::make_ptr<RenderPass>(getOwningDevice());
     m_pass->addAttachment(images[0].get().getAttachmentDesc(VK_ATTACHMENT_LOAD_OP_CLEAR,
       VK_ATTACHMENT_STORE_OP_STORE,
-      VK_IMAGE_LAYOUT_PRESENT_SRC_KHR));
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL));
     m_pass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
 
     m_pass->finishSubpass();
@@ -184,30 +183,6 @@ namespace dw {
                                    0
       });
 
-#ifdef DW_USE_IMGUI
-    m_pass->addAttachmentRef(0, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, RenderPass::arfColor);
-    m_pass->finishSubpass();
-
-    m_pass->addSubpassDependency({
-        0,
-        1,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-        VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_COLOR_ATTACHMENT_READ_BIT,
-        VK_DEPENDENCY_BY_REGION_BIT
-      });
-
-    m_pass->addSubpassDependency({
-      1,
-      VK_SUBPASS_EXTERNAL,
-      VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-      VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-      VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-      VK_ACCESS_MEMORY_READ_BIT,
-      VK_DEPENDENCY_BY_REGION_BIT
-    });
-#else
     m_pass->addSubpassDependency({
                                    0,
                                    VK_SUBPASS_EXTERNAL,
@@ -217,12 +192,11 @@ namespace dw {
                                    VK_ACCESS_MEMORY_READ_BIT,
                                    VK_DEPENDENCY_BY_REGION_BIT
       });
-#endif
 
     m_pass->finishRenderPass();
   }
 
-  void FinalStep::setupPipeline(VkExtent2D extent) {
+  void LocalLightingStep::setupPipeline(VkExtent2D extent) {
     GraphicsPipelineCreator creator;
     creator.addAttachment({
                             VK_FALSE, // This is disabled because transparency is not currently allowed during the geometry pass.
@@ -258,88 +232,67 @@ namespace dw {
       );
   }
 
-  void FinalStep::writeCmdBuff(std::vector<Framebuffer> const& fbs, Image const& previousImage, VkRect2D renderArea, uint32_t image) {
-    const auto count = m_imageCount;
-
+  void LocalLightingStep::writeCmdBuff(Framebuffer& fb, Image const& previousImage, VkRect2D renderArea) {
     if (renderArea.extent.width == 0)
-      renderArea.extent = fbs.front().getExtent();
+      renderArea.extent = fb.getExtent();
 
     std::array<VkClearValue, 2> clearValues{};
     clearValues[0].color = { {0, 0, 0, 0} };
 
+    auto& commandBuffer = m_cmdBuff.get();//s[i].get();
 
-    auto writeCmdBuff = [&, this](uint32_t i, bool renderImGui) {
-      auto& commandBuffer = m_cmdBuffs[i].get();
+    if (commandBuffer.canBeReset())
+      commandBuffer.reset();
 
-      if (commandBuffer.canBeReset())
-        commandBuffer.reset();
+    VkRenderPassBeginInfo beginInfo = {
+      VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+      nullptr,
+      *m_pass,
+      fb,
+      renderArea,
+      static_cast<uint32_t>(clearValues.size()),
+      clearValues.data()
+    };
 
-      VkRenderPassBeginInfo beginInfo = {
-        VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        nullptr,
-        *m_pass,
-        fbs[i],
-        renderArea,
-        static_cast<uint32_t>(clearValues.size()),
-        clearValues.data()
-      };
-
-      VkImageMemoryBarrier barrier = {
-        VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        nullptr,
-        VK_ACCESS_MEMORY_WRITE_BIT,
-        VK_ACCESS_MEMORY_READ_BIT,
-        VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        VK_QUEUE_FAMILY_IGNORED,
-        VK_QUEUE_FAMILY_IGNORED,
-        previousImage,
-        {
-          VK_IMAGE_ASPECT_COLOR_BIT,
-          0,
-          1,
-          0,
-          1
-        }
-      };
-
-      commandBuffer.start(false);
-      vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
-        1, &barrier);
-      vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
-      vkCmdBindDescriptorSets(commandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        m_layout,
+    VkImageMemoryBarrier barrier = {
+      VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      nullptr,
+      VK_ACCESS_MEMORY_WRITE_BIT,
+      VK_ACCESS_MEMORY_READ_BIT,
+      VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+      VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+      VK_QUEUE_FAMILY_IGNORED,
+      VK_QUEUE_FAMILY_IGNORED,
+      previousImage,
+      {
+        VK_IMAGE_ASPECT_COLOR_BIT,
         0,
         1,
-        &m_descriptorSets[i],
         0,
-        nullptr);
-      vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
-      vkCmdDraw(commandBuffer, 4, 1, 0, 0);
-
-#ifdef DW_USE_IMGUI
-      vkCmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
-      if (renderImGui) {
-        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), commandBuffer);
+        1
       }
-#endif
-      vkCmdEndRenderPass(commandBuffer);
-
-      commandBuffer.end();
     };
-    if (image == ~0u)
-      for (size_t i = 0; i < count; ++i)
-        writeCmdBuff(i, false);
-    else {
-#ifdef DW_USE_IMGUI
-      ImGui::Render();
-#endif
-      writeCmdBuff(image, true);
-    }
+
+    commandBuffer.start(false);
+    vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, nullptr, 0, nullptr,
+      1, &barrier);
+    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, *m_pipeline);
+    vkCmdBindDescriptorSets(commandBuffer,
+      VK_PIPELINE_BIND_POINT_GRAPHICS,
+      m_layout,
+      0,
+      1,
+      &m_descriptorSet,
+      0,
+      nullptr);
+    vkCmdBeginRenderPass(commandBuffer, &beginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdDraw(commandBuffer, 4, 1, 0, 0);
+    vkCmdEndRenderPass(commandBuffer);
+
+    commandBuffer.end();
   }
 
-  void FinalStep::updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
+  void LocalLightingStep::updateDescriptorSets(std::vector<ImageView> const& gbufferViews,
                                        ImageView const& previousImage,
                                        Buffer& cameraUBO,
                                        Buffer& lightsUBO,
@@ -348,7 +301,7 @@ namespace dw {
     uint32_t numSampledImages = NUM_EXPECTED_GBUFFER_IMAGES + 1;
 
     std::vector<VkWriteDescriptorSet> descriptorWrites;
-    descriptorWrites.reserve(m_descriptorSets.size() * (NUM_EXPECTED_GBUFFER_IMAGES + 3));
+    descriptorWrites.reserve(/*m_descriptorSets.size() */(NUM_EXPECTED_GBUFFER_IMAGES + 3));
     
     std::vector<VkDescriptorImageInfo> imageInfos;
     imageInfos.reserve(numSampledImages);
@@ -360,61 +313,60 @@ namespace dw {
 
     imageInfos.push_back({ sampler, previousImage, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL });
 
-    for (auto& set : m_descriptorSets) {
+    //for (auto& set : m_descriptorSets) {
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 0,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &cameraUBO.getDescriptorInfo(),
+                                 nullptr
+      });
+
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 1,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &shaderControlUBO.getDescriptorInfo(),
+                                 nullptr
+      });
+
+    for (uint32_t j = 0; j < numSampledImages; ++j) {
       descriptorWrites.push_back({
                                    VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                                    nullptr,
-                                   set,
-                                   0,
-                                   0,
-                                   1,
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   nullptr,
-                                   &cameraUBO.getDescriptorInfo(),
-                                   nullptr
-        });
-
-      descriptorWrites.push_back({
-                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                   nullptr,
-                                   set,
-                                   1,
+                                   m_descriptorSet,
+                                   j + 2,
                                    0,
                                    1,
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                   VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                                   &imageInfos[j],
                                    nullptr,
-                                   &shaderControlUBO.getDescriptorInfo(),
-                                   nullptr
-        });
-
-      for (uint32_t j = 0; j < numSampledImages; ++j) {
-        descriptorWrites.push_back({
-                                     VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                     nullptr,
-                                     set,
-                                     j + 2,
-                                     0,
-                                     1,
-                                     VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                                     &imageInfos[j],
-                                     nullptr,
-                                     nullptr
-          });
-      }
-
-      descriptorWrites.push_back({
-                                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                                   nullptr,
-                                   set,
-                                   6,
-                                   0,
-                                   1,
-                                   VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                                   nullptr,
-                                   &lightsUBO.getDescriptorInfo(),
                                    nullptr
         });
     }
+
+    descriptorWrites.push_back({
+                                 VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                                 nullptr,
+                                 m_descriptorSet,
+                                 6,
+                                 0,
+                                 1,
+                                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                                 nullptr,
+                                 &lightsUBO.getDescriptorInfo(),
+                                 nullptr
+      });
 
     vkUpdateDescriptorSets(getOwningDevice(),
       static_cast<uint32_t>(descriptorWrites.size()),

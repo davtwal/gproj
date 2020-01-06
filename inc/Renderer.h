@@ -39,6 +39,8 @@ namespace dw {
   class ShadowMapStep;
   class BlurStep;
   class GlobalLightStep;
+  class LocalLightingStep;
+  class AmbientStep;
   class FinalStep;
   class SplashScreenStep;
 
@@ -236,10 +238,19 @@ namespace dw {
     util::ptr<Framebuffer> m_globalLitFrameBuffer;
     VkSemaphore m_globalLightSemaphore{ nullptr };
 
+    // local lighting pass
+    util::ptr<LocalLightingStep> m_localLightStep;
+    util::ptr<Framebuffer> m_localLitFramebuffer;
+    VkSemaphore m_localLightSemaphore{ nullptr };
+
+    // ambient pass
+    util::ptr<AmbientStep> m_ambientStep;
+    util::ptr<Framebuffer> m_ambientFramebuffer;
+    VkSemaphore m_ambientSemaphore{ nullptr };
+
     // final fsq pass
     util::ptr<FinalStep> m_finalStep;
-    //util::ptr<Framebuffer> m_localLitFramebuffer;
-    VkSemaphore m_localLitSemaphore{ nullptr };
+    VkSemaphore m_finalSemaphore{ nullptr };
 
     // Scene variables
     util::ptr<Scene> m_scene{ nullptr };

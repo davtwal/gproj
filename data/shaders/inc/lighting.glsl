@@ -129,7 +129,7 @@ float GeometrySmith_IBL(float NdotV, float NdotL, float roughness) {
 vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
                       vec3 objColor,  vec3 objPos,  vec3 N, vec3 V, float roughness, float metallic) {
   vec3 toPoint = lightPos - objPos;
-  
+  roughness = max(roughness, 0.001);
   vec3 L = normalize(toPoint);
   vec3 H = normalize(L + V);
   
@@ -154,7 +154,7 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
   vec3 numer    = NDF * G * F;
   float denom   = 4.0 * NdotV * NdotL;
   
-  // the little rings we get are from the fresnel
+  // the rings we get are from the fresnel
   vec3 specular = numer / max(denom, 0.01);  
   
   // calculate diffuse light
@@ -168,75 +168,6 @@ vec3 computeDirectPBR(vec3 lightColor, vec3 lightPos, vec3 attenFn, float r,
 vec3 computeIBLPBRDiffuse(vec3 bgIrradiance, vec3 objColor) {
   return bgIrradiance * objColor;
 }
-
-//vec3 computeIBLPBR(in sampler2D bgColor, in sampler2D bgIrradiance,
-//                   in vec3 objColor, in vec3 objPos, in vec3 N,
-//                   in vec3 V, in vec3 L, in float roughness, in float metallic) {
-  // diffuse portion of IBL:
-  //vec3 kD = objColor;
-  //return kD * bgIrradiance / PI;
-
-  // L in this case will be the normal vector, I think?
-  // no no
-  // L is random direction created by the actual shader running this code
-  // which means it's passed in!
-  // so
-  
-  //vec3 H = normalize(L + V);
-
-  // Specular portion requires some Monte Carlo shtuff
-  // Choose N random directions, 20 to 40, W_k where the probability
-  // of W_k is p(W_k) = D(H), or DistributionGGX(W_k, H, roughness)
-  // // For each W_k, evaluate the light by getting the color from a MIPMAP at a specific level
-  // // oh god I have to add mipmap generation to textures now
-  // // frickems
-  // Mipmap level: .5f * log2((W*H)/N) - .5 * log2(NDF)
-  
-  //float NDF = DistributionGGX(N, H, roughness);
-  //float G   = GeometrySmith_IBL(NdotV, NdotL, roughness);
-  //vec3  F   = fresnelSchlick(HdotV, F0);
-//}
-
-/*vec3 computeDirectPBR(vec3 Ic, vec3 Ip, vec3 Ia, float r,
-                      vec3 C,  vec3 P,  vec3 N, vec3 V, float alpha, float metallic) {
-  vec3 toPoint = Ip - P;
-  float dist = length(toPoint);
-  
-  if(dist > r)
-    return vec3(0, 0, 0);
-  
-  // calculate radiance
-  vec3 radiance = computeAttenuation(Ic, Ia, dist);
-  
-  vec3 L = normalize(toPoint);
-  vec3 H = normalize(L + V);
-  
-  float N_V = max(dot(N, V), 0);
-  float N_L = max(dot(N, L), 0);
-  float N_H = max(dot(N, H), 0);
-  float H_V = max(dot(H, V), 0);
-  
-  float k = (alpha + 1);
-  k = k * k / 8;
-  
-  vec3 F_0 = vec3(0.04);
-  F_0 = mix(F_0, C, metallic);
-  
-  float D = NDFGGXTR(N_H, alpha);
-  float G = GSmithGGX(N_V, N_L, k);
-  vec3  F = FSchlick(F_0, H_V);
-  
-  vec3  numerator   = D * G * F;
-  float denominator = max(4 * N_L * N_V, 0.001); // in case of 0
-  
-  vec3 diffuseColor = C / PI;
-  vec3 specularColor = numerator / denominator;
-  
-  //return specularColor + diffuseColor;
-  
-  return (diffuseColor + specularColor) * radiance * N_L;
-  //return computeAttenuation(C, light.atten, dist);
-}*/
 
 // Phong non-shadowed light
 vec3 ComputeLighting(Light light, vec3 objColor, vec3 point, vec3 N, vec3 V, float specExp) {

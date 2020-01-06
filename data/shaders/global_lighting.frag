@@ -161,8 +161,8 @@ void main() {
     }
     
     // Add in IBL:
-    // Diffuse:
     if(control.doIBLLighting == 1) {
+      // Diffuse:
       vec2 bgColorUV = vec2(.5 - atan(-N.y, -N.x) / (2 * PI), acos(-N.z) / PI);
       vec4 sampledIrradiance = texture(inIrradiance, bgColorUV);
       vec3 IBL_diffuse = computeIBLPBRDiffuse(sampledIrradiance.xyz, inColor) * max(dot(N, V), 0);
@@ -172,10 +172,6 @@ void main() {
       vec3 B = normalize(cross(R, A));
       float sampleCountCoeff = 1.0 / MAX_IMPORTANCE_SAMPLES;
 
-      // if(importance.numSamples.x == 0x3E800000) {
-      //   fragColor = vec4(1, 0, 0, 1);
-      //   return;
-      // }
       vec3 IBL_specular = vec3(0, 0, 0);
       for(int i = 0; i < MAX_IMPORTANCE_SAMPLES; ++i) {
         // find specular lighting sample direction

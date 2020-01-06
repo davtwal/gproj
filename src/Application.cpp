@@ -368,7 +368,7 @@ namespace dw {
     std::uniform_real_distribution<float> color_dist(0, 1);
     std::uniform_real_distribution<float> atten_dist(0.5f, 4.f);
 
-    for (uint32_t i = 0; i < FinalStep::MAX_LOCAL_LIGHTS; ++i) {
+    for (uint32_t i = 0; i < LocalLightingStep::MAX_LOCAL_LIGHTS; ++i) {
       auto l = util::make_ptr<Light>();
       l->setPosition(glm::vec3(pos_dist(rand_dev), pos_dist(rand_dev), abs(pos_dist(rand_dev) / 2)));
       l->setDirection(normalize(-l->getPosition()));
@@ -460,6 +460,95 @@ namespace dw {
     return scene;
   }
 
+  util::ptr<Scene> Application::createIntroScene() {
+    auto scene = util::make_ptr<Scene>();
+
+    auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
+    obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 10, 10 });
+      o.setPosition({ 0, 0, 0 });
+    };
+    scene->addObject(obj_groundPlane);
+
+    auto obj_groundPlane2 = util::make_ptr<Object>(m_meshManager.getMesh(2));
+    obj_groundPlane2->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 10, 1 });
+      o.setPosition({ 10, 0, 0 });
+    };
+    scene->addObject(obj_groundPlane2);
+
+    auto obj_groundPlane3 = util::make_ptr<Object>(m_meshManager.getMesh(2));
+    obj_groundPlane3->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 10, 1 });
+      o.setPosition({ -10, 0, 0 });
+    };
+    scene->addObject(obj_groundPlane3);
+
+    auto obj_wallBox = util::make_ptr<Object>(m_meshManager.getMesh(2));
+    obj_wallBox->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 1, 10 });
+      o.setPosition({ 5, -5, 5 });
+    };
+    scene->addObject(obj_wallBox);
+
+    auto obj_wallBox2 = util::make_ptr<Object>(m_meshManager.getMesh(2));
+    obj_wallBox2->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 1, 10 });
+      o.setPosition({ 0, 5, 5 });
+    };
+    scene->addObject(obj_wallBox2);
+
+    auto obj_wallBox3 = util::make_ptr<Object>(m_meshManager.getMesh(2));
+    obj_wallBox3->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 10, 1, 10 });
+      o.setPosition({ 17.5f, 5, 5 });
+    };
+    scene->addObject(obj_wallBox3);
+
+    auto obj_goalPost = util::make_ptr<Object>(m_meshManager.getMesh(5));
+    obj_goalPost->m_behavior = [](Object& o, float time, float dt) {
+      o.setScale({ 2, 2, 2 });
+      o.setPosition({ -12.5, -0.5f, 2.f });
+      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    };
+    scene->addObject(obj_goalPost);
+
+    for (uint32_t i = 0; i < 11; ++i) {
+      auto l = util::make_ptr<Light>();
+      l->setPosition(glm::vec3((i - 6.f) * 3, 0, (i + 1.f) * .25f));
+      l->setDirection(normalize(-l->getPosition()));
+      l->setColor(glm::vec3(0.7f, 0.3f, 0.7f));// / glm::vec3(i + 3);
+      l->setAttenuation(glm::vec3(1.f, 1.f, 1.f));
+      l->setLocalRadius(20);
+      l->setType(Light::Type::Point);
+
+      scene->addLight(l);
+    }
+
+    Camera camera;
+    camera
+      .setNearDepth(0.1f)
+      .setFarDepth(200.f)
+      .setEyePos({ 12.5f, 0, 2.0f })
+      .setLookAt({ 0.f, 0.f, 0.f })
+      .setFOVDeg(45.f);
+
+    scene->setCamera(camera);
+
+    ShadowedLight globalLight;
+    globalLight.setPosition({ 20, 20, 20 })
+      .setDirection(glm::normalize(glm::vec3(-1, -1, -1)))
+      .setColor({ 1.f, 1.0f, 1.0f });
+
+    scene->addGlobalLight(globalLight);
+
+    auto bg_iter = m_textureManager.load("data/textures/Road_to_MonumentValley_Ref.hdr");
+    auto irr_iter = m_textureManager.load("data/textures/Road_to_MonumentValley_Ref.irr.hdr");
+
+    scene->setBackground(bg_iter->second, irr_iter->second);
+
+    return scene;
+  }
 
   int Application::initialize() {
     GLFWControl::Init();
@@ -504,7 +593,7 @@ namespace dw {
     std::atomic_bool continueDisplayingLogo = true;
     auto displayLogoThreadFn = [this, &continueDisplayingLogo, &digipenLogo]() {
       auto startTime = std::chrono::high_resolution_clock::now();
-      while (continueDisplayingLogo || (std::chrono::high_resolution_clock::now() - startTime) < std::chrono::seconds(5) ) {
+      while (continueDisplayingLogo || (std::chrono::high_resolution_clock::now() - startTime) < std::chrono::seconds(1) ) {
         GLFWControl::Poll();
         m_renderer->displayLogo(digipenLogo->second->getView());
         std::this_thread::sleep_for(std::chrono::milliseconds(16));
@@ -551,15 +640,17 @@ namespace dw {
     m_secondScene = createSecondaryScene();
     m_secondScene->addObject(obj_skydome);
 
-    // Set backgrounds
-    //m_mainScene->setBackground(bg_iter->second, irr_iter->second);
-    //m_secondScene->setBackground(bg_iter->second, irr_iter->second);
+    m_thirdScene = createIntroScene();
+    m_thirdScene->addObject(obj_skydome);
 
     // TODO: Each scene needs its own shader control
-    m_curScene = m_mainScene;
+    m_shaderControl.geometry_defaultRoughness = 0.8f;
+    m_shaderControl.geometry_defaultMetallic = 0.07f;
+    m_curScene = m_thirdScene;
 
     m_mainScene->getCamera().setAspect(WINDOW_ASPECT);
     m_secondScene->getCamera().setAspect(WINDOW_ASPECT);
+    m_thirdScene->getCamera().setAspect(WINDOW_ASPECT);
 
     continueDisplayingLogo.store(false);
     displayLogoThread.join();
@@ -567,7 +658,7 @@ namespace dw {
     m_textureManager.uploadTextures(*m_renderer);
     m_mtlManager.uploadMaterials(*m_renderer);
     m_meshManager.uploadMeshes(*m_renderer);
-    m_renderer->setScene(m_mainScene);
+    m_renderer->setScene(m_curScene);
     m_renderer->setShaderControl(&m_shaderControl);
 
     m_startTime = ClockType::now();
@@ -585,11 +676,14 @@ namespace dw {
     ClockType::time_point prevTime = ClockType::now();
     ClockType::time_point curTime = ClockType::now();
     static bool showImGuiControls = true;
+    static int currentStage = 0;
     m_inputHandler->registerKeyFunction(GLFW_KEY_ENTER, [this]() {
-      showImGuiControls = !showImGuiControls;
+        showImGuiControls = !showImGuiControls;
+        currentStage = 2;
       },
       nullptr
     );
+
 
     while (!m_renderer->done()) {
       GLFWControl::Poll();
@@ -598,12 +692,28 @@ namespace dw {
         m_renderer->restartWindow();
       }
 
+      auto changeToSecondStage = [this]() {
+        m_shaderControl.global_momentBias = 0.00000445f;
+        m_shaderControl.geometry_defaultRoughness = 0.46f;
+        m_shaderControl.geometry_defaultMetallic = 0.76f;
+        m_curScene = m_secondScene;
+        m_renderer->setScene(m_secondScene);
+      };
+
+      auto changeToThirdStage = [this]() {
+        m_shaderControl.global_momentBias = 0.00000215f;
+        m_shaderControl.geometry_defaultRoughness = 0.16f;
+        m_shaderControl.geometry_defaultMetallic = 0.08f;
+        m_curScene = m_mainScene;
+        m_renderer->setScene(m_mainScene);
+      };
+
 #ifdef DW_USE_IMGUI
       ImGui_ImplGlfw_NewFrame();
       ImGui_ImplVulkan_NewFrame();
       ImGui::NewFrame();
 
-      if (showImGuiControls) {
+      if (showImGuiControls && currentStage >= 2) {
         ImGui::Begin("Shader Control (Press Enter to toggle visibility)");
         ImGui::DragFloat("Moment Bias", &m_shaderControl.global_momentBias, 0.00000005f, 0, .0001, "%.8f");
         ImGui::DragFloat("Depth Bias", &m_shaderControl.global_depthBias, 0.0001f, 0.1f, 0.1f, "%.4f");
@@ -628,52 +738,67 @@ namespace dw {
         ImGui::End();
       }
 
-      ImGui::Begin("Scene Switcher");
-      if (ImGui::Button("Main Scene") && m_curScene != m_mainScene) {
-        m_shaderControl.global_momentBias = 0.00000005f;
-        m_curScene = m_mainScene;
-        m_renderer->setScene(m_curScene);
+      if (currentStage == 0) {
+        ImGui::Begin("Tutorial");
+        ImGui::Text("Use WASD to move");
+        ImGui::Text("Use the arrow keys to look around");
+        ImGui::Text("Press Escape to quit");
+        ImGui::Text("Press Enter to CHEAT");
+        ImGui::End();
       }
 
-      ImGui::SameLine();
-      if (ImGui::Button("Second Scene") && m_curScene != m_secondScene) {
-        m_shaderControl.global_momentBias = 0.00000445f;
-        m_curScene = m_secondScene;
-        m_renderer->setScene(m_secondScene);
-      }
-      ImGui::End();
+      if (currentStage >= 2) {
+        ImGui::Begin("Scene Switcher");
+        if (ImGui::Button("Intro Scene") && m_curScene != m_thirdScene) {
+          m_shaderControl.global_momentBias = 0.00000005f;
+          m_shaderControl.geometry_defaultRoughness = 0.8f;
+          m_shaderControl.geometry_defaultMetallic = 0.07f;
+          m_curScene = m_thirdScene;
+          m_renderer->setScene(m_thirdScene);
+        }
 
-      ImGui::Begin("Credits");
-      ImGui::Text("DigiPen Institute of Technology\n Presents: GPROJ\n");
-      ImGui::Text("\nwww.digipen.edu");
-      ImGui::Text("\nCopyright (C) 2019 by DigiPen Corp, USA.\nAll rights reserved.");
-      ImGui::Text("\nDeveloped by David T. Walker");
-      ImGui::Text("\nInstructors:");
-      ImGui::BulletText("Jen Sward");
-      ImGui::BulletText("Matthew Picioccio");
-      ImGui::BulletText("Andrew Kaplan");
-      ImGui::Text("\nPresident:");
-      ImGui::BulletText("Claude Comair");
-      ImGui::Text("\nExecutives:");
-      ImGui::BulletText("Jason Chu");
-      ImGui::BulletText("John Bauer");
-      ImGui::BulletText("Samir Abu Samra");
-      ImGui::BulletText("Raymond Yan");
-      ImGui::BulletText("Prasanna Ghali");
-      ImGui::BulletText("Michele Comair");
-      ImGui::BulletText("Xin Li");
-      ImGui::BulletText("Erik Mohrmann");
-      ImGui::BulletText("Melvin Gonsalvez");
-      ImGui::BulletText("Christopher Comair");
-      ImGui::End();
+        ImGui::SameLine();
+        if (ImGui::Button("Test Scene") && m_curScene != m_secondScene) {
+          changeToSecondStage();
+          ImGui::SameLine();
+        }
+
+        ImGui::SameLine();
+        if (ImGui::Button("Push Scene") && m_curScene != m_mainScene) {
+          changeToThirdStage();
+        }
+        ImGui::End();
+
+        ImGui::Begin("Credits");
+        ImGui::Text("DigiPen Institute of Technology\n Presents: GPROJ\n");
+        ImGui::Text("\nwww.digipen.edu");
+        ImGui::Text("\nCopyright (C) 2019 by DigiPen Corp, USA.\nAll rights reserved.");
+        ImGui::Text("\nDeveloped by David T. Walker");
+        ImGui::Text("\nInstructors:");
+        ImGui::BulletText("Jen Sward");
+        ImGui::BulletText("Matthew Picioccio");
+        ImGui::BulletText("Andrew Kaplan");
+        ImGui::Text("\nPresident:");
+        ImGui::BulletText("Claude Comair");
+        ImGui::Text("\nExecutives:");
+        ImGui::BulletText("Jason Chu");
+        ImGui::BulletText("John Bauer");
+        ImGui::BulletText("Samir Abu Samra");
+        ImGui::BulletText("Raymond Yan");
+        ImGui::BulletText("Prasanna Ghali");
+        ImGui::BulletText("Michele Comair");
+        ImGui::BulletText("Xin Li");
+        ImGui::BulletText("Erik Mohrmann");
+        ImGui::BulletText("Melvin Gonsalvez");
+        ImGui::BulletText("Christopher Comair");
+        ImGui::End();
+      }
 
       ImGui::EndFrame();
 #endif
       // input check'
       static constexpr float STEP_VALUE = 2.75f;
       static constexpr float ROTATE_STEP = 0.75f;
-      static float RADIUS = M_SQRT2 * 4.5f;
-      static float cameraCurrentT = 0.f;
 
       prevTime = curTime;
       curTime = ClockType::now();
@@ -766,8 +891,8 @@ namespace dw {
       }
 
       if (m_curScene == m_mainScene) {
-        m_mainScene->getLights()[0]->setPosition({ 2 * sqrt(2) * cos(3 * timeCount), 2 * sqrt(2) * sin(3 * timeCount), 2 });
-        m_mainScene->getLights()[1]->setPosition({ -2 * sqrt(2) * cos(3 * timeCount), -2 * sqrt(2) * sin(3 * timeCount), 2 });
+        m_curScene->getLights()[0]->setPosition({ 2 * sqrt(2) * cos(3 * timeCount), 2 * sqrt(2) * sin(3 * timeCount), 2 });
+        m_curScene->getLights()[1]->setPosition({ -2 * sqrt(2) * cos(3 * timeCount), -2 * sqrt(2) * sin(3 * timeCount), 2 });
 
         std::mt19937 rand_dev(time(NULL));
         std::uniform_real_distribution<float> shift(-1.f, 1.f);
@@ -783,7 +908,32 @@ namespace dw {
         }
       }
       else if(m_curScene == m_secondScene) {
-        
+        m_curScene->getCamera().setLookAt({ 0, 0, 1.5f });
+
+        if(currentStage == 1 && glm::distance(m_curScene->getCamera().getEyePos(), {0, 0, 1.5f}) < .95f) {
+          ++currentStage;
+          m_curScene->getCamera().setEyePos({ 5, 0, 2.f });
+          changeToThirdStage();
+        }
+      }
+      else { // cur scene = 3rd
+        auto eyePos = m_curScene->getCamera().getEyePos();
+
+        if (currentStage == 0 && length(eyePos - glm::vec3{ -12.5f, -0.5f, 2.f }) < 1.f) {
+          ++currentStage;
+          m_curScene->getCamera().setEyePos({ 0, 0, 1.5f });
+          changeToSecondStage();
+        }
+
+        eyePos.x = glm::clamp(eyePos.x, -14.f, 14.f);
+        eyePos.y = glm::clamp(eyePos.y, -4.f, 4.f);
+
+        eyePos.z = 2.f;
+
+        if (eyePos.x < 5 && eyePos.x > -5)
+          eyePos.z -= .5f;
+
+        m_curScene->getCamera().setEyePos(eyePos);
       }
 
       m_renderer->drawFrame();
@@ -795,6 +945,7 @@ namespace dw {
   int Application::shutdown() {
     m_mainScene.reset();
     m_secondScene.reset();
+    m_thirdScene.reset();
     m_curScene.reset();
 
     ImGui_ImplGlfw_Shutdown();
