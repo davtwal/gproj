@@ -38,9 +38,9 @@ set(INCLUDE_DIRS ${INCLUDE_DIR})
 message("|| Gathering files")
 
 set(GLM_DIRECTORY ${DEP_BASE_DIR}/inc/glm)
-file(GLOB SRC_CPP src/*.cpp)
-file(GLOB HEADERS inc/*.h)
-file(GLOB INLINE inc/*.inl)
+file(GLOB_RECURSE SRC_CPP src/*.cpp)
+file(GLOB_RECURSE HEADERS inc/*.h)
+file(GLOB_RECURSE INLINE inc/*.inl)
 file(GLOB_RECURSE GLM_HEADERS ${GLM_DIRECTORY}/*.hpp)
 file(GLOB DEPENDENCY_FILES_H ${DEP_BASE_DIR}/inc/*.h)
 file(GLOB DEPENDENCY_FILES_CPP ${DEP_BASE_DIR}/src/*.c*)
@@ -103,12 +103,7 @@ endif()
 
 # This creates filters for IDEs like Visual Studio
 message("|| Creating source groups (filters)")
-source_group("inl" FILES ${INLINE})
-source_group("inc" FILES ${HEADERS})
-source_group("dep" FILES ${DEPENDENCY_FILES_H})
-source_group("dep\\glm" FILES ${GLM_HEADERS})
-source_group("dep\\src" FILES ${DEPENDENCY_FILES_CPP})
-source_group("src" FILES ${SRC_CPP})
+source_group(TREE ".." FILES ${INLINE} ${HEADERS} ${DEPENDENCY_FILES_H} ${GLM_HEADERS} ${DEPENDENCY_FILES_CPP} ${SRC_CPP})
 
 # Add include directories and link locations/libraries to the executable
 message("|| Adding target specifications")

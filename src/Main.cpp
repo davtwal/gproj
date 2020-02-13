@@ -17,19 +17,19 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 // All of these includes need to be here because otherwise unique_ptr will yell at me
-#include "Surface.h"
-#include "Swapchain.h"
-#include "Framebuffer.h"
-#include "Trace.h"
-#include "Queue.h"
-#include "CommandBuffer.h"
-#include "RenderPass.h"
-#include "Shader.h"
-#include "Vertex.h"
-#include "Buffer.h"
-#include "Mesh.h"
+#include "render/Surface.h"
+#include "render/Swapchain.h"
+#include "render/Framebuffer.h"
+#include "render/Queue.h"
+#include "render/CommandBuffer.h"
+#include "render/RenderPass.h"
+#include "render/Shader.h"
+#include "render/Vertex.h"
+#include "render/Buffer.h"
+#include "render/Mesh.h"
 
-#include "Application.h"
+#include "app/Application.h"
+#include "util/Trace.h"
 
 #include <exception>
 #include <iostream>
