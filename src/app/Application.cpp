@@ -45,10 +45,12 @@
 #include <thread>
 #include <atomic>
 
-#include "ImGui.h"
+#include "app/ImGui.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include "obj/Graphics.h"
+#include "obj/Behavior.h"
 
 namespace dw {
   void MeshManager::loadBasicMeshes() {
@@ -67,7 +69,7 @@ namespace dw {
         //4, 5, 6, 6, 7, 4
       };
 
-      addMesh(vertices, indices).second.calculateTangents();
+      addMesh(vertices, indices).second->calculateTangents();
     }
 
     // 1: Non-face-normal cube
@@ -102,7 +104,7 @@ namespace dw {
         1, 3, 7, 5, 1, 7  // +X
       };
 
-      addMesh(vertices, indices).second.calculateTangents();;
+      addMesh(vertices, indices).second->calculateTangents();;
     }
 
     // 2: Face-normal cube
@@ -148,7 +150,7 @@ namespace dw {
         20, 21, 22, 21, 23, 22
       };
 
-      addMesh(vertices, indices).second.calculateTangents();;
+      addMesh(vertices, indices).second->calculateTangents();;
     }
 
     // 3: Sphere
@@ -279,7 +281,7 @@ namespace dw {
       vertices.shrink_to_fit();
       indices.shrink_to_fit();
 
-      addMesh(vertices, indices).second.setMaterial(m_materialLoader.get().getSkyboxMtl());
+      addMesh(vertices, indices).second->setMaterial(m_materialLoader.get().getSkyboxMtl());
     }
   }
 
@@ -298,68 +300,75 @@ namespace dw {
     return 0;
   }
 
+  static util::ptr<obj::Object> ObjFactoryMovableVisable(util::ptr<Mesh> mesh, obj::Behavior::BehaviorFn fn) {
+    return util::make_ptr<Object>(3, 
+      util::make_ptr<obj::Transform>(), 
+      util::make_ptr<obj::Graphics>(std::move(mesh)), 
+      util::make_ptr<obj::Behavior>(fn)
+      );
+  }
+
   util::ptr<Scene> Application::createPushScene() {
     auto scene = util::make_ptr<Scene>();
 
+    using obj::Object;
+
     // Ground plane
-    auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
-    obj_groundPlane->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ 30, 30, 30 });
-      o.setPosition({ 0, 0, 0 });
-    };
+    auto obj_groundPlane = ObjFactoryMovableVisable(m_meshManager.getMesh(0), [](Object* o, float time, float dt) {
+      o->getTransform()->setScale({ 30, 30, 30 });
+      o->getTransform()->setPosition({ 0, 0, 0 });
+    });
 
     scene->addObject(obj_groundPlane);
 
     // Random objects
-    auto obj_random0 = util::make_ptr<Object>(m_meshManager.getMesh(4));
-    obj_random0->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ 2, 2, 2 });
-      o.setPosition({ 0, 1.f, 2.f });
-      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-    };
+    auto obj_random0 = ObjFactoryMovableVisable(m_meshManager.getMesh(4), [](Object* o, float time, float dt) {
+      o->getTransform()->setScale({ 2, 2, 2 });
+      o->getTransform()->setPosition({ 0, 1.f, 2.f });
+      o->getTransform()->setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    });
 
-    auto obj_random1 = util::make_ptr<Object>(m_meshManager.getMesh(5));
-    obj_random1->m_behavior = [](Object& o, float time, float dt) {
-      o.setPosition({ 0, -1.f, .5f });
-      o.setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-    };
+    auto obj_random1 = ObjFactoryMovableVisable(m_meshManager.getMesh(5), [](Object* o, float time, float dt) {
+      o->getTransform()->setPosition({ 0, -1.f, .5f });
+      o->getTransform()->setRotation(glm::angleAxis(time * glm::radians(90.f), glm::vec3{ 0, 0, 1 }) * glm::angleAxis(glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    });
 
     scene->addObject(obj_random0);
     scene->addObject(obj_random1);
 
     // Flying color cube
-    auto obj_flyingCube = util::make_ptr<Object>(m_meshManager.getMesh(1));
-    obj_flyingCube->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ .5f, .5f, .5f });
-      o.setPosition({ 1, 1, 2 + 0.f * cos(time) });
-      o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-    };
+    auto obj_flyingCube = ObjFactoryMovableVisable(m_meshManager.getMesh(1), [](Object* o, float time, float dt) {
+      o->getTransform()->setScale({ .5f, .5f, .5f });
+      o->getTransform()->setPosition({ 1, 1, 2 + 0.f * cos(time) });
+      o->getTransform()->setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+    });
 
     scene->addObject(obj_flyingCube);
 
     // Lights
-    auto obj_circlingLight0 = util::make_ptr<Object>(m_meshManager.getMesh(1));
-    obj_circlingLight0->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ .1f, .1f, .1f });
-      o.setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
-    };
+    auto obj_circlingLight0 = ObjFactoryMovableVisable(m_meshManager.getMesh(1), [](Object* o, float time, float dt) {
+      o->getTransform()->setScale({ .1f, .1f, .1f });
+      o->getTransform()->setPosition({ 2 * sqrt(2) * cos(3 * time), 2 * sqrt(2) * sin(3 * time), 2 });
+    });
 
-    auto obj_circlingLight1 = util::make_ptr<Object>(m_meshManager.getMesh(1));
-    obj_circlingLight1->m_behavior = [](Object& o, float time, float dt) {
-      o.setScale({ .1f, .1f, .1f });
-      o.setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
-    };
+    auto obj_circlingLight1 = ObjFactoryMovableVisable(m_meshManager.getMesh(1), [](Object* o, float time, float dt) {
+      o->getTransform()->setScale({ .1f, .1f, .1f });
+      o->getTransform()->setPosition({ -2 * sqrt(2) * cos(3 * time), -2 * sqrt(2) * sin(3 * time), 2 });
+    });
 
     scene->addObject(obj_circlingLight0);
     scene->addObject(obj_circlingLight1);
 
-    Camera camera;
+    auto obj_camera = util::make_ptr<Object>(1, util::make_ptr<Camera>());
+    //obj_camera->attach(new obj::Camera);
+
+    auto camera = obj_camera->get<obj::Camera>();
     camera
-      .setNearDepth(0.1f)
-      .setFarDepth(200.f)
-      .setEyePos({ M_SQRT2 * 4.5f, 0, 7.0f })
-      .setLookAt({ 0.f, 0.f, 0.f })
-      .setFOVDeg(45.f);
+      ->setNear(0.1f)
+      .setFar(200.f)
+      .setWorldPos({ M_SQRT2 * 4.5f, 0, 7.0f })
+      .lookAt({ 0.f, 0.f, 0.f })
+      .setFOV(glm::radians(45.f));
 
     scene->setCamera(camera);
 
@@ -385,11 +394,10 @@ namespace dw {
 
     for (uint32_t i = 2; i < scene->getLights().size(); ++i) {
       auto& light = scene->getLights()[i];
-      auto lightObj = util::make_ptr<Object>(m_meshManager.getMesh(5));
-      lightObj->m_behavior = [](Object& o, float time, float dt) {
-        o.setScale({ .1f, .1f, .1f });
-        o.setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
-      };
+      auto lightObj = ObjFactoryMovableVisable(m_meshManager.getMesh(5), [](Object* o, float time, float dt) {
+        o->getTransform()->setScale({ .1f, .1f, .1f });
+        o->getTransform()->setRotation(glm::angleAxis(time * 2 * glm::radians(90.f), glm::vec3{ 1.f, 0.f, 0.f }));
+      });
 
       scene->addObject(lightObj);
     }
@@ -412,10 +420,12 @@ namespace dw {
 
     scene->setBackground(bg_iter->second, irr_iter->second);
 
+    scene->addObject(obj_camera);
+
     return scene;
   }
-
-  util::ptr<Scene> Application::createSecondaryScene() {
+  
+  /*util::ptr<Scene> Application::createSecondaryScene() {
     auto scene = util::make_ptr<Scene>();
     {
       auto obj_groundPlane = util::make_ptr<Object>(m_meshManager.getMesh(0));
@@ -549,6 +559,7 @@ namespace dw {
 
     return scene;
   }
+  */
 
   int Application::initialize() {
     GLFWControl::Init();
@@ -563,8 +574,9 @@ namespace dw {
     m_window->setInputHandler(m_inputHandler);
     m_window->setOnResizeCB([this](GLFWWindow* window, int nx, int ny) {
       m_resizedWindow = true;
-      m_mainScene->getCamera().setAspect((float)nx / ny);
-      m_secondScene->getCamera().setAspect((float)nx / ny);
+      m_mainScene->getCamera()->setAspect((float)nx / ny);
+      //m_secondScene->getCamera()->setAspect((float)nx / ny);
+      //m_thirdScene->getCamera()->setAspect((float)nx / ny);
     });
 
 #ifdef DW_USE_IMGUI
@@ -590,7 +602,7 @@ namespace dw {
     m_textureManager.uploadTextures(*m_renderer);
     m_meshManager.uploadMeshes(*m_renderer);
 
-    std::atomic_bool continueDisplayingLogo = true;
+    std::atomic_bool continueDisplayingLogo = false;
     auto displayLogoThreadFn = [this, &continueDisplayingLogo, &digipenLogo]() {
       auto startTime = std::chrono::high_resolution_clock::now();
       while (continueDisplayingLogo || (std::chrono::high_resolution_clock::now() - startTime) < std::chrono::seconds(1) ) {
@@ -600,7 +612,7 @@ namespace dw {
       }
     };
 
-    std::thread displayLogoThread(displayLogoThreadFn);
+    //std::thread displayLogoThread(displayLogoThreadFn);
 
     m_meshManager.load("data/objects/lamp.obj");
     m_meshManager.load("data/objects/teapot.obj");
@@ -622,38 +634,38 @@ namespace dw {
     };
 
     
-    m_meshManager.getMesh(0).get().setMaterial(m_mtlManager.getMtl(m_mtlManager.load(asphaltMtl)));
+    m_meshManager.getMesh(0)->setMaterial(m_mtlManager.getMtl(m_mtlManager.load(asphaltMtl)));
 
     // fill scenes
     static constexpr unsigned MAX_DYNAMIC_LIGHTS = 128;
     auto  currentTime = std::chrono::high_resolution_clock::now();
     float curTime = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - std::chrono::high_resolution_clock::now()).count();
       // skydome
-    auto obj_skydome = util::make_ptr<Object>(m_meshManager.getMesh(3));
-    obj_skydome->setPosition({ 0, 0, 0 });
-    obj_skydome->setScale({50, 50, 50});
+    auto obj_skydome = util::make_ptr<obj::Object>(1, util::make_ptr<Graphics>(m_meshManager.getMesh(3)));
+    obj_skydome->getTransform()->setPosition({ 0, 0, 0 });
+    obj_skydome->getTransform()->setScale({50, 50, 50});
 
     m_mainScene = createPushScene();
     m_mainScene->addObject(obj_skydome);
 
     // Secondary scene
-    m_secondScene = createSecondaryScene();
-    m_secondScene->addObject(obj_skydome);
-
-    m_thirdScene = createIntroScene();
-    m_thirdScene->addObject(obj_skydome);
+    //m_secondScene = createSecondaryScene();
+    //m_secondScene->addObject(obj_skydome);
+    //
+    //m_thirdScene = createIntroScene();
+    //m_thirdScene->addObject(obj_skydome);
 
     // TODO: Each scene needs its own shader control
     m_shaderControl.geometry_defaultRoughness = 0.8f;
     m_shaderControl.geometry_defaultMetallic = 0.07f;
-    m_curScene = m_thirdScene;
+    m_curScene = m_mainScene;
 
-    m_mainScene->getCamera().setAspect(WINDOW_ASPECT);
-    m_secondScene->getCamera().setAspect(WINDOW_ASPECT);
-    m_thirdScene->getCamera().setAspect(WINDOW_ASPECT);
+    m_mainScene->getCamera()->setAspect(WINDOW_ASPECT);
+    //m_secondScene->getCamera()->setAspect(WINDOW_ASPECT);
+    //m_thirdScene->getCamera()->setAspect(WINDOW_ASPECT);
 
-    continueDisplayingLogo.store(false);
-    displayLogoThread.join();
+    //continueDisplayingLogo.store(false);
+    //displayLogoThread.join();
 
     m_textureManager.uploadTextures(*m_renderer);
     m_mtlManager.uploadMaterials(*m_renderer);
@@ -696,8 +708,8 @@ namespace dw {
         m_shaderControl.global_momentBias = 0.00000445f;
         m_shaderControl.geometry_defaultRoughness = 0.46f;
         m_shaderControl.geometry_defaultMetallic = 0.76f;
-        m_curScene = m_secondScene;
-        m_renderer->setScene(m_secondScene);
+        //m_curScene = m_secondScene;
+        //m_renderer->setScene(m_secondScene);
       };
 
       auto changeToThirdStage = [this]() {
@@ -748,17 +760,17 @@ namespace dw {
       }
 
       if (currentStage >= 2) {
-        if(ImGui::Begin("Object Editor")) {
-          for(auto& object : m_curScene->getObjects()) {
-            if(ImGui::BeginCombo("Mesh", object->m_mesh.get().getName().c_str())) {
-              //m_meshManager.
-              //ImGui::EndCombo();
-            }
-          }
-        }
+        //if(ImGui::Begin("Object Editor")) {
+        //  for(auto& object : m_curScene->getObjects()) {
+        //    if(ImGui::BeginCombo("Mesh", object->get<obj::Graphics>()->getMesh()->getName().c_str())) {
+        //      //m_meshManager.
+        //      ImGui::EndCombo();
+        //    }
+        //  }
+        //}
         ImGui::End();
 
-        ImGui::Begin("Scene Switcher");
+        /*ImGui::Begin("Scene Switcher");
         if (ImGui::Button("Intro Scene") && m_curScene != m_thirdScene) {
           m_shaderControl.global_momentBias = 0.00000005f;
           m_shaderControl.geometry_defaultRoughness = 0.8f;
@@ -777,7 +789,7 @@ namespace dw {
         if (ImGui::Button("Push Scene") && m_curScene != m_mainScene) {
           changeToThirdStage();
         }
-        ImGui::End();
+        ImGui::End();*/
 
         if (ImGui::Begin("Credits")) {
           ImGui::Text("DigiPen Institute of Technology\n Presents: GPROJ\n");
@@ -821,84 +833,57 @@ namespace dw {
       if (fps >= 119.f)
         sprintf(titleBuff, "GPROJ - Sprinting Merilly at %.0f FPS", fps);
       else if (fps >= 59.f)
-        sprintf(titleBuff, "GPROJ - Delightfully Running at %.0f FPS", fps);
-      else if (fps >= 10.f)
+        sprintf(titleBuff, "GPROJ - Cheerfully Running at %.0f FPS", fps);
+      else if (fps >= 15.f)
         sprintf(titleBuff, "GPROJ - Chugging Along at %.0f FPS", fps);
       else
         sprintf(titleBuff, "GPROJ - Scared of Burning Out at %.0f FPS", fps);
 
       glfwSetWindowTitle(m_window->getHandle(), titleBuff);
 
+      // TODO: moving camera
+
+      /*  Controls:
+       *  - W/A/S/D -> Move right/left/forward/backward
+       *  - Mouse   -> Look around
+       *
+       */
+
+      auto curCam = m_curScene->getCamera();
       if (m_inputHandler->getKeyState(GLFW_KEY_A)) {
-        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getRightDir() * STEP_VALUE);
+        curCam->addLocalPos(-dt * STEP_VALUE * curCam->getRight());
       }
 
       if (m_inputHandler->getKeyState(GLFW_KEY_D)) {
-        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() - dt * m_curScene->getCamera().getRightDir() * STEP_VALUE);
+        curCam->addLocalPos(dt * STEP_VALUE * curCam->getRight());
       }
 
-      //float cameraZ = m_curScene->getCamera().getEyePos().z;
-
       if(m_inputHandler->getKeyState(GLFW_KEY_W)) {
-        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getViewDir() * STEP_VALUE);
-        //cameraZ += STEP_VALUE * dt * 2;
+        curCam->addLocalPos(dt * STEP_VALUE * curCam->getForward());
       }
 
       if(m_inputHandler->getKeyState(GLFW_KEY_S)) {
-        m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() - dt * m_curScene->getCamera().getViewDir() * STEP_VALUE);
-        //cameraZ -= STEP_VALUE * dt * 2;
+        curCam->addLocalPos(-dt * STEP_VALUE * curCam->getForward());
       }
 
-      if (m_inputHandler->getKeyState(GLFW_KEY_LEFT)) {
-        // set view dir
-        auto curView = m_curScene->getCamera().getViewDir();
-        // rotate by dt * ROTATE_STEP around the up direction
-        curView = glm::toMat4(glm::angleAxis(ROTATE_STEP * dt * 1.5f, m_curScene->getCamera().getUpDir())) * glm::vec4(curView, 0);
-
-        m_curScene->getCamera().setViewDir(curView);
-        //m_curScene->getCamera().setViewDir(m_curScene->getCamera())
-        //m_curScene->getCamera().setEyePos(m_curScene->getCamera().getEyePos() + dt * m_curScene->getCamera().getViewDir());
-        //cameraZ += STEP_VALUE * dt * 2;
+      if(m_inputHandler->getKeyState(GLFW_KEY_LEFT_SHIFT)) {
+        glfwSetInputMode(m_window->getHandle(), GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+      }
+      else {
+        glfwSetInputMode(m_window->getHandle(), GLFW_CURSOR, GLFW_CURSOR_NORMAL);
       }
 
-      if (m_inputHandler->getKeyState(GLFW_KEY_RIGHT)) {// set view dir
-        auto curView = m_curScene->getCamera().getViewDir();
-        // rotate by dt * ROTATE_STEP around the up direction
-        curView = glm::toMat4(glm::angleAxis(-ROTATE_STEP * dt * 1.5f, m_curScene->getCamera().getUpDir())) * glm::vec4(curView, 0);
-
-        m_curScene->getCamera().setViewDir(curView);
-        //cameraZ -= STEP_VALUE * dt * 2;
-      }
-
-      if(m_inputHandler->getKeyState(GLFW_KEY_UP)) {
-        auto curView = m_curScene->getCamera().getViewDir();
-        // rotate by dt * ROTATE_STEP around the right direction
-        curView = glm::toMat4(glm::angleAxis(-ROTATE_STEP * dt, m_curScene->getCamera().getRightDir())) * glm::vec4(curView, 0);
-
-        m_curScene->getCamera().setViewDir(curView);
-      }
-
-      if (m_inputHandler->getKeyState(GLFW_KEY_DOWN)) {
-        auto curView = m_curScene->getCamera().getViewDir();
-        // rotate by dt * ROTATE_STEP around the right direction
-        curView = glm::toMat4(glm::angleAxis(ROTATE_STEP * dt, m_curScene->getCamera().getRightDir())) * glm::vec4(curView, 0);
-
-        m_curScene->getCamera().setViewDir(curView);
-      }
-
-      //if (m_inputHandler->getKeyState(GLFW_KEY_EQUAL)) {
-      //  //RADIUS += STEP_VALUE * dt;
-      //}
-      //
-      //if (m_inputHandler->getKeyState(GLFW_KEY_MINUS)) {
-      //  //RADIUS -= STEP_VALUE * dt;
-      //}
-
-      //m_curScene->getCamera().setEyePos(glm::vec3{ RADIUS * cos(cameraCurrentT), RADIUS * sin(cameraCurrentT), cameraZ });
-      //m_curScene->getCamera().setLookAt({ 0, 0, 0 });
+      m_inputHandler->registerMouseMoveFunction([&curCam, this](double dx, double dy) {
+        static constexpr float SENSITIVITY = 0.003f;
+        if (m_inputHandler->getKeyState(GLFW_KEY_LEFT_SHIFT)) {
+          curCam->addPitch(-dy * SENSITIVITY);
+          curCam->addYaw(dx * SENSITIVITY);
+        }
+      });
 
       for (auto& obj : m_curScene->getObjects()) {
-        obj->callBehavior(timeCount, dt);
+        if(obj->get<obj::Behavior>())
+          obj->get<obj::Behavior>()->call(timeCount, dt);
       }
 
       if (m_curScene == m_mainScene) {
@@ -908,44 +893,44 @@ namespace dw {
         std::mt19937 rand_dev(time(NULL));
         std::uniform_real_distribution<float> shift(-1.f, 1.f);
         std::uniform_real_distribution<float> color(-0.5f, 0.5f);
-        for (uint32_t i = 2; i < m_mainScene->getLights().size(); ++i) {
+        for (uint32_t i = 2; i < m_mainScene->getLights().size() - 1; ++i) {
           auto& light = *m_mainScene->getLights()[i];
           auto& obj = m_mainScene->getObjects()[i + 4];
           light.setPosition(light.getPosition() + glm::vec3(shift(rand_dev) * dt, shift(rand_dev) * dt, shift(rand_dev) * dt));
           light.setPosition(glm::clamp(light.getPosition(), glm::vec3(-9.f, -9.f, 0.1f), glm::vec3(9.f)));
           light.setColor(light.getColor() + glm::vec3(color(rand_dev) * dt, color(rand_dev) * dt, color(rand_dev) * dt));
           light.setColor(glm::clamp(light.getColor(), 0.f, 1.f));
-          obj->setPosition(light.getPosition());
+          obj->getTransform()->setPosition(light.getPosition());
         }
       }
-      else if(m_curScene == m_secondScene) {
-        m_curScene->getCamera().setLookAt({ 0, 0, 1.5f });
+      //else if(m_curScene == m_secondScene) {
+      //  m_curScene->getCamera()->lookAt({ 0, 0, 1.5f });
 
-        if(currentStage == 1 && glm::distance(m_curScene->getCamera().getEyePos(), {0, 0, 1.5f}) < .95f) {
-          ++currentStage;
-          m_curScene->getCamera().setEyePos({ 5, 0, 2.f });
-          changeToThirdStage();
-        }
-      }
-      else { // cur scene = 3rd
-        auto eyePos = m_curScene->getCamera().getEyePos();
+      //  if(currentStage == 1 && glm::distance(m_curScene->getCamera()->getWorldPos(), {0, 0, 1.5f}) < .95f) {
+      //    ++currentStage;
+      //    m_curScene->getCamera()->setWorldPos({ 5, 0, 2.f });
+      //    changeToThirdStage();
+      //  }
+      //}
+      //else { // cur scene = 3rd
+      //  auto eyePos = m_curScene->getCamera()->getWorldPos();
 
-        if (currentStage == 0 && length(eyePos - glm::vec3{ -12.5f, -0.5f, 2.f }) < 1.f) {
-          ++currentStage;
-          m_curScene->getCamera().setEyePos({ 0, 0, 1.5f });
-          changeToSecondStage();
-        }
+      //  if (currentStage == 0 && glm::length(eyePos - glm::vec3{ -12.5f, -0.5f, 2.f }) < 1.f) {
+      //    ++currentStage;
+      //    m_curScene->getCamera()->setWorldPos({ 0, 0, 1.5f });
+      //    changeToSecondStage();
+      //  }
 
-        eyePos.x = glm::clamp(eyePos.x, -14.f, 14.f);
-        eyePos.y = glm::clamp(eyePos.y, -4.f, 4.f);
+      //  eyePos.x = glm::clamp(eyePos.x, -14.f, 14.f);
+      //  eyePos.y = glm::clamp(eyePos.y, -4.f, 4.f);
 
-        eyePos.z = 2.f;
+      //  eyePos.z = 2.f;
 
-        if (eyePos.x < 5 && eyePos.x > -5)
-          eyePos.z -= .5f;
+      //  if (eyePos.x < 5 && eyePos.x > -5)
+      //    eyePos.z -= .5f;
 
-        m_curScene->getCamera().setEyePos(eyePos);
-      }
+      //  m_curScene->getCamera()->setWorldPos(eyePos);
+      //}
 
       m_renderer->drawFrame();
     }
@@ -955,8 +940,8 @@ namespace dw {
 
   int Application::shutdown() {
     m_mainScene.reset();
-    m_secondScene.reset();
-    m_thirdScene.reset();
+    //m_secondScene.reset();
+    //m_thirdScene.reset();
     m_curScene.reset();
 
     ImGui_ImplGlfw_Shutdown();

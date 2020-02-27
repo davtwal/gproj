@@ -26,7 +26,7 @@ namespace dw {
     MeshManager(MaterialManager& mtlLoader);
 
     using MeshKey = uint32_t;
-    using MeshMap = std::unordered_map<MeshKey, Mesh>;
+    using MeshMap = std::unordered_map<MeshKey, util::ptr<Mesh>>;
 
     /* After this call is resolved the following meshes will be available:
      * 0 - Unit Square
@@ -39,7 +39,7 @@ namespace dw {
     MeshMap::reference addMesh(std::vector<Vertex> verts, std::vector<uint32_t> indices, util::ptr<Material> mtl = nullptr);
     void uploadMeshes(Renderer& renderer);
 
-    util::Ref<Mesh> getMesh(MeshKey key);
+    util::ptr<Mesh> getMesh(MeshKey key);
 
     MeshKey load(std::string const& filename, bool flipWinding = false);
 

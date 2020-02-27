@@ -63,12 +63,12 @@ namespace dw {
     if (mtl == nullptr)
       mtl = m_materialLoader.get().getDefaultMtl();
 
-    auto iter = m_loadedMeshes.try_emplace(m_curKey++, std::move(verts), std::move(indices)).first;
-    iter->second.setMaterial(mtl);
+    auto iter = m_loadedMeshes.try_emplace(m_curKey++, util::make_ptr<Mesh>(std::move(verts), std::move(indices))).first;
+    iter->second->setMaterial(mtl);
     return *iter;
   }
 
-  util::Ref<Mesh> MeshManager::getMesh(MeshKey key) {
+  util::ptr<Mesh> MeshManager::getMesh(MeshKey key) {
     return m_loadedMeshes.at(key);
   }
 
@@ -162,8 +162,9 @@ namespace dw {
     util::ptr<Material> loadedMtl = nullptr;
     for (auto& shape : shapes) {
       auto& mesh = shape.mesh;
-      if (mesh.material_ids.front() > 0)
+      if (mesh.material_ids.front() > 0) {
         loadedMtl = m_materialLoader.get().getMtl(m_materialLoader.get().load(materials[mesh.material_ids.front()]));
+      }
 
       for (uint32_t i = 0; i < mesh.indices.size(); ++i) {
         auto& index = mesh.indices[i];

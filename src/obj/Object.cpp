@@ -17,55 +17,58 @@
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 
 #include "obj/Object.h"
+#include "obj/Graphics.h"
+#include <stdarg.h>
+#include <tuple>
 
-namespace dw {
-  Object::Object(util::Ref<Mesh> const& mesh)
-    : m_mesh(mesh){
-    getTransform();
-  }
+namespace dw::obj {
+  /*Object::Object(bool addGraphics) {
+    attach(new Transform);
 
-  glm::mat4 const& Object::getTransform() {
-    if(m_isDirty) {
-      m_transform = glm::translate(glm::identity<glm::mat4>(), m_position) * glm::mat4_cast(m_rotation) * glm::scale(glm::identity<glm::mat4>(), m_scale);
-      m_isDirty = false;
+    if (addGraphics)
+      attach(new Graphics);
+  }*/
+
+  Object::Object(int c, util::ptr<IComponent>...) {
+    va_list list;
+    va_start(list, c);
+
+    for(int i = 0; i < c; ++i) {
+      attach(va_arg(list, util::ptr<IComponent>));
     }
 
-    return m_transform;
+    va_end(list);
+
+    if (m_components.find(IComponent::Type::ctTransform) == m_components.end())
+      attach(util::make_ptr<Transform>());
   }
 
-  glm::vec3 const& Object::getPosition() const {
-    return m_position;
+  Object::Object(Object&& obj) noexcept {
+    m_components = std::move(obj.m_components);
+    obj.m_components.clear();
   }
 
-  glm::quat const& Object::getRotation() const {
-    return m_rotation;
-  }
-
-  glm::vec3 const& Object::getScale() const {
-    return m_scale;
-  }
-
-  Object& Object::setPosition(glm::vec3 const& pos) {
-    m_position = pos;
-    m_isDirty = true;
+  Object& Object::operator=(Object&& obj) noexcept {
+    m_components = std::move(obj.m_components);
     return *this;
   }
 
-  Object& Object::setRotation(glm::quat const& rot) {
-    m_rotation = rot;
-    m_isDirty = true;
-    return *this;
+
+  bool Object::attach(util::ptr<IComponent> component) {
+    if (!component)
+      return false;
+
+    component->m_parent = this;
+
+    // .second is true if insertion took place, false if assignment took place
+    // we return the opposite of that
+    return !m_components.insert_or_assign(component->getType(),
+                                          util::ptr<IComponent>(component)
+      ).second;
   }
 
-  Object& Object::setScale(glm::vec3 const& scale) {
-    m_scale = scale;
-    m_isDirty = true;
-    return *this;
-  }
-
-  void Object::callBehavior(float curTime, float dt) {
-    if(m_behavior)
-      m_behavior(*this, curTime, dt);
+  std::shared_ptr<Transform> Object::getTransform() const {
+    return get<Transform>();
   }
 
 }

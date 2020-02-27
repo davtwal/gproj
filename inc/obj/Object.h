@@ -22,44 +22,80 @@
 #include "render/Mesh.h"
 #include "util/Utils.h"
 #include "util/MyMath.h"
+
+#include "obj/Transform.h"
+
 #include <functional>
 
-namespace dw {
+namespace dw::obj {
   class Object {
   public:
-    Object(util::Ref<Mesh> const& mesh);
-    //Object(util::ptr<Mesh> mesh, glm::vec3 pos, glm::vec3 scale, glm::quat rot);
+    //explicit Object(bool addGraphics = true);
+    Object(int c, util::ptr<IComponent> components...);
 
-    glm::mat4 const& getTransform();
-    NO_DISCARD glm::vec3 const& getPosition() const;
-    NO_DISCARD glm::vec3 const& getScale() const;
-    NO_DISCARD glm::quat const& getRotation() const;
+    Object(Object&& obj) noexcept;
+    Object& operator=(Object&& obj) noexcept;
 
-    Object& setPosition(glm::vec3 const& pos);
-    Object& setScale(glm::vec3 const& scale);
-    Object& setRotation(glm::quat const& rot);
+    Object(const Object& obj) = delete;
+    Object& operator=(const Object& obj) = delete;
 
-    // graphics
-    util::Ref<Mesh> m_mesh;
+    template <typename T>
+    NO_DISCARD std::shared_ptr<T> get() const;
 
-    // behavior
-    using BehaviorFn = std::function<void(Object &, float, float)>;
+    // return: if something was removed
+    template <typename T>
+    bool remove();
 
-    BehaviorFn m_behavior;
+    // return: if a component was replaced in the process
+    // note: you DO NOT have to call delete for this component
+    // recommended usage: attach(new Graphics);
+    bool attach(util::ptr<IComponent> component);
 
-    void callBehavior(float curTime, float dt);
-
+    // syntactical sugar functions
+    NO_DISCARD std::shared_ptr<Transform> getTransform() const;
+    
   private:
-
-    // transform
-    glm::mat4 m_transform {1.f};
-
-    glm::vec3 m_position {0 };
-    glm::vec3 m_scale {1 };
-    glm::quat m_rotation{glm::identity<glm::quat>()};
-
-    bool m_isDirty { true };
+    std::unordered_map<IComponent::Type, std::shared_ptr<IComponent>> m_components;
   };
 }
+
+#include "obj/Object.inl"
+//
+//namespace dw {
+//  class Object {
+//  public:
+//    Object(util::Ref<Mesh> const& mesh);
+//
+//    glm::mat4 const& getTransform();
+//    NO_DISCARD glm::vec3 const& getPosition() const;
+//    NO_DISCARD glm::vec3 const& getScale() const;
+//    NO_DISCARD glm::quat const& getRotation() const;
+//
+//    Object& setPosition(glm::vec3 const& pos);
+//    Object& setScale(glm::vec3 const& scale);
+//    Object& setRotation(glm::quat const& rot);
+//
+//    // graphics
+//    util::Ref<Mesh> m_mesh;
+//
+//    // behavior
+//    using BehaviorFn = std::function<void(Object &, float, float)>;
+//
+//    BehaviorFn m_behavior;
+//
+//    void callBehavior(float curTime, float dt);
+//
+//  private:
+//
+//    // transform
+//    glm::mat4 m_transform {1.f};
+//
+//    glm::vec3 m_position {0 };
+//    glm::vec3 m_scale {1 };
+//    glm::quat m_rotation{glm::identity<glm::quat>()};
+//
+//    bool m_isDirty { true };
+//  };
+//}
 
 #endif

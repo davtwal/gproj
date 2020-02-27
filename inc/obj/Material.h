@@ -23,9 +23,6 @@
 
 #include <unordered_map>
 #include <array>
-//namespace tinyobj {
-//  typedef struct material_t material_t;
-//}
 
 namespace dw {
   class Renderer;

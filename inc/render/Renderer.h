@@ -90,8 +90,8 @@ namespace dw {
 
     void setScene(util::ptr<Scene> scene);
 
-    void drawFrame();
-    void displayLogo(util::ptr<ImageView> logoView);
+    void drawFrame() const;
+    void displayLogo(util::ptr<ImageView> logoView) const;
 
     void shutdown(bool shutdownImgui = true);
 
@@ -154,7 +154,7 @@ namespace dw {
     void prepareDynamicUniformBuffers();
 
     // called every frame
-    void updateUniformBuffers(uint32_t imageIndex);// , Camera& cam, Object& obj);
+    void updateUniformBuffers(uint32_t imageIndex) const;// , Camera& cam, Object& obj);
 
     void setupWindow();
     void shutdownWindow();
@@ -177,7 +177,7 @@ namespace dw {
     //////////////////////////////////////////////////////
     //// GENERAL VARIABLES
     //////////////////////////////////////////////////////
-    static Camera s_defaultCamera;
+    static obj::Camera s_defaultCamera;
     ///
     VulkanControl* m_control{ nullptr };
     GLFWWindow* m_window{ nullptr };

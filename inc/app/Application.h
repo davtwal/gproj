@@ -49,13 +49,10 @@ namespace dw {
     // SCENE VARIABLES
     util::ptr<Scene> m_curScene{ nullptr };
 
+    std::vector<util::ptr<Scene>> m_scenes;
     util::ptr<Scene> m_mainScene{ nullptr };
-    util::ptr<Scene> m_secondScene{ nullptr };
-    util::ptr<Scene> m_thirdScene{ nullptr };
 
     util::ptr<Scene> createPushScene();
-    util::ptr<Scene> createIntroScene();
-    util::ptr<Scene> createSecondaryScene();
 
     util::ptr<Renderer> m_renderer{ nullptr };
     InputHandler* m_inputHandler{ nullptr };

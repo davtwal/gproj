@@ -4,6 +4,7 @@
 #include "inc/defines.glsl"
 #include "inc/lighting.glsl"
 
+// should be an even number
 layout(constant_id = 0) const int MAX_IMPORTANCE_SAMPLES = 32;
 
 layout(binding = 0) uniform CameraUBO {
@@ -22,8 +23,6 @@ layout(binding = 1) uniform ShadowLights {
 
 layout(binding = 2) uniform ImportanceSampling {
   vec4 samples[MAX_IMPORTANCE_SAMPLES / 2]; // divide by 2 because each vec2 is a sample
-  //int numSamples;
-  //vec3 padding;
 } importance;
 
 // shader control
@@ -53,6 +52,7 @@ vec3 getSampleDirection(float u, float v, float roughness, vec3 A, vec3 B, vec3 
   v = temp;
   
   // convert UV to hemisphere sample
+  // this is not correct - somewhere
   float inner = 2 * PI * (.5 - u);
   float sinpv = sin(PI * v);
   vec3 L = vec3(cos(inner) * sinpv, sin(inner) * sinpv, cos(PI * v));
@@ -68,7 +68,7 @@ float getG(vec4 moments, float fragmentDepth) {
   vec4 b = moments * (1 - control.momentBias) + control.momentBias * vec4(0.5f, 0.5f, 0.5f, 0.5f);
   vec3 z = vec3(fragmentDepth - control.depthBias, 0, 0);
   
-  // Magic Cholesky decomposition
+  // Cholesky decomposition
   float L32D22 = -b[0] * b[1] + b[2];
   float D22    = -b[0] * b[0] + b[1];
   float SDV    = -b[1] * b[1] + b[3];

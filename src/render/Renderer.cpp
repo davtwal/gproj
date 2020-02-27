@@ -3,14 +3,13 @@
 // * Copyright (C) DigiPen Institute of Technology 2019
 // * 
 // * Created     : 2019y 09m 26d
-// * Last Altered: 2019y 10m 26d
+// * Last Altered: 2020y 02m 26d
 // * 
 // * Author      : David Walker
 // * E-mail      : d.walker\@digipen.edu
 // * 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * *
 // * Description :
-
 
 #include "render/Renderer.h"
 #include "render/VulkanControl.h"
@@ -39,6 +38,7 @@
 #include <array>
 #include <cassert>
 #include <algorithm>
+#include "obj/Graphics.h"
 
 
 // Wrapper functions for aligned memory allocation
@@ -144,7 +144,7 @@ namespace dw {
     : m_light(light) {
   }
 
-  Camera Renderer::s_defaultCamera;
+  obj::Camera Renderer::s_defaultCamera;
 
   /////////////////////////////////////////////////////////////////////////////
   /////////////////////////////////////////////////////////////////////////////
@@ -195,7 +195,7 @@ namespace dw {
     setupWindow();
 
 #ifdef DW_USE_IMGUI
-    if(startImgui)
+    if (startImgui)
       setupImGui();
 #endif
   }
@@ -247,7 +247,7 @@ namespace dw {
     m_materials = nullptr;
 
 #ifdef DW_USE_IMGUI
-    if(shutdownImgui)
+    if (shutdownImgui)
       shutdownImGui();
 #endif
 
@@ -415,7 +415,7 @@ namespace dw {
     return m_window->shouldClose();
   }
 
-  void Renderer::drawFrame() {
+  void Renderer::drawFrame() const {
     assert(m_swapchain->isPresentReady());
     if (!m_scene || m_scene->getObjects().empty())
       return;
@@ -456,11 +456,11 @@ namespace dw {
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-    submitInfo.pWaitSemaphores   = &m_shadowSemaphore;
+    submitInfo.pWaitSemaphores = &m_shadowSemaphore;
 
     if (m_blurEnabled) {
       submitInfo.pSignalSemaphores = &m_blurSemaphore;
-      submitInfo.pCommandBuffers = &blurCmdBuff;
+      submitInfo.pCommandBuffers   = &blurCmdBuff;
 
       vkQueueSubmit(computeQueue, 1, &submitInfo, nullptr);
 
@@ -469,22 +469,22 @@ namespace dw {
 
     if (m_globalLightEnabled) {
       submitInfo.pSignalSemaphores = &m_globalLightSemaphore;
-      submitInfo.pCommandBuffers = &globalLightCmdBuff;
+      submitInfo.pCommandBuffers   = &globalLightCmdBuff;
 
       vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
-      submitInfo.pWaitSemaphores   = &m_globalLightSemaphore;
+      submitInfo.pWaitSemaphores = &m_globalLightSemaphore;
     }
 
     submitInfo.pSignalSemaphores = &m_localLightSemaphore;
-    submitInfo.pCommandBuffers = &localLightCmdBuff;
+    submitInfo.pCommandBuffers   = &localLightCmdBuff;
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
     submitInfo.pWaitSemaphores = &m_localLightSemaphore;
 
     submitInfo.pSignalSemaphores = &m_ambientSemaphore;
-    submitInfo.pCommandBuffers = &ambientCmdBuff;
+    submitInfo.pCommandBuffers   = &ambientCmdBuff;
 
     vkQueueSubmit(graphicsQueue, 1, &submitInfo, nullptr);
 
@@ -508,10 +508,10 @@ namespace dw {
 
   }
 
-  void Renderer::displayLogo(util::ptr<ImageView> logoView) {
+  void Renderer::displayLogo(util::ptr<ImageView> logoView) const {
     assert(m_swapchain->isPresentReady());
     uint32_t     nextImageIndex = m_swapchain->getNextImageIndex();
-    Image const& nextImage = m_swapchain->getNextImage();
+    Image const& nextImage      = m_swapchain->getNextImage();
 
     auto& graphicsQueue = m_graphicsQueue->get();
 
@@ -521,7 +521,7 @@ namespace dw {
     VkCommandBuffer splashCmdBuff = m_splashScreenStep->getCommandBuffer(nextImageIndex);
 
     VkPipelineStageFlags semaphoreWaitFlag = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-    VkSubmitInfo         submitInfo = {
+    VkSubmitInfo         submitInfo        = {
       VK_STRUCTURE_TYPE_SUBMIT_INFO,
       nullptr,
       1,
@@ -539,20 +539,20 @@ namespace dw {
     graphicsQueue.waitIdle(); // todo: not wait
   }
 
-  void Renderer::uploadMeshes(std::unordered_map<uint32_t, Mesh>& meshes) const {
+  void Renderer::uploadMeshes(MeshManager::MeshMap& meshes) const {
     std::vector<Mesh::StagingBuffs> stagingBuffers;
 
     stagingBuffers.reserve(meshes.size());
     for (auto& mesh : meshes) {
-      stagingBuffers.push_back(mesh.second.createAllBuffs(*m_device));
-      mesh.second.uploadStaging(stagingBuffers.back());
+      stagingBuffers.push_back(mesh.second->createAllBuffs(*m_device));
+      mesh.second->uploadStaging(stagingBuffers.back());
     }
 
     CommandBuffer& moveBuff = m_transferCmdPool->allocateCommandBuffer();
 
     moveBuff.start(true);
     for (size_t i = 0; i < meshes.size(); ++i) {
-      meshes[i].uploadCmds(moveBuff, stagingBuffers[i]);
+      meshes[i]->uploadCmds(moveBuff, stagingBuffers[i]);
     }
     moveBuff.end();
 
@@ -568,9 +568,9 @@ namespace dw {
     for (auto& tex : textures) {
       if (!tex.second->isLoaded()) {
         tex.second->uploadStaging(
-          stagingBuffers.try_emplace(tex.first, tex.second->createAllBuffs(*m_device))
-          .first->second
-        );
+                                  stagingBuffers.try_emplace(tex.first, tex.second->createAllBuffs(*m_device))
+                                                .first->second
+                                 );
       }
     }
 
@@ -591,29 +591,30 @@ namespace dw {
     //std::unordered_map<MaterialManager::MtlMap::key_type, Material::StagingBuffs> stagingBuffers;
 
     m_materials = &materials;
-    
+
     if (m_materialsUBO)
       m_materialsUBO.reset();
 
-    m_materialsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, materials.size() * sizeof(Material::MaterialUBO)));
+    m_materialsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+                                                                  materials.size() * sizeof(Material::MaterialUBO)));
 
     auto data = reinterpret_cast<Material::MaterialUBO*>(m_materialsUBO->map());
-    for(auto& mtl : materials) {
+    for (auto& mtl : materials) {
       data[mtl.second->getID()] = mtl.second->getAsUBO();
     }
     m_materialsUBO->unMap();
   }
 
-  void Renderer::updateUniformBuffers(uint32_t imageIndex) {
+  void Renderer::updateUniformBuffers(uint32_t imageIndex) const {
     // NOTE: Global lights are NOT dynamic
-    Camera& camera = m_scene->getCamera();
-    CameraUniform cam = {
-      camera.getView(),
-      camera.getProj(),
-      camera.getEyePos(),
-      camera.getViewDir(),
-      camera.getFarDist(),
-      camera.getNearDist()
+    auto camera = m_scene->getCamera();
+    CameraUniform cam    = {
+      camera->worldToCamera(),
+      camera->cameraToNDC(),
+      camera->getWorldPos(),
+      camera->getForward(),
+      camera->getFar(),
+      camera->getNear()
     };
 
     void* data = m_cameraUBO->map();
@@ -623,10 +624,13 @@ namespace dw {
     assert(m_modelUBOdata);
 
     for (uint32_t i = 0; i < m_scene->getObjects().size(); ++i) {
-      auto objData = reinterpret_cast<ObjectUniform*>(reinterpret_cast<char*>(m_modelUBOdata) + i * m_modelUBOdynamicAlignment);
+      auto objData = reinterpret_cast<ObjectUniform*>(
+        reinterpret_cast<char*>(m_modelUBOdata) + i * m_modelUBOdynamicAlignment);
 
-      objData->model    = m_scene->getObjects()[i]->getTransform();
-      objData->mtlIndex = m_scene->getObjects()[i]->m_mesh.get().getMaterial()->getID();
+      auto obj = m_scene->getObjects()[i];
+
+      objData->model    = m_scene->getObjects()[i]->getTransform()->getMatrix();
+      objData->mtlIndex = obj->get<Graphics>() ? obj->get<obj::Graphics>()->getMesh()->getMaterial()->getID() : 0;
     }
 
     data = m_modelUBO->map();
@@ -638,7 +642,9 @@ namespace dw {
     for (size_t i     = 0; i < m_scene->getLights().size(); ++i)
       lightUBOdata[i] = m_scene->getLights()[i]->getAsUBO();
 
-    *reinterpret_cast<int32_t*>(lightUBOdata + LocalLightingStep::MAX_LOCAL_LIGHTS) = static_cast<uint32_t>(m_scene->getLights().size());
+    *reinterpret_cast<int32_t*>(lightUBOdata + LocalLightingStep::MAX_LOCAL_LIGHTS) = static_cast<uint32_t>(m_scene->
+                                                                                                            getLights().
+                                                                                                            size());
     m_localLightsUBO->unMap();
 
     // shader control:
@@ -650,15 +656,15 @@ namespace dw {
     // generate new random samples:
     data = m_globalImportanceUBO->map();
 
-    auto vec2data = reinterpret_cast<GlobalLightStep::ImportanceSampleUBO*>(data);
+    auto                      vec2data   = reinterpret_cast<GlobalLightStep::ImportanceSampleUBO*>(data);
     static constexpr uint32_t numSamples = 10;
 
     int pos = 0;
-    for(uint32_t i = 0; i < numSamples; ++i) {
-      int kk = i;
-      float u = 0.f;
+    for (uint32_t i = 0; i < numSamples; ++i) {
+      int   kk = i;
+      float u  = 0.f;
       for (float p = 0.5f; kk; p *= .5f, kk >>= 1)
-        if(kk & 1)
+        if (kk & 1)
           u += p;
 
       vec2data->samples[pos++] = u;
@@ -710,21 +716,24 @@ namespace dw {
       m_localLightStep->getCommandBuffer().reset();
       m_ambientStep->getCommandBuffer().reset();
 
-      for(uint32_t i = 0; i < m_swapchain->getNumImages(); ++i)
+      for (uint32_t i = 0; i < m_swapchain->getNumImages(); ++i)
         m_finalStep->getCommandBuffer(i).reset();
       //vkResetCommandPool(*m_device, *m_graphicsCmdPool, 0/*VK_COMMAND_POOL_RESET_RELEASE_RESOURCES_BIT*/);
     }
 
     m_scene = scene;
 
-    Scene::LightContainer const& lights = scene->getLights();
-    std::vector<ShadowedLight> shadowLights = scene->getGlobalLights();
+    Scene::LightContainer const& lights       = scene->getLights();
+    std::vector<ShadowedLight>   shadowLights = scene->getGlobalLights();
 
     // Local lights
     if (!m_localLightsUBO) {
       VkDeviceSize lightUniformSize = sizeof(LightUBO);
-      m_localLightsUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
-        lightUniformSize * LocalLightingStep::MAX_LOCAL_LIGHTS + sizeof(uint32_t))); // the light count is at the very end of the buffer
+      m_localLightsUBO              = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+                                                                                   lightUniformSize * LocalLightingStep
+                                                                                   ::
+                                                                                   MAX_LOCAL_LIGHTS + sizeof(uint32_t
+                                                                                   ))); // the light count is at the very end of the buffer
     }
 
     // Global lights
@@ -738,9 +747,9 @@ namespace dw {
     {
       // NOTE: Global lights are NOT dynamic, hence they are updated here.
       Buffer staging = Buffer::CreateStaging(*m_device, uboSize);
-      auto   data = reinterpret_cast<ShadowedUBO*>(staging.map());
+      auto   data    = reinterpret_cast<ShadowedUBO*>(staging.map());
       for (size_t i = 0; i < shadowLights.size(); ++i)
-        data[i] = shadowLights[i].getAsShadowUBO();
+        data[i]     = shadowLights[i].getAsShadowUBO();
 
       *reinterpret_cast<uint32_t*>(data + GlobalLightStep::MAX_GLOBAL_LIGHTS) = shadowLights.size();
       staging.unMap();
@@ -748,7 +757,7 @@ namespace dw {
       CommandBuffer& cmdBuff = m_transferCmdPool->allocateCommandBuffer();
       cmdBuff.start(true);
 
-      VkBufferCopy copy = { 0, 0, uboSize };
+      VkBufferCopy copy = {0, 0, uboSize};
       vkCmdCopyBuffer(cmdBuff, staging, *m_globalLightsUBO, 1, &copy);
 
       cmdBuff.end();
@@ -768,30 +777,30 @@ namespace dw {
       util::ptr<Framebuffer> depthBuff = util::make_ptr<Framebuffer>(*m_device, SHADOW_DEPTH_MAP_EXTENT);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_IMAGE_VIEW_TYPE_2D,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
-        SHADOW_DEPTH_MAP_EXTENT,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
-        1,
-        1,
-        false,
-        false,
-        false,
-        false);
+                          VK_IMAGE_TYPE_2D,
+                          VK_IMAGE_VIEW_TYPE_2D,
+                          VK_FORMAT_R32G32B32A32_SFLOAT,
+                          SHADOW_DEPTH_MAP_EXTENT,
+                          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_STORAGE_BIT,
+                          1,
+                          1,
+                          false,
+                          false,
+                          false,
+                          false);
 
       depthBuff->addImage(VK_IMAGE_ASPECT_DEPTH_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_IMAGE_VIEW_TYPE_2D,
-        VK_FORMAT_D24_UNORM_S8_UINT,
-        SHADOW_DEPTH_MAP_EXTENT,
-        VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        1,
-        1,
-        false,
-        false,
-        false,
-        false);
+                          VK_IMAGE_TYPE_2D,
+                          VK_IMAGE_VIEW_TYPE_2D,
+                          VK_FORMAT_D24_UNORM_S8_UINT,
+                          SHADOW_DEPTH_MAP_EXTENT,
+                          VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+                          1,
+                          1,
+                          false,
+                          false,
+                          false,
+                          false);
 
       depthBuff->finalize(m_shadowMapStep->getRenderPass());
 
@@ -805,7 +814,12 @@ namespace dw {
     prepareDynamicUniformBuffers();
 
     // Descriptors
-    m_geometryStep->updateDescriptorSets(*m_modelUBO, *m_cameraUBO, *m_materialsUBO, *m_shaderControlBuffer, *m_materials, m_sampler);
+    m_geometryStep->updateDescriptorSets(*m_modelUBO,
+                                         *m_cameraUBO,
+                                         *m_materialsUBO,
+                                         *m_shaderControlBuffer,
+                                         *m_materials,
+                                         m_sampler);
     m_geometryStep->writeCmdBuff(*m_gbuffer, scene->getObjects(), m_modelUBOdynamicAlignment);
 
     m_shadowMapStep->updateDescriptorSets(*m_modelUBO, *m_globalLightsUBO);
@@ -814,23 +828,23 @@ namespace dw {
     m_blurStep->writeCmdBuff(m_globalLights, *m_blurIntermediate, *m_blurIntermediateView);
 
     m_globalLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
-      m_globalLights,
-      *m_scene->getBackground()->getView(),
-      *m_scene->getIrradiance()->getView(),
-      *m_cameraUBO,
-      *m_globalLightsUBO,
-      *m_globalImportanceUBO,
-      *m_shaderControlBuffer,
-      m_sampler);
-    
+                                            m_globalLights,
+                                            *m_scene->getBackground()->getView(),
+                                            *m_scene->getIrradiance()->getView(),
+                                            *m_cameraUBO,
+                                            *m_globalLightsUBO,
+                                            *m_globalImportanceUBO,
+                                            *m_shaderControlBuffer,
+                                            m_sampler);
+
     m_globalLightStep->writeCmdBuff(*m_globalLitFrameBuffer);
 
     m_localLightStep->updateDescriptorSets(m_gbuffer->getImageViews(),
-      m_globalLitFrameBuffer->getImageViews().front(),
-      *m_cameraUBO,
-      *m_localLightsUBO,
-      *m_shaderControlBuffer,
-      m_sampler);
+                                           m_globalLitFrameBuffer->getImageViews().front(),
+                                           *m_cameraUBO,
+                                           *m_localLightsUBO,
+                                           *m_shaderControlBuffer,
+                                           m_sampler);
     m_localLightStep->writeCmdBuff(*m_localLitFramebuffer, m_globalLitFrameBuffer->getImages().front());
 
     m_ambientStep->updateDescriptorSets(m_gbuffer->getImageViews()[0], m_gbuffer->getImageViews()[1], m_sampler);
@@ -855,7 +869,9 @@ namespace dw {
     Trace::Warn << "Model UBO Alignment: " << m_modelUBOdynamicAlignment << Trace::Stop;
     Trace::Warn << "(2^N) Alignment    : " << (m_modelUBOdynamicAlignment & -m_modelUBOdynamicAlignment) << Trace::Stop;
 
-    m_modelUBOdata = static_cast<ObjectUniform*>(alignedAlloc(modelUBOsize, m_modelUBOdynamicAlignment & -m_modelUBOdynamicAlignment));
+    m_modelUBOdata = static_cast<ObjectUniform*>(alignedAlloc(modelUBOsize,
+                                                              m_modelUBOdynamicAlignment & -m_modelUBOdynamicAlignment)
+    );
     assert(m_modelUBOdata);
 
     size_t numImages = m_swapchain->getNumImages();
@@ -1062,7 +1078,8 @@ namespace dw {
 
     m_cameraUBO           = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, cameraUniformSize));
     m_shaderControlBuffer = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(ShaderControl)));
-    m_globalImportanceUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device, sizeof(GlobalLightStep::ImportanceSampleUBO)));
+    m_globalImportanceUBO = util::make_ptr<Buffer>(Buffer::CreateUniform(*m_device,
+                                                                         sizeof(GlobalLightStep::ImportanceSampleUBO)));
   }
 
   void Renderer::setupFrameBufferImages() {
@@ -1115,33 +1132,33 @@ namespace dw {
 
     m_localLitFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
     m_localLitFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-      VK_IMAGE_TYPE_2D,
-      VK_IMAGE_VIEW_TYPE_2D,
-      VK_FORMAT_R8G8B8A8_UNORM,
-      gbuffExtent,
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      1,
-      1,
-      false,
-      false,
-      false,
-      false);
+                                    VK_IMAGE_TYPE_2D,
+                                    VK_IMAGE_VIEW_TYPE_2D,
+                                    VK_FORMAT_R8G8B8A8_UNORM,
+                                    gbuffExtent,
+                                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                    1,
+                                    1,
+                                    false,
+                                    false,
+                                    false,
+                                    false);
 
     m_ambientFramebuffer = util::make_ptr<Framebuffer>(*m_device, gbuffExtent);
     m_ambientFramebuffer->addImage(VK_IMAGE_ASPECT_COLOR_BIT,
-      VK_IMAGE_TYPE_2D,
-      VK_IMAGE_VIEW_TYPE_2D,
-      VK_FORMAT_R8G8B8A8_UNORM,
-      gbuffExtent,
-      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-      1,
-      1,
-      false,
-      false,
-      false,
-      false);
+                                   VK_IMAGE_TYPE_2D,
+                                   VK_IMAGE_VIEW_TYPE_2D,
+                                   VK_FORMAT_R8G8B8A8_UNORM,
+                                   gbuffExtent,
+                                   VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+                                   VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+                                   1,
+                                   1,
+                                   false,
+                                   false,
+                                   false,
+                                   false);
 
     MemoryAllocator allocator(m_device->getOwningPhysical());
     m_blurIntermediate = util::make_ptr<DependentImage>(*m_device);
@@ -1167,7 +1184,7 @@ namespace dw {
 
     m_splashScreenStep->setupShaders();
     m_splashScreenStep->setupDescriptors();
-    m_splashScreenStep->setupRenderPass({ m_swapchain->getImages()[0] });
+    m_splashScreenStep->setupRenderPass({m_swapchain->getImages()[0]});
     m_splashScreenStep->setupPipelineLayout();
     m_splashScreenStep->setupPipeline(m_swapchain->getImageSize());
 
@@ -1206,7 +1223,7 @@ namespace dw {
 
     m_localLightStep->setupShaders();
     m_localLightStep->setupDescriptors();
-    m_localLightStep->setupRenderPass({ m_localLitFramebuffer->getImages()[0] });
+    m_localLightStep->setupRenderPass({m_localLitFramebuffer->getImages()[0]});
     m_localLightStep->setupPipelineLayout();
     m_localLightStep->setupPipeline(m_localLitFramebuffer->getExtent());
 
@@ -1214,7 +1231,7 @@ namespace dw {
 
     m_ambientStep->setupShaders();
     m_ambientStep->setupDescriptors();
-    m_ambientStep->setupRenderPass({ m_ambientFramebuffer->getImages()[0] });
+    m_ambientStep->setupRenderPass({m_ambientFramebuffer->getImages()[0]});
     m_ambientStep->setupPipelineLayout();
     m_ambientStep->setupPipeline(m_ambientFramebuffer->getExtent());
 

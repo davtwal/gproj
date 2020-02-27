@@ -20,6 +20,7 @@
 
 #include <stdexcept>
 #include <array>
+#include "obj/Graphics.h"
 
 namespace dw {
   void RenderStep::renderScene(CommandBuffer&             commandBuff,
@@ -34,10 +35,13 @@ namespace dw {
     Mesh* curMesh = nullptr;
 
     for (uint32_t j = 0; j < scene.size(); ++j) {
-      auto& obj = scene.at(j);
+      auto obj = scene.at(j);
 
-      if (!curMesh || !(obj->m_mesh.get() == *curMesh)) {
-        curMesh = &obj->m_mesh.get();
+      if (!obj->get<Graphics>())
+        continue;
+
+      if (!curMesh || !(*obj->get<obj::Graphics>()->getMesh() == *curMesh)) {
+        curMesh = obj->get<obj::Graphics>()->getMesh().get();
 
         const VkBuffer&    buff   = curMesh->getVertexBuffer();
         const VkDeviceSize offset = 0;

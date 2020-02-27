@@ -36,7 +36,7 @@ namespace dw {
   }
 
   void InputHandler::registerMouseMoveFunction(moveCBFn callback) {
-    m_mouseCB = { callback };
+    m_mouseCB.onMove = callback;
   }
 
   void InputHandler::getMousePos(double& out_x, double& out_y) const {

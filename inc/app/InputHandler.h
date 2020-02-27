@@ -59,6 +59,7 @@ namespace dw {
     void onMouseRelease(int button) const;
 
   protected:
+    friend class GLFWControl;
     using KeyMap = ::std::map<int /*key*/, KeyCallback>;
 
     void inputKey(int key, int scancode, int action, int mods) const;

@@ -17,12 +17,12 @@
 #include "obj/Light.h"
 
 namespace dw {
-  Scene& Scene::addObject(util::ptr<Object> object) {
+  Scene& Scene::addObject(ObjContainer::value_type const& object) {
     m_objects.push_back(object);
     return *this;
   }
 
-  Scene& Scene::addLight(util::ptr<Light> light) {
+  Scene& Scene::addLight(LightContainer::value_type const& light) {
     m_lights.push_back(light);
     return *this;
   }
@@ -32,7 +32,7 @@ namespace dw {
     return *this;
   }
 
-  Scene& Scene::setCamera(Camera const& camera) {
+  Scene& Scene::setCamera(std::shared_ptr<obj::Camera> camera) {
     m_camera = camera;
     return *this;
   }
@@ -63,14 +63,9 @@ namespace dw {
     return m_globalLights;
   }
 
-  Camera const& Scene::getCamera() const {
+  std::shared_ptr<obj::Camera> Scene::getCamera() const {
     return m_camera;
   }
-
-  Camera& Scene::getCamera() {
-    return m_camera;
-  }
-
   util::ptr<Texture> Scene::getBackground() const {
     return m_background;
   }

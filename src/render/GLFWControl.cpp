@@ -57,6 +57,7 @@ namespace dw {
     assert(win);
 
     // TODO
+    win->m_inputHandler->inputMousePos(x, y);
   }
 
   void GLFWControl::WindowSizeCB(GLFWwindow* window, int w, int h) {
